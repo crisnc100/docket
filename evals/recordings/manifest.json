@@ -2,11 +2,19 @@
   "archive": "calls.jsonl",
   "context_source": "Operator report; counts checked against imported answer provenance",
   "fallback_reason": "Haiku falsely blocked 18 synthetic filler text requests with its safety filter. The operator reran those requests on Opus. Each answer names the model that supplied it.",
+  "graded_extension": {
+    "context_source": "Operator report; provenance checked against imported answers",
+    "method": "The operator supplied 40 answers from fresh independent calls.",
+    "requests": 40,
+    "simulator_counts": {
+      "claude-haiku-5-5": 40
+    }
+  },
   "method": "Each answer came from a fresh headless call. It saw only the request system prompt, messages and schema. It saw no expected labels, code or other answers.",
   "provider_measurement": false,
-  "requests": 400,
+  "requests": 440,
   "simulator_counts": {
-    "claude-haiku-5-5": 382,
+    "claude-haiku-5-5": 422,
     "claude-opus-5-5": 18
   },
   "status": "IMPORTED"

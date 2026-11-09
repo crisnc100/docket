@@ -1,0 +1,9 @@
+{
+ "output": {
+  "record_id": "UNIT-0102"
+ },
+ "provenance": {
+  "simulated_by": "claude-haiku-5-5",
+  "standing_in_for": "openai/gpt-4o-mini"
+ }
+}

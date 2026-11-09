@@ -27,6 +27,7 @@ async def main():
         "provenance",
         "simulation",
         "model_cost_usd",
+        "choice_comparison",
     ]:
         if reproduced.get(name) != stored.get(name):
             raise SystemExit(f"FAIL: replay report differs in {name}")

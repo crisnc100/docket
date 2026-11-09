@@ -487,3 +487,41 @@ Verification passes: 302 tests normally and 307 with the real fault suite.
 Both runs have zero skips and 100% required branch coverage.
 The replay check reproduces the saved pending state, not a new measured report.
 See graded-export-checkpoint.md for command evidence and each existing-test edit.
+
+## Graded corpus measurements
+
+The operator committed the shared rule as 85669b2 before the held-out measurement.
+The scoring config remains unchanged at threshold 0.5857142.
+The operator supplied 40 more independent Haiku answers.
+All pass schema and provenance checks. The import adds 20 recordings per seed.
+The original 400 recording bytes are unchanged.
+The saved mix is 422 Haiku answers and 18 Opus answers.
+
+Both replay evaluations pass. Seed 7 files 38 of 180 documents.
+Seed 11 files 36 of 180, with zero wrong filings and 90% clean filing.
+Its recall is 36/39, equal to the rules-only baseline.
+No injection document is filed to its injected id.
+Each seed's eight-point curve has six distinct precision/rate points.
+Raising the threshold loses filings here, with no measured precision gain.
+The held-out graded score 0.5842105 remains below the selected threshold.
+That result did not change any setting.
+
+The model's choose step changes no filing/review decision or filed record on either seed.
+Review proposals differ on 74 documents in seed 7 and 79 in seed 11.
+They still go to review. No filing gain from model choice is measured.
+Category accuracy is 124/140 on both seeds, versus the baseline's 132/140.
+Eight empty-shortlist no_record documents per seed receive misc without a model call.
+The reports and README state these limits.
+Both shadow reports classify every disagreement as both_correct against gold.
+
+A new table tests the unchanged shipped config with two independent signals.
+A score of 0.55 is strong but must go to review below 0.5857142.
+A score of 0.60 must file. No existing test changed.
+New report tests keep filing, review-proposal and category differences separate.
+The replay check includes the choice comparison.
+
+Verification passes: 313 tests normally and 318 with the real fault suite.
+Both have zero skips and 100% required branch coverage.
+Both reproduce the measured seed-11 report. All compose services are healthy.
+No model call, commit or push was made by the implementer.
+See graded-import-checkpoint.md and graded-import-evidence.txt for the evidence.

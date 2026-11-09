@@ -272,6 +272,46 @@ async def model_outcomes(labels, folder: Path, settings: Settings, mode: str, bu
     return outcomes, recordings, run_cost
 
 
+def compare_choices(outcomes: list[Outcome], baseline_results: list[Outcome]) -> dict:
+    def decision(outcome: Outcome) -> str:
+        if outcome.status in {"filed", "would_file"}:
+            return "file"
+        if outcome.status in {"would_review", "needs_review_expired", "dismissed"}:
+            return "review"
+        return outcome.status
+
+    routing_changes = 0
+    filed_record_changes = 0
+    review_proposal_changes = 0
+    category_changes = 0
+    changed = []
+    for result, legacy in zip(outcomes, baseline_results, strict=True):
+        if result.document_id != legacy.document_id:
+            raise ValueError("Choice comparison requires the same document order")
+        new_decision, old_decision = decision(result), decision(legacy)
+        routing_changed = new_decision != old_decision
+        record_changed = (
+            new_decision == old_decision == "file" and result.record_id != legacy.record_id
+        )
+        routing_changes += routing_changed
+        filed_record_changes += record_changed
+        review_proposal_changes += (
+            new_decision == old_decision == "review" and result.record_id != legacy.record_id
+        )
+        category_changes += result.category != legacy.category
+        if routing_changed or record_changed:
+            changed.append(result.document_id)
+    return {
+        "documents": len(outcomes),
+        "filing_decision_changes": len(changed),
+        "routing_changes": routing_changes,
+        "filed_record_changes": filed_record_changes,
+        "review_proposal_changes": review_proposal_changes,
+        "category_changes": category_changes,
+        "changed_document_ids": changed,
+    }
+
+
 def pending_requests(labels, folder: Path, settings: Settings) -> dict[str, PendingRequest]:
     requests = {}
     for label in labels:
@@ -457,6 +497,7 @@ async def evaluate(
         docket_results=[item.__dict__ for item in outcomes],
         floors=floors,
         shadow=shadow_diff(labels, outcomes, legacy),
+        choice_comparison=compare_choices(outcomes, legacy),
     )
     return report
 
@@ -556,6 +597,22 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
         "Wilson intervals show uncertainty at 95% confidence.\n\n"
         "The score threshold is the minimum score for automatic filing.\n"
         "Filing also requires two independent matching signals.\n\n"
+    )
+    comparison = report.get("choice_comparison")
+    if comparison:
+        text += (
+            "A filing decision is file versus review, including the record used for filing.\n"
+            "A review proposal is a suggested record for a document sent to review.\n"
+            "Category labels are compared separately from record choice.\n"
+            f"The model's choose step changes {comparison['filing_decision_changes']} filing "
+            "decisions versus the rules-only baseline "
+            f"across {comparison['documents']} documents.\n"
+            f"Routing changes: {comparison['routing_changes']}. "
+            f"Filed-record changes: {comparison['filed_record_changes']}.\n"
+            f"Review proposals differ on {comparison['review_proposal_changes']} documents. "
+            f"Category labels differ on {comparison['category_changes']} documents.\n\n"
+        )
+    text += (
         "## Metrics\n\n```json\n"
         + json.dumps(
             {
@@ -571,8 +628,27 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
         )
         + "\n```\n\n"
     )
+    baseline_points = len(
+        {
+            (point["auto_file_precision"], point["auto_file_rate"])
+            for point in report["baseline"]["curve"]
+        }
+    )
+    docket_points = (
+        len(
+            {
+                (point["auto_file_precision"], point["auto_file_rate"])
+                for point in report["docket"]["curve"]
+            }
+        )
+        if report["docket"]
+        else None
+    )
     text += (
-        "## Threshold curve\n\n| Threshold | Baseline precision | Baseline auto-file rate "
+        "## Threshold curve\n\n"
+        "A distinct point is a different pair of precision and auto-file rate.\n"
+        f"Baseline distinct points: {baseline_points}. Docket distinct points: {docket_points}.\n\n"
+        "| Threshold | Baseline precision | Baseline auto-file rate "
         "| Docket precision | Docket auto-file rate |\n"
         "| --- | --- | --- | --- | --- |\n"
     )

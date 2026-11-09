@@ -109,6 +109,22 @@ def test_conflict_overrides_even_maximum_score_at_minimum_valid_threshold(config
     assert result.score == 0 and result.decision == "review"
 
 
+def test_conflict_overrides_even_maximum_score_with_bypassed_low_threshold(config):
+    low_threshold = config.model_copy(update={"auto_file_threshold": Decimal("0.01")})
+    result = score_choice(
+        context(
+            evidence(**dict.fromkeys([s.value for s in Signal], 1.0)),
+            building_is_explicit=True,
+            conflict=True,
+        ),
+        "UNIT-0001",
+        low_threshold,
+    )
+    assert result.raw_score == 1
+    assert result.score == 0 and result.decision == "review"
+    assert result.conflict and result.reason == "conflicting_records"
+
+
 @pytest.mark.parametrize("signal", list(Signal))
 def test_any_single_signal_is_never_strong_even_with_dominant_weight(config, signal):
     weights = dict.fromkeys([s.value for s in Signal], "0") | {signal.value: "1"}

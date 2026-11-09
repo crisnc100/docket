@@ -1,0 +1,72 @@
+$ uv run pytest tests/core/test_conflict_address_regressions.py -q (before code change)
+FAILED tests/core/test_conflict_address_regressions.py::test_x1_full_strength_names_conflict_across_all_shipped_records[False-False-1]
+FAILED tests/core/test_conflict_address_regressions.py::test_x1_full_strength_names_conflict_across_all_shipped_records[False-False-5]
+FAILED tests/core/test_conflict_address_regressions.py::test_x1_full_strength_names_conflict_across_all_shipped_records[False-True-1]
+FAILED tests/core/test_conflict_address_regressions.py::test_x1_full_strength_names_conflict_across_all_shipped_records[False-True-5]
+FAILED tests/core/test_conflict_address_regressions.py::test_x1_full_strength_names_conflict_across_all_shipped_records[True-False-1]
+FAILED tests/core/test_conflict_address_regressions.py::test_x1_full_strength_names_conflict_across_all_shipped_records[True-False-5]
+FAILED tests/core/test_conflict_address_regressions.py::test_x1_full_strength_names_conflict_across_all_shipped_records[True-True-1]
+FAILED tests/core/test_conflict_address_regressions.py::test_x1_full_strength_names_conflict_across_all_shipped_records[True-True-5]
+FAILED tests/core/test_conflict_address_regressions.py::test_x1_explicit_id_conflicts_with_full_name_outside_selected_candidates
+FAILED tests/core/test_conflict_address_regressions.py::test_x2_shipped_unit_one_cannot_gain_address_support_from_another_unit[1A]
+FAILED tests/core/test_conflict_address_regressions.py::test_x2_shipped_unit_one_cannot_gain_address_support_from_another_unit[1-2]
+FAILED tests/core/test_conflict_address_regressions.py::test_x2_range_one_two_is_not_shipped_unit_twelve_or_unit_one
+FAILED tests/core/test_conflict_address_regressions.py::test_x2_shipped_house_number_suffix_does_not_match_numeric_house
+13 failed, 3 passed in 0.14s
+
+$ uv run pytest tests/core/test_conflict_address_regressions.py -q (after code change)
+................                                                         [100%]
+16 passed in 0.14s
+
+Shipped-record examples against accepted and changed code:
+x1 before {'conflict': False, 'address': 0.0, 'raw_score': '0.6500000', 'score': '0.6500000', 'tier': 'strong', 'decision': 'file'}
+x1 after {'conflict': True, 'address': 0.0, 'raw_score': '0.6500000', 'score': '0', 'tier': 'none', 'decision': 'review'}
+x2 unit 1A before {'conflict': False, 'address': 0.975609756097561, 'raw_score': '0.5926829', 'score': '0.5926829', 'tier': 'strong', 'decision': 'file'}
+x2 unit 1A after {'conflict': False, 'address': 0.0, 'raw_score': '0.3000000', 'score': '0.3000000', 'tier': 'medium', 'decision': 'review'}
+x2 unit 1-2 before {'conflict': False, 'address': 1.0, 'raw_score': '0.6000000', 'score': '0.6000000', 'tier': 'strong', 'decision': 'file'}
+x2 unit 1-2 after {'conflict': False, 'address': 0.0, 'raw_score': '0.3000000', 'score': '0.3000000', 'tier': 'medium', 'decision': 'review'}
+x2 house 1010A before {'conflict': False, 'address': 0.975609756097561, 'raw_score': '0.5926829', 'score': '0.5926829', 'tier': 'strong', 'decision': 'file'}
+x2 house 1010A after {'conflict': False, 'address': 0.0, 'raw_score': '0.3000000', 'score': '0.3000000', 'tier': 'medium', 'decision': 'review'}
+
+Replay comparisons:
+Seed 7: PASS; changed report fields: []
+Floors: {'clean_auto_file_rate_90pct': True, 'injection_to_injected_id_zero': True, 'recall_at_least_baseline': True, 'wrong_file_count_zero': True}
+Filings: 38 Clean: 1.0 Recall: 0.9743589743589743
+Seed 11: PASS; changed report fields: []
+Floors: {'clean_auto_file_rate_90pct': True, 'injection_to_injected_id_zero': True, 'recall_at_least_baseline': True, 'wrong_file_count_zero': True}
+Filings: 36 Clean: 0.9 Recall: 0.9230769230769231
+No seed-11 floor result changed. Threshold unchanged at 0.5857142.
+
+$ ./verify.sh
+======================== 329 passed in 87.82s (0:01:27) ========================
+PASS docket/core/candidates.py: 36/36 branches = 100.00% (required 95%)
+PASS docket/core/scoring.py: 32/32 branches = 100.00% (required 95%)
+PASS docket/core/ledger.py: 16/16 branches = 100.00% (required 95%)
+PASS docket/core/storage.py: 20/20 branches = 100.00% (required 90%)
+Replay report reproduced: PASS; seed=11; no model calls
+detect-secrets: {}
+Exit: 0
+
+$ ./verify.sh --fault
+tests/fault/test_faults.py .....                                         [ 48%]
+======================= 334 passed in 195.23s (0:03:15) ========================
+PASS docket/core/candidates.py: 36/36 branches = 100.00% (required 95%)
+PASS docket/core/scoring.py: 32/32 branches = 100.00% (required 95%)
+PASS docket/core/ledger.py: 16/16 branches = 100.00% (required 95%)
+PASS docket/core/storage.py: 20/20 branches = 100.00% (required 90%)
+Replay report reproduced: PASS; seed=11; no model calls
+detect-secrets: {}
+Exit: 0
+
+Input files unchanged: 1254 PASS
+Replay keys: seed 7 = 220 unchanged; seed 11 = 220 unchanged
+New exports, answers and recordings: 0
+Existing tests changed: 0
+Scoring policy, prompts and check scripts: unchanged
+
+$ docker compose ps --format <service,state,health>
+api running healthy
+postgres running healthy
+seaweedfs running healthy
+temporal running healthy
+worker running healthy

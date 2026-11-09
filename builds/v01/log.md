@@ -525,3 +525,38 @@ Both have zero skips and 100% required branch coverage.
 Both reproduce the measured seed-11 report. All compose services are healthy.
 No model call, commit or push was made by the implementer.
 See graded-import-checkpoint.md and graded-import-evidence.txt for the evidence.
+
+## PR2 conflict and address identity checks
+
+Full-strength name and address matches are checked across all records before selection.
+Full strength is 1.0, including names with reversed word order.
+An explicit id and a different record's full match force review.
+Matches outside the selected candidates still contribute to the conflict flag.
+Selection priority and scoring thresholds remain unchanged.
+Address lines are normalized once per document for the shared record scan.
+
+House and unit identifiers retain letters and hyphens.
+Unit 1A does not match unit 1. Unit 1-2 matches neither unit 1 nor unit 12.
+The abbreviation rules for Street/St and Apt/# remain.
+The supplied two-tenant example has raw score 0.65 but must go to review.
+The conflict flag caps its score at zero.
+The wrong-unit examples supply no address support and remain ID-only review cases.
+
+New tests use the shipped records and scoring config.
+Before the code change, nine conflict cases and four address cases failed.
+Three abbreviation controls passed. All sixteen pass with the change.
+The explicit-id conflict cases also require raw scores above the filing threshold.
+No existing test changed.
+
+All 440 replay requests are unchanged. No export or new answer was needed.
+Both replay evaluations pass with the same per-document results and metrics.
+No seed-11 floor changed: zero wrong filings, 90% clean filing,
+zero filings to injected ids and recall 36/39, equal to the baseline.
+The threshold stays at 0.5857142. No setting was selected using seed 11.
+All corpus, config, request, answer and recording files remain unchanged.
+No model call or commit was made by the implementer.
+
+Verification for the conflict and address checks passes with 329 tests normally
+and 334 tests with faults. Both have zero skips and 100% required branch coverage.
+Both reproduce the measured seed-11 report. All five compose services are healthy.
+See x1-x2-checkpoint.md and x1-x2-evidence.txt for failing-first and replay evidence.

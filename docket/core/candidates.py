@@ -8,6 +8,8 @@ from docket.config import Record, Signal
 
 # Underscores are regex word characters but delimit record ids in attachment names.
 ID_PATTERN = re.compile(r"(?<![^\W_])UNIT-[0-9]{4}(?![^\W_])", re.IGNORECASE)
+ADDRESS_TOKEN_PATTERN = re.compile(r"(?<![\w-])\d[\w-]*")
+FULL_SIGNAL_STRENGTH = 1.0
 
 
 def normalize_text(text: str) -> str:
@@ -16,7 +18,9 @@ def normalize_text(text: str) -> str:
 
 def normalize_address(text: str) -> str:
     text = re.sub(r"#\s*(?=\d)", " unit ", text)
-    normalized = normalize_text(text)
+    normalized = " ".join(
+        re.sub(r"[^\w-]+", " ", unicodedata.normalize("NFKC", text).casefold()).split()
+    )
     replacements = {
         "street": "st",
         "avenue": "ave",
@@ -58,18 +62,21 @@ def name_strength(names: list[str], chunks: list[str], cutoff: float) -> float:
 
 
 def address_strength(aliases: list[str], chunks: list[str], cutoff: float) -> float:
+    return _address_strength(aliases, [normalize_address(chunk) for chunk in chunks], cutoff)
+
+
+def _address_strength(aliases: list[str], chunks: list[str], cutoff: float) -> float:
     best = 0.0
     for alias in aliases:
         normalized = normalize_address(alias)
-        numbers = re.findall(r"\d+", normalized)
-        if not numbers:
+        tokens = ADDRESS_TOKEN_PATTERN.findall(normalized)
+        if not tokens:
             continue
-        for chunk in chunks:
-            address = normalize_address(chunk)
+        for address in chunks:
             if contains_phrase(normalized, address):
                 return 1.0
-            # Similar street names cannot supply a missing or different unit number.
-            if re.findall(r"\d+", address) == numbers:
+            # Similar street names cannot supply a missing or different house or unit token.
+            if ADDRESS_TOKEN_PATTERN.findall(address) == tokens:
                 best = max(best, fuzz.ratio(normalized, address) / 100)
     return best if best >= cutoff else 0.0
 
@@ -126,7 +133,12 @@ def shortlist(
         for line in (text + "\n" + subject + "\n" + filename).splitlines()
         if line.strip()
     ]
+    address_chunks = [
+        normalize_address(re.sub(r"^address\s*:\s*", "", line, flags=re.IGNORECASE))
+        for line in (text + "\n" + subject + "\n" + filename).splitlines()
+    ]
     candidates: list[Candidate] = []
+    graded: dict[str, Candidate] = {}
     corroborated_ids = set(all_ids)
     for record in records:
         address = any(
@@ -145,40 +157,35 @@ def shortlist(
                 contains_phrase(normalize_text(record.building), normalized_text)
             ),
         }
-        if address or current_name == 1.0 or former_name == 1.0:
-            corroborated_ids.add(record.record_id)
-        if any(signals.values()):
-            candidates.append(
-                Candidate(record.record_id, signals, former_name, signals[Signal.BUILDING] > 0)
-            )
-    candidates.sort(key=lambda candidate: candidate.record_id)
-    candidates.sort(key=lambda candidate: candidate.rank_score, reverse=True)
-    conflict = len(corroborated_ids) > 1
-    by_id = {record.record_id: record for record in records}
-    graded: list[Candidate] = []
-    # Grading follows selection so existing per-call shortlist enums stay stable.
-    for candidate in candidates[:k]:
-        record = by_id[candidate.record_id]
         former = name_strength(record.former_tenants, chunks, tenant_cutoff)
-        signals = candidate.signals | {
+        graded_signals = signals | {
             Signal.ADDRESS: max(
-                candidate.signals[Signal.ADDRESS],
-                address_strength(
-                    [record.address, *record.aliases],
-                    [
-                        re.sub(r"^address\s*:\s*", "", line, flags=re.IGNORECASE)
-                        for line in (text + "\n" + subject + "\n" + filename).splitlines()
-                    ],
-                    tenant_cutoff,
-                ),
+                float(address),
+                _address_strength([record.address, *record.aliases], address_chunks, tenant_cutoff),
             ),
             Signal.TENANT_NAME: max(
                 name_strength(record.current_tenants, chunks, tenant_cutoff), former
             ),
         }
-        graded.append(replace(candidate, signals=signals, former_tenant_score=former))
+        # Full matches outside the shortlist can still contradict the selected record.
+        if (
+            max(graded_signals[Signal.ADDRESS], graded_signals[Signal.TENANT_NAME])
+            >= FULL_SIGNAL_STRENGTH
+        ):
+            corroborated_ids.add(record.record_id)
+        if any(signals.values()):
+            candidate = Candidate(
+                record.record_id, signals, former_name, signals[Signal.BUILDING] > 0
+            )
+            candidates.append(candidate)
+            graded[record.record_id] = replace(
+                candidate, signals=graded_signals, former_tenant_score=former
+            )
+    candidates.sort(key=lambda candidate: candidate.record_id)
+    candidates.sort(key=lambda candidate: candidate.rank_score, reverse=True)
+    conflict = len(corroborated_ids) > 1
     return CandidateResult(
-        tuple(graded),
+        tuple(graded[candidate.record_id] for candidate in candidates[:k]),
         conflict,
         tuple(sorted(all_ids)),
         tuple(sorted(corroborated_ids)) if conflict else (),

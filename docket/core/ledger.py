@@ -52,7 +52,7 @@ TRANSITIONS: dict[Status, frozenset[Status]] = {
     ),
 }
 REJECTION_REASONS = frozenset(
-    {"no_attachment", "unsupported_type", "zero_byte", "encrypted", "too_large"}
+    {"no_attachment", "unsupported_type", "zero_byte", "encrypted", "too_large", "corrupt"}
 )
 
 

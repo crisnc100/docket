@@ -6,7 +6,8 @@ from rapidfuzz import fuzz
 
 from docket.config import Record, Signal
 
-ID_PATTERN = re.compile(r"(?<![A-Za-z0-9_-])UNIT-[0-9]{4}(?![A-Za-z0-9_-])", re.IGNORECASE)
+# Underscores are regex word characters but delimit record ids in attachment names.
+ID_PATTERN = re.compile(r"(?<![^\W_])UNIT-[0-9]{4}(?![^\W_])", re.IGNORECASE)
 
 
 def normalize_text(text: str) -> str:

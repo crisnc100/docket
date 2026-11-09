@@ -42,7 +42,7 @@ services:
       - seaweedfs-data:/data
       - ./config/s3.local.json:/etc/seaweedfs/s3.json:ro
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9333/healthz"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8333/healthz"]
       interval: 3s
       timeout: 3s
       retries: 40

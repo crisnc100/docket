@@ -1,0 +1,126 @@
+{
+  "family": "fable",
+  "model": "claude-fable-5-2",
+  "criteria": [
+    {
+      "id": "PR1-1",
+      "criterion": "./verify.sh runs ruff, pyright (strict on docket/core/), pytest with zero skips enforced, per-module branch coverage gate, and detect-secrets; the GitHub Actions workflow runs the same script.",
+      "verdict": "PASS",
+      "evidence": "verify.sh:7-8 ruff check + format --check; :9 pyright with pyproject.toml:33-37 (typeCheckingMode basic, strict=[\"docket/core\"]); :11 pytest --cov=docket.core --cov-branch; :12 scripts/check_coverage.py; :13-14 detect-secrets scan --all-files, exits non-zero on any result. Zero skips: tests/conftest.py:4-7 fails the session if any test reports skipped, :10-13 raises UsageError on skip/skipif markers. .github/workflows/verify.yml:23 runs ./verify.sh (Postgres service, SeaweedFS via compose). Not executed by me (read-only tools) and CI has not run remotely; static read only. xfail is not blocked by the skip guard."
+    },
+    {
+      "id": "PR1-2",
+      "criterion": "Per-module branch coverage gate enforces >=95% on candidates, scoring, ledger and >=90% on storage, and storage tests exercise a real S3-compatible server (SeaweedFS) for the happy path, not mocks.",
+      "verdict": "PASS",
+      "evidence": "scripts/check_coverage.py:9-14 floors 95/95/95/90, :29-38 uses num_branches/covered_branches only, :20-21 rejects non-branch reports, :25-27 and :34-36 fail on missing module or zero branches; tests/core/test_coverage_gate.py covers exact floor, 94/89 rejection and malformed reports. tests/core/test_storage.py:22-41 builds a real boto3 client against S3_ENDPOINT_URL (default 127.0.0.1:9000 = compose seaweedfs) and creates a real bucket; :61-78 happy path and retry no-op against it; grep for mock/monkeypatch/patch in tests/core returns nothing. .cache/coverage.json (timestamp 2026-11-09T15:48:12) totals 100/100 branches for docket.core, matching builds/v01/p2-checkpoint.md:104-107. Cached artifact, not re-run by me."
+    },
+    {
+      "id": "PR1-3",
+      "criterion": "Both corpus seeds (7, 11) have >=150 docs covering every case type in plan P1.6 (incl. injection with a real non-gold record id, former_tenant, building_level, empty_text_layer, corrupt, encrypted, zero_byte, non_pdf, very_long, exact_duplicate), with labels; a test proves regeneration is deterministic on extracted text and labels.",
+      "verdict": "PASS",
+      "evidence": "corpus/seed-7/labels.jsonl and corpus/seed-11/labels.jsonl each have 170 case_type rows (grep count). docket/corpus.py:15-33 lists all 17 P1.6 case types, 10 batches each. tests/test_corpus.py:38-52 regenerates both seeds, asserts len>=150, Counter == 10 per case type, regenerated labels == committed labels, and extracted text equal per document (not raw bytes). :65-71 asserts the injected id is a real record, differs from gold, appears in the text, and the gold address is present. Labels carry record_id, category, expected, duplicate_of, case_type (corpus.py:37-47)."
+    },
+    {
+      "id": "PR1-4",
+      "criterion": "Scoring implements the 2-independent-signal rule: an explicit id alone (even repeated) is never strong; conflicts force review; injection-id + gold-address yields conflict -> review; tests cover each.",
+      "verdict": "PASS",
+      "evidence": "docket/core/scoring.py:133-136 caps a <2-signal score one quantum below strong_threshold and requires len(independent)>=2 for Tier.STRONG; :120-130 conflict returns score 0, Tier.NONE, review, reason conflicting_records. Tests: tests/core/test_scoring.py:45-46 id_alone and id_repeated_3x -> 0.30/medium/review from real shortlist evidence; :112-122 every single signal capped at 0.5499999 even with weight 1; :83-94 injection id + gold address -> conflict/review for either choice; :97-109 conflict overrides max score and a 0.01 threshold. Caveat filed as a finding: the file decision is gated on auto_file_threshold, not on the strong tier."
+    },
+    {
+      "id": "PR1-5",
+      "criterion": "Storage keys are built only from config/record/enum components validated against [A-Za-z0-9_-]+ (path traversal rejected); put_if_absent is a no-op for same key+hash and raises a typed error for same key with different hash.",
+      "verdict": "PASS",
+      "evidence": "docket/core/storage.py:27-34 build_key takes a Record plus Category enum (non-enum category rejected :29-30), fullmatches building, record_id and category.value against [A-Za-z0-9_-]+, and appends sha256[:16].pdf after validate_hash; Record fields are also pattern-validated at docket/config.py:28-30. validate_key :37-42 rejects '..', '.', empty and non-ASCII segments before any S3 call. put_if_absent :96-120 uses IfNoneMatch='*', returns False when the existing bytes hash matches, raises StorageConflict (status_reason storage_conflict, non_retryable) otherwise. Tests: test_storage.py:48-58 traversal in category/building rejected; :121-140 ten traversal keys rejected with zero objects written; :61-78 retry no-op (same ETag/LastModified); :81-88 conflict preserves original; :91-101 six concurrent puts, one creator."
+    },
+    {
+      "id": "PR1-6",
+      "criterion": "Ledger: event appends are idempotent on idem_key; status transitions use a whitelist and nothing leaves a terminal status.",
+      "verdict": "PASS",
+      "evidence": "docket/core/ledger.py:72-78 inserts with idem_key f\"{document_id}:{step}\" and ON CONFLICT DO NOTHING on idem_key; unique constraint in migrations/versions/690f4793dd3f_...py:86 and docket/db.py:61. TRANSITIONS :38-53 has entries only for received, processing, needs_review; :92-93 rejects anything not whitelisted, so the seven terminal statuses have no exits; row locked with FOR UPDATE :83. Tests: tests/core/test_ledger.py:38-50 duplicate append keeps the first detail; :53-61 five concurrent appends, one row; :83-113 all 100 status pairs against real Postgres; :73-80 terminal retry does not change reason or add an event."
+    },
+    {
+      "id": "PR1-7",
+      "criterion": "Model gateway: replay miss raises a non-retryable error; record mode refuses non-corpus sources; per-call worst-case budget pre-check and a persisted daily cap exist with tests; no live calls in tests.",
+      "verdict": "PASS",
+      "evidence": "docket/llm/errors.py:4-6 every GatewayError is a Temporal ApplicationError with non_retryable=True; replay.py:65-68 raises ReplayMiss; test_gateway.py:89-96 and :309-331 assert the miss and non_retryable. gateway.py:107-108 RecordRefused unless source == 'synthetic_corpus', before any transport call; tests :99-109. Pre-check: gateway.py:118-120 reserves PriceCeiling.worst_case (budget.py:31-42) before the transport; tests :112-127 assert zero calls for both run and daily limits. Daily cap persisted in budget_ledger with an atomic conditional UPDATE (budget.py:69-85); tests :130-143 across instances and 8 threads. No live calls: tests use a fake Transport, httpx.MockTransport (:273) and test_spike.py:7-12 with an empty key or a monkeypatched transport."
+    },
+    {
+      "id": "PR1-8",
+      "criterion": "No secrets committed (only .env.example); compose defines healthchecks for postgres, temporal and the S3 server; Temporal state persists on a volume.",
+      "verdict": "PASS",
+      "evidence": "Only .env.example exists on disk (glob .env*); .gitignore:1-3 ignores .env and .env.* except the example; OPENROUTER_API_KEY is empty in .env.example:6; local-only credentials are marked allowlist; my grep for key patterns outside .cache/.venv/corpus found nothing; .cache/secrets.json results are {}. compose.yaml:10-14 pg_isready, :29-33 temporal operator cluster health, :44-48 SeaweedFS /healthz. Temporal runs with --db-filename /data/server/temporal.db on the named volume temporal-data (:26-28, :52). I could not run git, so 'committed' is inferred from the working tree. The file is compose.yaml, not docker-compose.yml. The SeaweedFS check probes the master port 9333, not the S3 port 8333 (see finding)."
+    }
+  ],
+  "findings": [
+    {
+      "likelihood": 8,
+      "impact": 5,
+      "protected": false,
+      "trigger": "shortlist(records, text='', filename='doc-0002-UNIT-0102-id_in_filename_only.pdf'), i.e. every id_in_filename_only document in both committed seeds, or any real filename like lease_UNIT-0042.pdf or scan-UNIT-0042.pdf",
+      "issue": "The filename-id rule never fires when the id is joined to other text by a hyphen or underscore, which is how the corpus itself names its id_in_filename_only fixtures. Those documents get an empty shortlist, so the case type is indistinguishable from no_record, and a filename id that disagrees with the body id does not raise the conflict flag the plan requires ('two distinct record ids appear anywhere').",
+      "file": "docket/core/candidates.py",
+      "line": "9",
+      "evidence": "ID_PATTERN = (?<![A-Za-z0-9_-])UNIT-[0-9]{4}(?![A-Za-z0-9_-]) rejects a preceding or following '-' or '_'. corpus.py:123 builds f\"{document_id}-{record.record_id}-{case_type}.pdf\"; seed-7 labels.jsonl:2 is doc-0002-UNIT-0102-id_in_filename_only.pdf. tests/core/test_candidates.py:26 asserts 'UNIT-0001-extra' never becomes a candidate, so the behavior is locked in. No test runs the shortlist over the corpus, so nothing caught it."
+    },
+    {
+      "likelihood": 9,
+      "impact": 5,
+      "protected": false,
+      "trigger": "Score any address_only or tenant_only corpus document at the default thresholds (config/scoring.json) in the P3 eval",
+      "issue": "The corpus labels address_only and tenant_only as expected 'filed', but the scoring caps every single-signal candidate below the strong and auto-file threshold, so all 20 per seed go to review. The P3 floor 'auto-file rate >=60% on clean, address_only and tenant_only combined' tops out at 10/30 unless the threshold is lowered, and lowering it to reach them also auto-files id-alone and former-tenant-only documents.",
+      "file": "docket/corpus.py",
+      "line": "126-129",
+      "evidence": "corpus.py:126-129 leaves expected='filed' with a body of only the address or only the tenant line; seed-7 labels.jsonl:3-4 confirm. scoring.py:133-134 caps <2 signals at strong_threshold - 1e-7; scoring.json has address .30, tenant .25, auto_file_threshold .55. test_scoring.py:125-129 shows address alone = .30/medium/review."
+    },
+    {
+      "likelihood": 4,
+      "impact": 7,
+      "protected": false,
+      "trigger": "Set auto_file_threshold to 0.30 or lower (the P3 curve sweeps this value) and score a document whose only evidence is a body id",
+      "issue": "The file decision is not gated on the strong tier. With auto_file_threshold below strong_threshold, a medium-tier single signal (an explicit id alone, the injection vector when no gold address is present) is auto-filed. Config validation accepts any auto_file_threshold > 0, so nothing stops it.",
+      "file": "docket/core/scoring.py",
+      "line": "141",
+      "evidence": "scoring.py:141 can_file = value >= config.auto_file_threshold and tier != Tier.NONE; :52 only rejects auto_file_threshold <= 0. The single-signal cap (:133-134) is relative to strong_threshold, not auto_file_threshold. Tests only exercise auto_file == strong (.55 and .50) or a conflict case."
+    },
+    {
+      "likelihood": 10,
+      "impact": 4,
+      "protected": false,
+      "trigger": "uv run docket --help",
+      "issue": "The plan's PR1 scope says main works on its own with 'a CLI that shortlists and scores a PDF'. No such command exists; extraction, shortlist and score_choice are never wired together anywhere, so nothing in PR1 runs the pipeline end to end.",
+      "file": "docket/cli.py",
+      "line": "11-45",
+      "evidence": "cli.py defines only version, spike-models and corpus generate. Grep for shortlist|score_choice|extract_document in docket/ finds only their definitions in docket/core. builds/v01/plan.md:8."
+    },
+    {
+      "likelihood": 9,
+      "impact": 3,
+      "protected": false,
+      "trigger": "Run any *-corrupt.pdf corpus document through extract_document and compare the outcome to its label",
+      "issue": "Corrupt documents are labelled expected 'rejected', but extraction raises DocumentParseError (non-retryable, which the plan maps to 'failed'), and the ledger's rejection reasons have no corrupt or parse entry. The P3 eval will show 10 mismatches per seed unless it maps failed to rejected or the labels change.",
+      "file": "docket/corpus.py",
+      "line": "170-172",
+      "evidence": "corpus.py:172 expected='rejected' for corrupt; extraction.py:63-64 raises DocumentParseError; test_extraction.py:44-47 asserts that on the committed fixture; ledger.py:54-56 REJECTION_REASONS = no_attachment, unsupported_type, zero_byte, encrypted, too_large; plan.md:39-42."
+    },
+    {
+      "likelihood": 10,
+      "impact": 3,
+      "protected": false,
+      "trigger": "Read docs/adr/001-model-enum-spike.md",
+      "issue": "The P1 exit check 'the spike is recorded' is unmet: the model enum spike has not been run because no OpenRouter key was available. Per-call enum compliance on the default model is still a prediction.",
+      "file": "docs/adr/001-model-enum-spike.md",
+      "line": "3",
+      "evidence": "Status: PENDING, Result: PENDING (lines 3, 22); no docs/adr/model-spike-result.json exists; p2-checkpoint.md:152 says the live spike remains pending."
+    },
+    {
+      "likelihood": 3,
+      "impact": 3,
+      "protected": false,
+      "trigger": "CI: docker compose up -d --wait seaweedfs, immediately followed by ./verify.sh storage tests calling create_bucket on port 9000->8333",
+      "issue": "The SeaweedFS healthcheck probes the master (9333/healthz), not the S3 gateway (8333). 'Healthy' can precede S3 readiness, so the first storage test in CI may fail with a connection error. Unverified: I could not run it, and the local logs show it passing.",
+      "file": "compose.yaml",
+      "line": "45",
+      "evidence": "compose.yaml:45 wget http://localhost:9333/healthz while S3 listens on -s3.port=8333 (:37, :40); .github/workflows/verify.yml:22-23 has no S3 readiness step; plan.md:95 asks for '/healthz and a boto3 S3 call'."
+    }
+  ]
+}

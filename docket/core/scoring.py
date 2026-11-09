@@ -51,6 +51,8 @@ class ScoringConfig(BaseModel):
             raise ValueError("Tier thresholds must be separated by at least one score quantum")
         if self.auto_file_threshold <= 0:
             raise ValueError("Auto-file threshold must be positive")
+        if self.auto_file_threshold < self.strong_threshold:
+            raise ValueError("Auto-file threshold must be >= strong threshold")
         return self
 
 
@@ -138,7 +140,7 @@ def score_choice(
         tier = Tier.MEDIUM
     else:
         tier = Tier.NONE
-    can_file = value >= config.auto_file_threshold and tier != Tier.NONE
+    can_file = value >= config.auto_file_threshold and tier == Tier.STRONG
     return ScoreResult(
         record_id,
         value,

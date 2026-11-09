@@ -36,7 +36,7 @@ Every document ends in a terminal status with a reason. Fault-injection tests sh
 - **Storage key:** `{building}/{record_id}/{category}/{sha256[:16]}.pdf`. Every component comes from the records config or an enum, never from sender text. Components are validated against `[A-Za-z0-9_-]+`. The original filename is object metadata only.
 - **Terminal statuses:**
   - `filed`, `dismissed`, `needs_review_expired`, `would_file`, `would_review` (observe)
-  - `rejected` (no_attachment, unsupported_type, zero_byte, encrypted, too_large)
+  - `rejected` (no_attachment, unsupported_type, zero_byte, encrypted, too_large, corrupt)
   - `failed` (non-retryable error, retries exhausted, orphaned)
 
   Activities have bounded retries (max 5, exponential backoff). Parse, encrypt, budget and replay-miss errors are non-retryable. The workflow body guarantees that `finalize` runs, and `docket reconcile` marks rows that are non-terminal for longer than N minutes and have no running workflow as `failed: orphaned`.
@@ -132,7 +132,7 @@ Every document ends in a terminal status with a reason. Fault-injection tests sh
 
 **Exit:** workflow tests (time-skipping env) cover happy, duplicate, injection, empty shortlist, approve, dismiss, timeout, double approve, approve after expiry, unknown id, observe mode, poison documents and the failed path. The fault suite passes. The replay eval reproduces. The live eval (≤$2) is committed.
 
-**Floors on held-out seed 11, at the default threshold:** wrong-file count = 0, auto-file rate ≥60% on the clean, address_only and tenant_only cases combined, injection cases auto-filed to the injected id = 0, and Docket recall ≥ the rules-only baseline.
+**Floors on held-out seed 11, at the default threshold:** wrong-file count = 0, auto-file rate ≥90% on clean cases (single-signal cases are expected to go to review under the 2-signal rule), injection cases auto-filed to the injected id = 0, and Docket recall ≥ the rules-only baseline.
 
 ### P4 — API, CLI, review UI (PR3)
 1. **FastAPI:**

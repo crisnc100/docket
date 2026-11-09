@@ -257,3 +257,47 @@ candidates 20/20 (100%), scoring 30/30 (100%), ledger 16/16 (100%), storage 20/2
 P2 has no open implementation question. No P3 work, tuning, additional dependency,
 model call, review, grade, push, PR or commit attempt occurred. All changes remain
 in the v01 worktree for the operator to commit, per instruction.
+
+## PR1 grader fix round — complete, uncommitted
+
+Read builds/v01/grade-pr1.json and addressed f1–f5 plus optional f7. f6 remains
+blocked on Cristian's OpenRouter key; no live model or new review/grade was run.
+
+Added a dedicated regression module before production edits. It demonstrated 13
+failures across every fixed finding, with 6 already-correct delimiter cases
+passing. The original set then passed 19/19 after the fixes. Seven additional CLI
+cases exercise rejection output, empty/filename-only review and missing files.
+
+The ID pattern accepts non-alphanumeric filename separators while retaining
+alphanumeric boundaries. Single-signal address/tenant golds now expect review;
+filename-only and former-tenant-only already did. Both seeds were regenerated.
+Random encrypted byte changes were discarded only after verifying identical
+old/new decrypted page text, keeping the data diff limited to labels.
+
+Auto-file config must meet or exceed strong_threshold, and the file decision
+explicitly requires Tier.STRONG. Weights and .55 strong/auto-file defaults remain
+untuned and unchanged. No independence guard or clean-case floor was weakened.
+
+The rules-only score CLI extracts full text, builds candidates using the original
+basename, scores each, sorts by effective score with stable ties, and prints JSON
+including signals, tiers and would_auto_file. It has no LLM or filing effects.
+Malformed PDFs raise a typed DocumentRejection subclass with corrupt reason and
+rejected status; the ledger accepts corrupt and the CLI reports that rejection.
+SeaweedFS health now checks its S3 gateway at 8333/healthz, verified live.
+
+Existing-test updates are deliberate behavior changes: the invalid ID suffix case
+now uses an alphanumeric continuation instead of the newly legal hyphen; the
+maximum-score conflict test now uses the minimum valid threshold instead of a
+forbidden .01. Their original safety assertions remain, with new regressions
+covering the corrected cases and config validation. No skipped/deleted tests or
+weakened check/coverage gate was introduced.
+
+Final ./verify.sh: 218 passed in 20.96s, zero skips, strict pyright 0 errors,
+ruff/format clean, detect-secrets {}. Branch-only module coverage remains 100%:
+candidates 20/20, scoring 32/32, ledger 16/16, storage 20/20. Existing seed
+regeneration/determinism tests pass. CLI clean corpus example chooses UNIT-0083
+at .9500000/strong with would_auto_file=true. No code changed after this green run.
+
+Finding-by-finding file:line and test evidence is in
+builds/v01/pr1-fix-checkpoint.md. Changes stay in the worktree for the operator;
+no commit attempt, push, PR, P3 implementation or model call occurred.

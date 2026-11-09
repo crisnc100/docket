@@ -12,6 +12,7 @@ class RejectionReason(StrEnum):
     ZERO_BYTE = "zero_byte"
     ENCRYPTED = "encrypted"
     TOO_LARGE = "too_large"
+    CORRUPT = "corrupt"
 
 
 @dataclass(frozen=True)
@@ -26,10 +27,17 @@ class Rejected:
     reason: RejectionReason
 
 
-class DocumentParseError(Exception):
-    """A malformed PDF cannot be repaired by retrying the same bytes."""
-
+class DocumentRejection(Exception):
     non_retryable = True
+    status = "rejected"
+
+    def __init__(self, reason: RejectionReason, message: str):
+        super().__init__(message)
+        self.reason = reason
+
+
+class DocumentParseError(DocumentRejection):
+    """Malformed bytes are a permanent document rejection, not an infrastructure failure."""
 
 
 def truncate_for_llm(text: str) -> str:
@@ -61,4 +69,4 @@ def extract_document(
         text = "\n".join(page.extract_text() for page in reader.pages)
         return Extracted(text=text, llm_text=truncate_for_llm(text), page_count=len(reader.pages))
     except (PyPdfError, ValueError, TypeError, KeyError, OSError, NotImplementedError) as exc:
-        raise DocumentParseError("Unable to parse PDF bytes") from exc
+        raise DocumentParseError(RejectionReason.CORRUPT, "Unable to parse PDF bytes") from exc

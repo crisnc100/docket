@@ -125,8 +125,10 @@ def generate(
                 expected = "review"
             elif case_type == "address_only":
                 body = [f"Address: {record.address}"]
+                expected = "review"
             elif case_type == "tenant_only":
                 body = [f"Tenant: {record.current_tenants[0]}"]
+                expected = "review"
             elif case_type == "former_tenant":
                 body = [f"Former tenant: {record.former_tenants[0]}"]
                 expected = "review"

@@ -23,7 +23,7 @@ def test_ids_in_all_sources_resolve_real_records(records, source):
     [
         "UNIT-00010",
         "XUNIT-0001",
-        "UNIT-0001-extra",
+        "UNIT-0001extra",
         "UNIT_0001",
         "UNIT-000",
         "unrelated",

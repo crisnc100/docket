@@ -94,8 +94,8 @@ def test_injection_id_and_gold_address_conflict_forces_review_for_either_choice(
         assert result.score == 0 and result.tier == Tier.NONE
 
 
-def test_conflict_overrides_even_maximum_score_and_minimum_threshold(config):
-    low_threshold = make_config(config, auto_file_threshold="0.01")
+def test_conflict_overrides_even_maximum_score_at_minimum_valid_threshold(config):
+    low_threshold = make_config(config, auto_file_threshold=config.strong_threshold)
     result = score_choice(
         context(
             evidence(**dict.fromkeys([s.value for s in Signal], 1.0)),

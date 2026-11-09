@@ -1,0 +1,6 @@
+{"f1":{"status":"fixed","response":"real"},
+ "f2":{"status":"fixed","response":"real"},
+ "f3":{"status":"fixed","response":"real"},
+ "f4":{"status":"fixed","response":"real"},
+ "f5":{"status":"fixed","response":"real"},
+ "f6":{"status":"rejected","reason":"Requirement withdrawn by the operator (2026-11-09): no key for now; model behaviour simulated via export/import; real-model spike deferred until a key exists.","evidence":"builds/v01/plan.md Decision 2026-11-09; docs/adr/001-model-enum-spike.md","response":"intentional"}}

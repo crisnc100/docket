@@ -14,14 +14,14 @@ Every document ends in a terminal status with a reason. Fault-injection tests sh
 - **Workflow:** temporalio.
 - **Documents and matching:** pypdf, rapidfuzz, reportlab, Faker.
 - **LLM:** langchain-openai (OpenRouter).
-- **Storage:** boto3 (S3-compatible only; MinIO locally).
+- **Storage:** boto3 (S3-compatible only; SeaweedFS (S3) locally).
 - **CLI and HTTP:** Typer, httpx.
 - **Tests and checks:** pytest, pytest-asyncio, pytest-cov, ruff, pyright (strict on `docket/core/`), detect-secrets.
 - **Web:** Vite + TypeScript, a static build served by FastAPI. Playwright for one smoke test.
 - **Compose:**
   - Postgres 16
-  - Temporal dev server (`temporalio/temporal server start-dev --ip 0.0.0.0 --db-filename /data/temporal.db`, on a volume)
-  - MinIO
+  - Temporal dev server (`temporalio/temporal server start-dev --ip 0.0.0.0 --db-filename /data/server/temporal.db`, on a volume)
+  - SeaweedFS (S3)
   - api and worker
 - New dependencies outside this list need a callback.
 
@@ -92,7 +92,7 @@ Every document ends in a terminal status with a reason. Fault-injection tests sh
      - very_long
    - Seeds 7 and 11 are committed. The determinism test compares extracted text and labels after regeneration, not raw bytes.
 
-**Exit:** `./verify.sh` green. The compose services pass healthchecks (pg_isready, Temporal `operator cluster health`, MinIO `/minio/health/live`). The gateway replay, record-refusal, budget pre-check, daily-cap and corpus-determinism tests pass, and the spike is recorded.
+**Exit:** `./verify.sh` green. The compose services pass healthchecks (pg_isready, Temporal `operator cluster health`, SeaweedFS `/healthz` and a boto3 S3 call). The gateway replay, record-refusal, budget pre-check, daily-cap and corpus-determinism tests pass, and the spike is recorded.
 
 ### P2 — Domain core (PR1, plain Python, `docket/core/`)
 1. **Extraction:** pypdf with typed results and rejection reasons. Truncation for the LLM keeps the first 6k characters plus the last 2k.
@@ -106,7 +106,7 @@ Every document ends in a terminal status with a reason. Fault-injection tests sh
 - table-driven score tests, including "an explicit id alone is never strong" and "injection id plus gold address gives conflict, which goes to review"
 - storage idempotency and key-sanitization tests (path traversal attempts rejected)
 - transition whitelist tests
-- branch coverage ≥95% per module on candidates, scoring and ledger, and ≥90% on storage against MinIO, with no mocks for the happy path
+- branch coverage ≥95% per module on candidates, scoring and ledger, and ≥90% on storage against SeaweedFS (S3), with no mocks for the happy path
 
 ### P3 — Workflow, fault injection, eval (PR2)
 1. **`FileDocumentWorkflow`** takes a storage key as input, never document bytes. Activities: extract, classify, shortlist, choose, score, file, finalize. Each has a start_to_close timeout (30s) and a heartbeat timeout (10s) where it's long-running.
@@ -120,7 +120,7 @@ Every document ends in a terminal status with a reason. Fault-injection tests sh
    - kill during `choose`: same assertions
    - the API crashes after the raw write and before the `documents` insert: resubmit gives one document. After the insert and before workflow start, reconcile starts the workflow.
    - 3 concurrent submits plus 1 resubmit after `filed` via HTTP, with a different `message_id`: one document and one filing
-   - a MinIO transient error, retried: one object
+   - a SeaweedFS (S3) transient error, retried: one object
    - each test **asserts that the failpoint fired**, from the worker's exit code and a log line
 8. **Eval** `docket eval --seed 11 --mode replay|record|live --budget N`:
    - Docket vs. the rules-only baseline
@@ -155,7 +155,7 @@ Every document ends in a terminal status with a reason. Fault-injection tests sh
 
 ## Acceptance criteria
 - **D1** `./verify.sh` passes: ruff, pyright (strict on core), unit and workflow tests with zero skips, per-module coverage, the replay eval reproduction, detect-secrets, `docker compose build`. The GitHub Actions workflow runs the same script. *CI-green is checked after the first push, which needs Cristian's `gh auth login`.*
-- **D2** Per-module branch coverage: ≥95% on candidates, scoring and ledger, and ≥90% on storage against real MinIO.
+- **D2** Per-module branch coverage: ≥95% on candidates, scoring and ledger, and ≥90% on storage against real SeaweedFS (S3).
 - **D3** Both corpus seeds have ≥150 docs covering every case type in P1.6, and regeneration is deterministic on extracted text and labels.
 - **D4** Injection safety:
   - The choose schema is restricted to the shortlist.

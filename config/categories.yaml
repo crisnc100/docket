@@ -1,0 +1,17 @@
+schema_version: 1
+categories:
+  lease:
+    label: Lease agreement
+    required_signals: [tenant_name, address]
+  inspection:
+    label: Inspection report
+    required_signals: [address, building]
+  invoice:
+    label: Invoice
+    required_signals: [address, building]
+  notice:
+    label: Tenant notice
+    required_signals: [address, building]
+  misc:
+    label: Miscellaneous
+    required_signals: [address, tenant_name]

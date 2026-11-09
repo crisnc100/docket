@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: docket
+      POSTGRES_PASSWORD: docket # pragma: allowlist secret
+      POSTGRES_DB: docket
+    ports: ["127.0.0.1:55432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docket -d docket"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+  temporal-data-init:
+    image: temporalio/temporal:1.5.1
+    user: "0:0"
+    entrypoint: ["sh", "-c"]
+    command: ["mkdir -p /data/server && chown 1000:1000 /data/server"]
+    volumes: ["temporal-data:/data"]
+  temporal:
+    image: temporalio/temporal:1.5.1
+    depends_on:
+      temporal-data-init:
+        condition: service_completed_successfully
+    command: server start-dev --ip 0.0.0.0 --db-filename /data/server/temporal.db
+    ports: ["7233:7233", "8233:8233"]
+    volumes: ["temporal-data:/data"]
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "127.0.0.1:7233"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.53
+    command: >-
+      mini -dir=/data -ip=seaweedfs -ip.bind=0.0.0.0 -s3.port=8333
+      -s3.config=/etc/seaweedfs/s3.json -webdav=false -admin.ui=false
+      -s3.port.iceberg=0 -s3.port.lance=0 -master.telemetry=false
+    ports: ["127.0.0.1:9000:8333"]
+    volumes:
+      - seaweedfs-data:/data
+      - ./config/s3.local.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9333/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+volumes:
+  postgres-data:
+  temporal-data:
+  seaweedfs-data:

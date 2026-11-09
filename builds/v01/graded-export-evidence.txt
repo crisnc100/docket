@@ -1,0 +1,34 @@
+$ ./verify.sh
+============================= 302 passed in 52.82s =============================
+PASS docket/core/candidates.py: 38/38 branches = 100.00% (required 95%)
+PASS docket/core/scoring.py: 32/32 branches = 100.00% (required 95%)
+PASS docket/core/ledger.py: 16/16 branches = 100.00% (required 95%)
+PASS docket/core/storage.py: 20/20 branches = 100.00% (required 90%)
+Replay report reproduced: PENDING-SIMULATION; seed=11; no model calls
+detect-secrets: {}
+Exit: 0
+
+$ ./verify.sh --fault
+tests/fault/test_faults.py .....                                         [ 46%]
+======================= 307 passed in 158.65s (0:02:38) ========================
+PASS docket/core/candidates.py: 38/38 branches = 100.00% (required 95%)
+PASS docket/core/scoring.py: 32/32 branches = 100.00% (required 95%)
+PASS docket/core/ledger.py: 16/16 branches = 100.00% (required 95%)
+PASS docket/core/storage.py: 20/20 branches = 100.00% (required 90%)
+Replay report reproduced: PENDING-SIMULATION; seed=11; no model calls
+detect-secrets: {}
+Exit: 0
+
+$ docker compose ps --format <service,state,health>
+api running healthy
+postgres running healthy
+seaweedfs running healthy
+temporal running healthy
+worker running healthy
+
+Address typo strength: before=0.0; after=0.95
+Reversed-name strength: before=0.0; after=1.0
+Seed-7 distinct curve points: accepted 170-doc run=2; graded 180-doc run=6
+Zero-response label: before=openrouter; after=no model calls
+Mixed-source label: before=simulated; after=mixed
+No model calls. Seed 11 was not scored.

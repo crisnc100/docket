@@ -183,8 +183,14 @@ def shadow_diff_command(report: str | None = None) -> None:
     data = json.loads(path.read_text())
     output = path.with_name(path.stem + "-shadow.json")
     shadow = dict(data["shadow"])
+    if "measurement" in data:
+        shadow["measurement"] = data["measurement"]
     if data.get("banner"):
-        shadow.update(banner=data["banner"], provenance=data["provenance"], measurement="simulated")
+        shadow.update(
+            banner=data["banner"],
+            provenance=data["provenance"],
+            measurement=data.get("measurement", "simulated"),
+        )
         if "simulation" in data:
             shadow["simulation"] = data["simulation"]
     output.write_text(json.dumps(shadow, indent=2, sort_keys=True) + "\n")

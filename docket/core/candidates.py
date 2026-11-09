@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from rapidfuzz import fuzz
 
@@ -44,6 +44,33 @@ def tenant_score(names: list[str], chunks: list[str], cutoff: float) -> float:
             if contains_phrase(normalized, chunk):
                 return 1.0
             best = max(best, fuzz.ratio(normalized, chunk) / 100)
+    return best if best >= cutoff else 0.0
+
+
+def name_strength(names: list[str], chunks: list[str], cutoff: float) -> float:
+    best = tenant_score(names, chunks, cutoff)
+    for name in names:
+        normalized = normalize_text(name)
+        if normalized:
+            for chunk in chunks:
+                best = max(best, fuzz.token_sort_ratio(normalized, chunk) / 100)
+    return best if best >= cutoff else 0.0
+
+
+def address_strength(aliases: list[str], chunks: list[str], cutoff: float) -> float:
+    best = 0.0
+    for alias in aliases:
+        normalized = normalize_address(alias)
+        numbers = re.findall(r"\d+", normalized)
+        if not numbers:
+            continue
+        for chunk in chunks:
+            address = normalize_address(chunk)
+            if contains_phrase(normalized, address):
+                return 1.0
+            # Similar street names cannot supply a missing or different unit number.
+            if re.findall(r"\d+", address) == numbers:
+                best = max(best, fuzz.ratio(normalized, address) / 100)
     return best if best >= cutoff else 0.0
 
 
@@ -127,8 +154,31 @@ def shortlist(
     candidates.sort(key=lambda candidate: candidate.record_id)
     candidates.sort(key=lambda candidate: candidate.rank_score, reverse=True)
     conflict = len(corroborated_ids) > 1
+    by_id = {record.record_id: record for record in records}
+    graded: list[Candidate] = []
+    # Grading follows selection so existing per-call shortlist enums stay stable.
+    for candidate in candidates[:k]:
+        record = by_id[candidate.record_id]
+        former = name_strength(record.former_tenants, chunks, tenant_cutoff)
+        signals = candidate.signals | {
+            Signal.ADDRESS: max(
+                candidate.signals[Signal.ADDRESS],
+                address_strength(
+                    [record.address, *record.aliases],
+                    [
+                        re.sub(r"^address\s*:\s*", "", line, flags=re.IGNORECASE)
+                        for line in (text + "\n" + subject + "\n" + filename).splitlines()
+                    ],
+                    tenant_cutoff,
+                ),
+            ),
+            Signal.TENANT_NAME: max(
+                name_strength(record.current_tenants, chunks, tenant_cutoff), former
+            ),
+        }
+        graded.append(replace(candidate, signals=signals, former_tenant_score=former))
     return CandidateResult(
-        tuple(candidates[:k]),
+        tuple(graded),
         conflict,
         tuple(sorted(all_ids)),
         tuple(sorted(corroborated_ids)) if conflict else (),

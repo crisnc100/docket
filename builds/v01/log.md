@@ -439,3 +439,51 @@ All five compose services report healthy after the fault run.
 The real-provider checks remain deferred under the approved simulation decision.
 All P3 checks pass under that decision. Nothing was committed or pushed.
 See p3-checkpoint.md for the curve, each exit check and command output.
+
+## Graded corpus and scores
+
+The shared generation rule is in graded-corpus-rule.md.
+It is saved before any new held-out evaluation.
+The operator owns its commit. No commit was attempted.
+Each seed has ten appended graded_evidence documents and 180 documents total.
+A separate random stream preserves the original generator sequence.
+The original 340 payloads and label prefixes match saved content hashes.
+Regeneration produces new encryption bytes for poison PDFs.
+The worktree keeps their original bytes.
+
+A signal strength measures evidence quality from zero to one.
+Names use the larger of direct and word-sorted RapidFuzz similarity.
+Addresses use normalized RapidFuzz similarity with exact numeric components.
+A missing or different unit number gives no fuzzy address support.
+Exact names, normalized exact addresses and exact ids retain strength one.
+Grading follows candidate selection to preserve request keys.
+Candidate admission, order, conflicts and the strong-tier gate are unchanged.
+Weights, tier thresholds and fuzzy cutoffs remain untuned defaults.
+
+The threshold script reads only seed 7 and makes no model call.
+It chooses 0.5857142 using the rule saved before selection.
+That rule maximizes correct filings with zero wrong filings and a 90% clean floor.
+It breaks ties with the largest threshold.
+The seed-7 rules-only curve has six distinct points across eight thresholds.
+Precision stays one whenever there is a filing. Higher thresholds only lose coverage here.
+This sample shows no measured precision gain from raising the threshold.
+
+The original 400 request keys, request files, answers and recordings are unchanged.
+Only 40 requests were exported: 20 per seed, ten for each model activity.
+The graded-seed manifests list only those new keys.
+No answer or recording was written for them.
+The reports describe the pending 180-document runs.
+They do not reuse measurements from the older 170-document runs.
+Those earlier reports remain in the accepted base commit.
+Scoring waits for the new answers. Seed 11 has not selected any settings.
+
+Response labels describe the sources actually used.
+Zero responses gives no model calls. Provider plus simulated responses gives mixed.
+Two simulators still give simulated, with each simulator named in provenance.
+Reports and shadow reports preserve these labels. Unknown model cost stays null.
+The model-choice comparison and new held-out floors await the operator's answers.
+
+Verification passes: 302 tests normally and 307 with the real fault suite.
+Both runs have zero skips and 100% required branch coverage.
+The replay check reproduces the saved pending state, not a new measured report.
+See graded-export-checkpoint.md for command evidence and each existing-test edit.

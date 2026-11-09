@@ -35,7 +35,7 @@ services:
     image: chrislusf/seaweedfs:4.53
     command: >-
       mini -dir=/data -ip=seaweedfs -ip.bind=0.0.0.0 -s3.port=8333
-      -s3.config=/etc/seaweedfs/s3.json -webdav=false -admin.ui=false
+      -s3.config=/etc/seaweedfs/s3.json -s3.autoCreateBucket=false -webdav=false -admin.ui=false
       -s3.port.iceberg=0 -s3.port.lance=0 -master.telemetry=false
     ports: ["127.0.0.1:9000:8333"]
     volumes:

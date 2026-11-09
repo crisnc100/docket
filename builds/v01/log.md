@@ -173,3 +173,87 @@ Phase-end commit attempt: `git add` failed creating the shared worktree
 the sandbox's writable worktree. No staging, commit, push or workaround occurred.
 The source and build artifacts remain intact for the orchestrator to commit from
 a session with the required Git metadata write access.
+
+## P2 work — scoring policy pending
+
+The operator accepted P1 and committed it as ac20871. Commit attempts are now
+prohibited for this seat; all P2 changes remain in the worktree.
+
+Implemented typed extraction, top-five candidate matching/conflict detection,
+generic conditional S3 storage, Postgres event/status ledger and branch coverage
+enforcement. The scoring policy lacks concrete weights, thresholds and defined
+independence; asked for that choice while completing independent modules. No
+scoring implementation or invented measured result was added.
+
+Deliberate choices:
+- A malformed PDF is a typed, non-retryable parse error, not a new rejection
+  reason outside the fixed whitelist. Empty text layers remain typed extraction
+  results for later review routing. LLM truncation removes exactly the middle.
+- Literal IDs are bounded to avoid partial-ID matches; address normalization uses
+  full unit token boundaries and config aliases. ID matches outrank exact address,
+  then tenant match, then explicit building. Fuzzy tenant cutoff defaults to .88
+  and is a caller parameter. Ties break by record id, independent of config order.
+- Exact address/current/former-name evidence can expose distinct record ids even
+  without literal IDs in the text. Conflict detection examines all evidence before
+  truncating to five candidates. Shared building-only matches do not create false
+  record-level conflicts.
+- The storage adapter accepts a typed S3 client protocol, exercised with boto3;
+  this avoids extra SDK typing dependencies or strict-pyright suppressions. No
+  SeaweedFS-specific request is used by application code. Conditional PUT prevents
+  overwrite; a retry hashes the stored bytes rather than trusting ETag or metadata.
+- SeaweedFS autoCreateBucket is disabled after a real negative test exposed its
+  nonstandard default. The test was retained. Test-created temporary resources
+  from the failed negative test were cleaned up; no user buckets were touched.
+- The ledger uses caller-owned transactions so status and status-event writes can
+  roll back atomically. Transitions lock and refresh the row; duplicates are no-ops
+  and preserve first-write details/reasons. Every terminal state's outbound edges
+  are empty. The only nonterminal states are received, processing and needs_review.
+- The coverage checker enforces branch counts separately from line/combined
+  percentages, fails closed on missing modules, and is itself tested. Candidate,
+  ledger and storage branch coverage are all 100%; scoring is absent and correctly
+  makes verify.sh fail. Full tests: 149 passed, zero skips. Core-only: 95 passed.
+
+Detailed exit status, command output and the policy recommendation are recorded in
+builds/v01/p2-checkpoint.md. No P3+ behavior, other models, reviews, grades, pushes,
+PRs, existing-test edits, dependency additions or commit attempts occurred.
+
+## P2 final — complete, uncommitted
+
+The operator resolved the scoring policy. The earlier pending checkpoint and .70
+proposal above are historical; builds/v01/p2-checkpoint.md records the final state.
+
+All scoring numbers are **untuned defaults**, explicitly labelled by
+`calibration: untuned_defaults` in config/scoring.json: ID .30, address .30,
+tenant .25, building .10, filename .05; medium threshold .25, strong threshold .55,
+auto-file threshold .55. Seed-7 tuning happens in P3. No tuning was performed
+against seed 7 or held-out seed 11 in this phase.
+
+The hard independent-signal gate is separate from the weighted total. Body/subject
+ID repetition does not create more evidence. A matching filename ID can be separate
+evidence, while a disagreement sets conflict and forces review. A building must
+have explicit provenance; an address-derived building contributes neither another
+weight nor another independent signal. Zero-weight signals do not satisfy the gate.
+
+A one-signal effective score is capped one database score quantum (0.0000001) below
+strong, so even a configured dominant ID/filename weight cannot bypass the gate.
+Scoring retains the raw weighted total for diagnosis. Conflicts override the
+usable score to zero and always return review. Decimal arithmetic truncated to
+seven fractional places matches the existing score column and avoids floating
+point boundary errors in the approved .55 examples.
+
+The requested score table passes: ID+address .60/strong; ID+tenant .55/strong;
+address+tenant .55/strong; ID alone and repeated 3x .30/medium; building+filename
+.15/none; injection ID plus gold address conflict/review. Additional tests prove
+single-signal safety with dominant weights, explicit versus derived building,
+matching versus conflicting filename IDs, thresholds, malformed inputs and config.
+
+Final `docker compose up -d --wait`: Postgres, Temporal and SeaweedFS healthy.
+Final `./verify.sh`: ruff/format clean, strict pyright 0 errors, Alembic succeeds,
+192 passed in 20.52s with zero skips, and detect-secrets {}. Branch-only floors:
+candidates 20/20 (100%), scoring 30/30 (100%), ledger 16/16 (100%), storage 20/20
+(100%). All 54 P1 tests remain unchanged and pass. Scoring-only: 43 passed,
+30/30 branches covered. No further code changes were made after the passing run.
+
+P2 has no open implementation question. No P3 work, tuning, additional dependency,
+model call, review, grade, push, PR or commit attempt occurred. All changes remain
+in the v01 worktree for the operator to commit, per instruction.

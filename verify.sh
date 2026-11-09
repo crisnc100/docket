@@ -8,6 +8,7 @@ uv run ruff check .
 uv run ruff format --check .
 uv run pyright
 uv run alembic upgrade head
-uv run pytest
+uv run pytest --cov=docket.core --cov-branch --cov-report=term-missing --cov-report=json:.cache/coverage.json
+uv run python scripts/check_coverage.py .cache/coverage.json
 uv run detect-secrets scan --all-files --exclude-files '(\.lock$|corpus/|\.pytest_cache/|\.ruff_cache/|\.cache/|\.venv/|\.git/|builds/.*\.(jsonl|err|log)$)' > .cache/secrets.json
 uv run python -c 'import json; r=json.load(open(".cache/secrets.json"))["results"]; print("detect-secrets:", r); raise SystemExit(bool(r))'

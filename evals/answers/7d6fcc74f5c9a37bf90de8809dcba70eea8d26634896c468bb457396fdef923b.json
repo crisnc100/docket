@@ -1,0 +1,9 @@
+{
+ "output": {
+  "category": "inspection"
+ },
+ "provenance": {
+  "simulated_by": "claude-haiku-5-5",
+  "standing_in_for": "openai/gpt-4o-mini"
+ }
+}

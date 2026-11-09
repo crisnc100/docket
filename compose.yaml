@@ -47,6 +47,57 @@ services:
       timeout: 3s
       retries: 40
 
+  migrate:
+    build: .
+    image: docket-v01-migrate
+    command: ["alembic", "upgrade", "head"]
+    environment: &app-environment
+      DATABASE_URL: postgresql+psycopg://docket:docket@postgres:5432/docket # pragma: allowlist secret
+      TEMPORAL_ADDRESS: temporal:7233
+      S3_ENDPOINT_URL: http://seaweedfs:8333
+      S3_ACCESS_KEY: docket-local
+      S3_SECRET_KEY: docket-local-password # pragma: allowlist secret
+      S3_BUCKET: docket
+      DOCKET_MODEL_MODE: ${DOCKET_MODEL_MODE:-replay}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+  api:
+    build: .
+    image: docket-v01-api
+    command: ["uvicorn", "docket.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment: *app-environment
+    ports: ["127.0.0.1:8010:8000"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      temporal:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+  worker:
+    build: .
+    image: docket-v01-worker
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      temporal:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from pathlib import Path; assert Path('/tmp/docket-worker-ready').is_file()"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
 volumes:
   postgres-data:
   temporal-data:

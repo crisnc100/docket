@@ -301,3 +301,141 @@ at .9500000/strong with would_auto_file=true. No code changed after this green r
 Finding-by-finding file:line and test evidence is in
 builds/v01/pr1-fix-checkpoint.md. Changes stay in the worktree for the operator;
 no commit attempt, push, PR, P3 implementation or model call occurred.
+
+## P3 partial checkpoint — evaluation policy unresolved
+
+Step 0 restores the bypass-validation conflict regression as a new sibling;
+minimum-valid-threshold coverage remains. The separate commit paths and 219-test
+verification are recorded in step0-done.md. No commit was attempted.
+
+P3 uses the same storage-key workflow input for ingress and recovery. The received
+event persists its non-secret workflow context so reconcile can start an ingress
+interrupted after the DB insert. Shortlisting precedes model activities: an empty
+shortlist bypasses both paid calls. Review signals preserve the requested workflow
+interface; an update endpoint supplies an atomic acceptance/rejection result for
+HTTP 409s. Observe routes finalize immediately without non-raw storage effects.
+No webhook, frontend or P4-only command is included.
+
+Time-skipping tests use scripted activities. Integration tests use actual core,
+Postgres and SeaweedFS with explicit scripted model fixtures; none of these
+responses are recorded as model measurements. A genuine captured Temporal history
+is stored as YAML with unchanged protobuf JSON values, allowing field-specific
+annotations of inspected synthetic base64 payloads and the worker checksum. No
+secret scanner exclusion or check was weakened.
+
+Implementation stopped at a scope conflict: the new uncommitted decision at
+plan.md:177 asks for export/import and Claude simulation, while the task specifies
+no-key evaluation PENDING and forbids other models. The operator was asked which
+policy applies. Fault-process tests, complete eval gates, reports and deployment
+checks remain unfinished. See p3-checkpoint.md for measured checks and open work.
+
+At this stop, ./verify.sh exits 0: 242 passed in 30.29s, zero skips, all required
+module branches 100%, pyright 0 errors, ruff clean, detect-secrets {}. This is
+verification of the current partial implementation, not P3 exit acceptance.
+
+## P3 — implemented, awaiting operator simulation
+
+The operator resolved the earlier evaluation choice: implement export/import and
+never invoke a model; the operator supplies all simulation answers. Gateway
+export serializes the same prompt/schema helpers used by actual activities,
+including the per-call shortlist enum. Import validates request digests, answer
+schema and target provenance before replay admission. Conflicting replay rows
+remain immutable. Simulated cost is null and completed simulated reports begin
+with an explicit simulator/target banner. No operational answer was authored.
+
+The importer uses only the JSON Schema subset emitted by product models and
+fails closed on unsupported constraints. No dependency or lockfile changed.
+Shortlisting precedes both model activities so empty shortlists produce no calls
+or exports. Scoring numbers remain untuned defaults; seed-7 tuning and held-out
+quality checks require operator answers. No model quality number was invented.
+
+The real process-fault suite confirmed exit 137 and the exact fired log for all
+five tests. API crashes cover both ingress gaps; received context supports
+reconciliation. Worker restarts recover both after S3-before-ledger and during
+choose. Three concurrent HTTP submits plus a terminal resubmit preserve one row,
+one filing object, one filing row and one filed event, while retaining four
+sources. Stopping actual SeaweedFS produces EndpointConnectionError; retry after
+recovery still gives one filing. Test-only model fixtures do not populate the
+provider archive or contribute evaluation numbers.
+
+Captured actual Temporal test histories cover happy filing and an opened review
+approved by update. Replayer passes on both. ADR-002 describes patch guards and
+retaining old command branches, and labels a future deploy prediction unmeasured.
+ADR-004 and docs/rerecord.md describe operator simulation versus real-provider
+measurements. Minimal HTTP endpoints exist solely for P3 dedup/review/fault checks;
+P4 webhook, UI, preview and remaining commands are absent.
+
+MacOS Bash requires a nonempty pytest argument array under set -u, so each verify
+mode explicitly collects tests. Normal mode excludes only the new process-fault
+directory; fault mode includes it and all ordinary tests. No existing test file
+changed against 942ba4c, and no assertion, zero-skip rule or branch floor was
+weakened. Generic non-retryable activity failures get the correct reason rather
+than a misleading exhaustion reason; tests prove a single attempt/finalization.
+
+The raw secret scanner still scans all files with its existing exclusions. Known
+synthetic history payloads/checksums and public request-key lines have narrow
+annotations. Future JSONL digest findings are recognized only when they equal a
+verified exported request hash. A real-scanner integration test proves a different
+secret on that same row still blocks verification. No whole-row or whole-archive
+exception was added.
+
+Final ./verify.sh: 274 passed in 48.30s, zero skips. Final ./verify.sh --fault:
+279 passed in 172.05s, zero skips. Ruff/format pass, pyright 0 errors, and required
+core branch coverage is 100% (candidates 20/20, scoring 32/32, ledger 16/16,
+storage 20/20). The explicitly pending held-out replay report reproduces with no
+model calls; detect-secrets {}. Docker builds all three app images. Final compose
+up --wait exits 0: Postgres, Temporal, SeaweedFS, API and worker healthy; actual
+boto3 head_bucket and API /healthz return HTTP 200.
+
+Final export commands for seeds 7 and 11 exit 0. Each seed has 200 unique pending
+files: 100 classify and 100 choose. There are 400 total, with no overlap, zero
+operator answers and no replay JSONL archive. Both 170-document reports contain
+eight-point rules-only curves and 17 case types; model metrics, floors and actual
+shadow disagreements remain PENDING-SIMULATION. See p3-checkpoint.md for each exit
+check, command evidence, deliberate choices and the operator callback. No commit,
+push, PR, model invocation, review or grade was attempted.
+
+## P3 simulation results
+
+The operator supplied all 400 answers.
+All passed their saved response schemas and were imported.
+Saved provenance confirms 382 Haiku answers and 18 Opus answers.
+Each seed has 191 Haiku answers and 9 Opus answers.
+All unique saved answers were used.
+The operator reports false safety blocks on 18 synthetic filler text requests.
+Those requests were rerun on Opus. The archive keeps each model identity.
+The operator says each call saw only its own prompt, messages and schema.
+It saw no expected labels, code or other answers.
+The implementer did not make a model call or edit an answer.
+
+Both seed imports and both replay evaluations exit 0.
+Seed 7 passes all filing floors with 29 correct filings.
+Seed 11 passes all filing floors with 28 correct filings.
+Seed 11 has zero wrong files, 90% clean filing and zero filings to injected IDs.
+Recall is 93.33%, equal to the rules-only baseline.
+Category accuracy is 87.69%, versus 93.85% for the baseline.
+The difference comes from no_record cases assigned misc without a model call.
+No score threshold, label or answer changed to obtain these results.
+
+Every seed has 170 terminal results with a reason.
+Observe mode has zero filing rows and no non-raw objects in the default bucket.
+The shadow reports classify 82 differences on seed 7 and 87 on seed 11.
+Both sides route those documents to review as expected.
+Their proposed records and categories can still differ.
+
+Reports start with the simulated banner.
+They show the supplied mix, the used mix and the operator's fallback reason.
+Counts come from saved answers. Provider cost stays null.
+The replay gate checks each document, metrics, curve and model provenance.
+New tests check the counts, context source, banner and unknown cost.
+No existing test changed in this round.
+
+Final verify: 276 passed in 51.06s.
+Final verify --fault: 281 passed in 165.34s.
+Both have zero skips and 100% required branch coverage.
+Ruff, pyright, Docker builds and secret checks pass.
+Both commands reproduce seed 11 with no model calls.
+All five compose services report healthy after the fault run.
+The real-provider checks remain deferred under the approved simulation decision.
+All P3 checks pass under that decision. Nothing was committed or pushed.
+See p3-checkpoint.md for the curve, each exit check and command output.

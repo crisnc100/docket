@@ -24,3 +24,7 @@ class BudgetExceeded(GatewayError):
 
 class UsageError(GatewayError):
     pass
+
+
+class ExportPending(GatewayError):
+    pass

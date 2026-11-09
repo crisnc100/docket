@@ -1,0 +1,9 @@
+{
+ "output": {
+  "category": "notice"
+ },
+ "provenance": {
+  "simulated_by": "claude-opus-5-5",
+  "standing_in_for": "openai/gpt-4o-mini"
+ }
+}

@@ -120,3 +120,72 @@ def score_pdf(pdf: str = typer.Argument(...)) -> None:
             indent=2,
         )
     )
+
+
+@app.command()
+def worker() -> None:
+    """Run the durable document worker."""
+    from docket.worker import main
+
+    main()
+
+
+@app.command()
+def reconcile(older_than_minutes: float = 5) -> None:
+    """Start interrupted ingress workflows and finalize workflow-less orphans."""
+    import asyncio
+
+    from temporalio.client import Client
+
+    from docket.ingress import Ingress
+    from docket.runtime import Runtime
+
+    async def run():
+        runtime = Runtime()
+        try:
+            client = await Client.connect(runtime.settings.temporal_address)
+            typer.echo(await Ingress(runtime, client).reconcile(older_than_minutes))
+        finally:
+            runtime.close()
+
+    asyncio.run(run())
+
+
+@app.command("eval")
+def eval_command(seed: int = 11, mode: str = "replay", budget: str = "2.00") -> None:
+    """Compare observe-mode Docket with rules-only results, with a hard run budget."""
+    import asyncio
+    from decimal import Decimal
+
+    from docket.evaluation import evaluate, write_report
+
+    report = asyncio.run(evaluate(seed, mode, Decimal(budget)))
+    path = write_report(report)
+    typer.echo(f"{report['status']}: {path}")
+    if report["status"] == "FAIL":
+        raise typer.Exit(1)
+
+
+@app.command("shadow-diff")
+def shadow_diff_command(report: str | None = None) -> None:
+    """Classify every observe/baseline disagreement against corpus gold."""
+    import json
+    from pathlib import Path
+
+    reports = sorted(
+        path
+        for path in Path("evals/reports").glob("*-seed-*.json")
+        if not path.stem.endswith("-shadow")
+    )
+    if report is None and not reports:
+        raise typer.BadParameter("No evaluation report exists; run docket eval first")
+    path = Path(report) if report else reports[-1]
+    data = json.loads(path.read_text())
+    output = path.with_name(path.stem + "-shadow.json")
+    shadow = dict(data["shadow"])
+    if data.get("banner"):
+        shadow.update(banner=data["banner"], provenance=data["provenance"], measurement="simulated")
+        if "simulation" in data:
+            shadow["simulation"] = data["simulation"]
+    output.write_text(json.dumps(shadow, indent=2, sort_keys=True) + "\n")
+    typer.echo(f"{data['shadow']['status']}: {output}")

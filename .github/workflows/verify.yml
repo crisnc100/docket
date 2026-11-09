@@ -3,21 +3,9 @@ on: [push, pull_request]
 jobs:
   verify:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: docket
-          POSTGRES_PASSWORD: docket  # pragma: allowlist secret
-          POSTGRES_DB: docket
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready --health-interval 5s
-          --health-timeout 5s --health-retries 20
-    env:
-      DATABASE_URL: postgresql+psycopg://docket:docket@localhost:5432/docket  # pragma: allowlist secret
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: docker compose up -d --wait seaweedfs
+      - run: docker compose up -d --wait postgres temporal seaweedfs
       - run: ./verify.sh
+      - run: ./verify.sh --fault

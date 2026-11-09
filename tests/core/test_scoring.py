@@ -1,3 +1,4 @@
+import json
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
@@ -53,6 +54,7 @@ def context(signals, building_is_explicit=False, conflict=False):
 def test_requested_score_table_from_real_candidate_evidence(
     config, case, expected_score, tier, decision, count
 ):
+    config = make_config(config, auto_file_threshold=config.strong_threshold)
     records = load_records()
     record = records[0]
     cases = {
@@ -242,8 +244,8 @@ def test_invalid_scoring_config_rejected(config, updates):
         make_config(config, **updates)
 
 
-def test_config_is_explicitly_untuned_and_defaults_are_the_approved_policy(config):
-    assert config.calibration == "untuned_defaults"
+def test_config_keeps_approved_untuned_weights_and_tiers_and_seed7_filing_threshold(config):
+    assert config.calibration == "seed7_threshold_weights_and_tiers_untuned"
     assert config.weights.by_signal() == {
         Signal.EXPLICIT_ID: Decimal(".30"),
         Signal.ADDRESS: Decimal(".30"),
@@ -252,7 +254,10 @@ def test_config_is_explicitly_untuned_and_defaults_are_the_approved_policy(confi
         Signal.FILENAME_ID: Decimal(".05"),
     }
     assert config.medium_threshold == Decimal(".25")
-    assert config.strong_threshold == config.auto_file_threshold == Decimal(".55")
+    assert config.strong_threshold == Decimal(".55")
+    selection = json.loads(Path("evals/threshold-selection.json").read_text())
+    assert selection["seed"] == 7
+    assert config.auto_file_threshold == Decimal(selection["selected_threshold"])
     assert Path("config/scoring.json").is_file()
 
 

@@ -123,8 +123,8 @@ def test_corpus_cli_generates_labels(tmp_path):
         app, ["corpus", "generate", "--seed", "7", "--output", str(tmp_path)]
     )
     assert result.exit_code == 0
-    assert "Generated 170 documents" in result.stdout
+    assert "Generated 180 documents" in result.stdout
     assert (
         len([json.loads(line) for line in (tmp_path / "labels.jsonl").read_text().splitlines()])
-        == 170
+        == 180
     )

@@ -151,9 +151,14 @@ class Exchange:
     def import_answers(self, keys: list[str], store: ReplayStore) -> dict[str, int]:
         entries = []
         missing = 0
+        recorded = {entry.key for entry in store.entries()} if store.path.exists() else set()
+        reused = 0
         for key in sorted(set(keys)):
             if len(key) != 64 or any(char not in "0123456789abcdef" for char in key):
                 raise ParseError("Invalid pending request key")
+            if key in recorded:
+                reused += 1
+                continue
             request = PendingRequest.model_validate_json((self.pending / f"{key}.json").read_text())
             request.verify_key()
             if request.key != key:
@@ -182,7 +187,7 @@ class Exchange:
         # Validate the entire batch before admitting any answer to the replay store.
         for entry in entries:
             store.append(entry)
-        return {"imported": len(entries), "pending": missing}
+        return {"imported": len(entries) + reused, "pending": missing}
 
 
 def read_manifest(seed: int, directory: Path = Path("evals/manifests")) -> dict:

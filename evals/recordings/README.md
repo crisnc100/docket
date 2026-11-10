@@ -33,6 +33,8 @@ uv run python scripts/pack_exchange.py --check
 ```
 
 Pack after importing answers, while both working folders are present.
+Packing merges working pairs into the saved archive and keeps all saved keys.
+Answers must match their replay recordings before the archive is replaced.
 The check command needs only the archive and `calls.jsonl`.
 It checks file hashes, request keys, answer schemas and provenance.
 It also checks that every recording has the same archived answer and provenance.

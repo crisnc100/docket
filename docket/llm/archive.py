@@ -3,6 +3,7 @@
 import gzip
 import hashlib
 import json
+import tempfile
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -58,11 +59,11 @@ def load_archive(path: Path) -> dict[str, ArchiveEntry]:
 
 
 def pack_exchange(pending: Path, answers: Path, archive: Path) -> int:
+    entries = load_archive(archive) if archive.exists() else {}
     requests = {path.stem: path for path in pending.glob("*.json")}
     responses = {path.stem: path for path in answers.glob("*.json")}
-    if not requests or requests.keys() != responses.keys():
+    if (not requests and not entries) or requests.keys() != responses.keys():
         raise ValueError("Packing requires a nonempty request set with one answer per key")
-    lines = []
     for key in sorted(requests):
         request_bytes, answer_bytes = requests[key].read_bytes(), responses[key].read_bytes()
         entry = ArchiveEntry(
@@ -74,20 +75,34 @@ def pack_exchange(pending: Path, answers: Path, archive: Path) -> int:
             provenance=Answer.model_validate_json(answer_bytes).provenance,
         )
         entry.verify()
+        entries[key] = entry
+    recordings = archive.with_name("calls.jsonl")
+    if recordings.exists():
+        _check_recordings(entries, recordings)
+    lines = []
+    for key in sorted(entries):
         # Do not normalize strings: whitespace and line endings belong to the evidence.
-        lines.append(json.dumps(entry.model_dump(), sort_keys=True, ensure_ascii=False))
+        lines.append(json.dumps(entries[key].model_dump(), sort_keys=True, ensure_ascii=False))
     payload = ("\n".join(lines) + "\n").encode("utf-8")
     archive.parent.mkdir(parents=True, exist_ok=True)
-    with (
-        archive.open("wb") as file,
-        gzip.GzipFile(filename="", fileobj=file, mode="wb", mtime=0) as out,
-    ):
-        out.write(payload)
+    with tempfile.NamedTemporaryFile(dir=archive.parent, delete=False) as file:
+        temporary = Path(file.name)
+        try:
+            with gzip.GzipFile(filename="", fileobj=file, mode="wb", mtime=0) as out:
+                out.write(payload)
+            file.flush()
+            temporary.replace(archive)
+        finally:
+            temporary.unlink(missing_ok=True)
     return len(lines)
 
 
 def check_archive(archive: Path, recordings: Path) -> int:
     entries = load_archive(archive)
+    return _check_recordings(entries, recordings)
+
+
+def _check_recordings(entries: dict[str, ArchiveEntry], recordings: Path) -> int:
     rows = ReplayStore(recordings).entries()
     for row in rows:
         if row.key not in entries:

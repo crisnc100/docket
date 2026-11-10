@@ -20,7 +20,7 @@ ADDRESS_SPAN_PATTERN = re.compile(
     r"(?:(?:st|ave|rd|blvd|dr|ln|ct|court|pl|place|terrace|way)(?:\s+unit\s+\S+)?"
     r"|unit\s+\S+)(?!\S)"
 )
-ADDRESS_LABEL_PATTERN = re.compile(r"\baddress\s*:\s*.*?(?=\s+[a-z]+\s*:|$)", re.IGNORECASE)
+LABEL_PATTERN = re.compile(r"\b(?P<name>[a-z]+)[^\S\r\n]*:", re.IGNORECASE)
 FULL_SIGNAL_STRENGTH = 1.0
 
 
@@ -29,7 +29,7 @@ def normalize_text(text: str) -> str:
 
 
 def unit_parts(value: str) -> tuple[str, str]:
-    value = value.rstrip(",;:!?")
+    value = value.rstrip(".,;:!?)]}\"'”’»")
     tail = ""
     if value.endswith(".pdf"):
         value, tail = value[:-4], "pdf"
@@ -37,8 +37,6 @@ def unit_parts(value: str) -> tuple[str, str]:
         word = re.search(r"-[a-z]{2,}(?=-|$)", value)
         if word:
             value, tail = value[: word.start()], value[word.start() :] + " " + tail
-    else:
-        value = value.rstrip(".")
     return value, tail
 
 
@@ -79,9 +77,22 @@ def normalize_address(text: str) -> str:
     return " ".join(replacements.get(word, word) for word in normalized.split())
 
 
+def strip_address_labels(line: str) -> str:
+    # Scan labels once so long whitespace is not rescanned at each position.
+    labels = list(LABEL_PATTERN.finditer(line))
+    parts: list[str] = []
+    start = 0
+    for index, label in enumerate(labels):
+        if label.group("name").casefold() == "address":
+            parts.append(line[start : label.start()])
+            start = labels[index + 1].start() if index + 1 < len(labels) else len(line)
+    parts.append(line[start:])
+    return " ".join(parts)
+
+
 def independent_building_context(text: str) -> str:
     return " ".join(
-        ADDRESS_SPAN_PATTERN.sub(" ", normalize_address(ADDRESS_LABEL_PATTERN.sub(" ", line)))
+        ADDRESS_SPAN_PATTERN.sub(" ", normalize_address(strip_address_labels(line)))
         for line in text.splitlines()
     )
 

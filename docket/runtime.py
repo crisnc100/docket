@@ -32,7 +32,7 @@ class Runtime:
             ),
         )
         self.storage = S3Storage(cast(S3Client, self.s3), self.settings.s3_bucket)
-        self.gateways: dict[tuple[str, str, str], Gateway] = {}
+        self.gateways: dict[tuple[str, str, str, str], Gateway] = {}
 
     def ensure_bucket(self) -> None:
         try:
@@ -47,7 +47,9 @@ class Runtime:
                     raise
 
     def gateway(self, request: dict) -> Gateway:
-        key = (request["run_id"], request["model_mode"], request["model"])
+        # Live documents have separate budgets; observe runs share their evaluation budget.
+        document = request["document_id"] if request["run_id"] == "live" else ""
+        key = (request["run_id"], document, request["model_mode"], request["model"])
         if key not in self.gateways:
             mode = Mode(request["model_mode"])
             settings = self.settings.model_copy(update={"docket_model": request["model"]})

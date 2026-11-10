@@ -172,11 +172,7 @@ def shadow_diff_command(report: str | None = None) -> None:
     import json
     from pathlib import Path
 
-    reports = sorted(
-        path
-        for path in Path("evals/reports").glob("*-seed-*.json")
-        if not path.stem.endswith("-shadow")
-    )
+    reports = sorted(Path("evals/reports").glob("*-seed-11.json"))
     if report is None and not reports:
         raise typer.BadParameter("No evaluation report exists; run docket eval first")
     path = Path(report) if report else reports[-1]

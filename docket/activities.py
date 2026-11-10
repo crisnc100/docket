@@ -83,10 +83,15 @@ class Activities:
     @activity.defn(name="shortlist")
     async def shortlist(self, stage: dict) -> dict:
         async with heartbeats():
-            records = load_records()
-            result = build_shortlist(
-                records, text=stage["text"], filename=stage["request"]["filename"]
-            )
+
+            def work():
+                records = load_records()
+                result = build_shortlist(
+                    records, text=stage["text"], filename=stage["request"]["filename"]
+                )
+                return records, result
+
+            records, result = await asyncio.to_thread(work)
             stage.update(
                 candidates=[asdict(candidate) for candidate in result.candidates],
                 conflict=result.conflict,

@@ -2,7 +2,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, replace
 
-from rapidfuzz import fuzz
+from rapidfuzz import fuzz, process
 
 from docket.config import Record, Signal
 
@@ -218,6 +218,46 @@ def _address_strength(
     return best if best >= cutoff else 0.0
 
 
+def _best_ratio(query: str, choices: list[str], cutoff: float) -> float:
+    matches = process.extract(query, choices, scorer=fuzz.ratio, score_cutoff=cutoff * 100, limit=1)
+    best = matches[0][1] / 100 if matches else 0.0
+    return best if best >= cutoff else 0.0
+
+
+def _batch_name_scores(
+    names: list[str], chunks: list[str], cutoff: float
+) -> dict[str, tuple[float, float]]:
+    text = " " + " \n ".join(chunks) + " "
+    sorted_chunks = list(dict.fromkeys(" ".join(sorted(chunk.split())) for chunk in chunks))
+    scores: dict[str, tuple[float, float]] = {}
+    for name in names:
+        if not name:
+            scores[name] = (0.0, 0.0)
+            continue
+        ordinary = 1.0 if f" {name} " in text else _best_ratio(name, chunks, cutoff)
+        graded = max(ordinary, _best_ratio(" ".join(sorted(name.split())), sorted_chunks, cutoff))
+        scores[name] = (ordinary, graded)
+    return scores
+
+
+def _batch_address_scores(aliases: list[str], chunks: list[str], cutoff: float) -> dict[str, float]:
+    text = " " + " \n ".join(chunks) + " "
+    by_tokens: dict[tuple[str, ...], list[str]] = {}
+    for chunk in chunks:
+        tokens = tuple(ADDRESS_TOKEN_PATTERN.findall(chunk))
+        by_tokens.setdefault(tokens, []).append(chunk)
+    scores: dict[str, float] = {}
+    for alias in aliases:
+        tokens = tuple(ADDRESS_TOKEN_PATTERN.findall(alias))
+        if not tokens:
+            scores[alias] = 0.0
+        elif f" {alias} " in text:
+            scores[alias] = 1.0
+        else:
+            scores[alias] = _best_ratio(alias, by_tokens.get(tokens, []), cutoff)
+    return scores
+
+
 @dataclass(frozen=True)
 class Candidate:
     record_id: str
@@ -259,8 +299,8 @@ def shortlist(
         raise ValueError("tenant_cutoff must be in (0, 1]")
     if len({record.record_id for record in records}) != len(records):
         raise ValueError("Record ids must be unique")
-    text, subject, filename = (_normalize(value) for value in (text, subject, filename))
     filename = filename.replace("\\", "/").rsplit("/", 1)[-1]
+    text, subject, filename = (_normalize(value) for value in (text, subject, filename))
     # Untrusted PDF text needs field and token caps so regex work stays linear.
     body_over_budget = len(text) > MAX_BODY_CHARS or _line_count(text) > MAX_BODY_LINES
     subject_over_budget = len(subject) > MAX_SUBJECT_CHARS
@@ -284,8 +324,6 @@ def shortlist(
         for line in lines
         if line.strip()
     ]
-    # Sort each chunk once instead of repeating the sort for every record.
-    sorted_name_chunks = [" ".join(sorted(chunk.split())) for chunk in chunks]
     address_chunks = [
         address
         for line in lines
@@ -293,20 +331,37 @@ def shortlist(
             re.sub(r"^address\s*:\s*", "", line, flags=re.IGNORECASE)
         )
     ]
-    tokenized_addresses = [
-        (chunk, ADDRESS_TOKEN_PATTERN.findall(chunk)) for chunk in address_chunks
-    ]
+    normalized_names = {
+        name: normalize_text(name)
+        for record in records
+        for name in [*record.current_tenants, *record.former_tenants]
+    }
+    normalized_aliases = {
+        alias: normalize_address(alias)
+        for record in records
+        for alias in [record.address, *record.aliases]
+        if alias.strip()
+    }
+    name_scores = _batch_name_scores(
+        list(dict.fromkeys(normalized_names.values())), chunks, tenant_cutoff
+    )
+    address_scores = _batch_address_scores(
+        list(dict.fromkeys(normalized_aliases.values())), address_chunks, tenant_cutoff
+    )
     candidates: list[Candidate] = []
     graded: dict[str, Candidate] = {}
     corroborated_ids = set(all_ids)
     for record in records:
-        address = any(
-            contains_phrase(normalize_address(alias), address_text)
+        aliases = [
+            normalized_aliases[alias]
             for alias in [record.address, *record.aliases]
             if alias.strip()
-        )
-        current_name = tenant_score(record.current_tenants, chunks, tenant_cutoff)
-        former_name = tenant_score(record.former_tenants, chunks, tenant_cutoff)
+        ]
+        current_scores = [name_scores[normalized_names[name]] for name in record.current_tenants]
+        former_scores = [name_scores[normalized_names[name]] for name in record.former_tenants]
+        address = any(contains_phrase(alias, address_text) for alias in aliases)
+        current_name = max((score[0] for score in current_scores), default=0.0)
+        former_name = max((score[0] for score in former_scores), default=0.0)
         signals = {
             Signal.EXPLICIT_ID: float(record.record_id in explicit),
             Signal.FILENAME_ID: float(record.record_id in filename_ids),
@@ -316,16 +371,14 @@ def shortlist(
                 contains_phrase(normalize_text(record.building), normalized_text)
             ),
         }
-        former = _name_strength(record.former_tenants, chunks, tenant_cutoff, sorted_name_chunks)
+        former = max((score[1] for score in former_scores), default=0.0)
         graded_signals = signals | {
             Signal.ADDRESS: max(
                 float(address),
-                _address_strength(
-                    [record.address, *record.aliases], tokenized_addresses, tenant_cutoff
-                ),
+                max((address_scores[alias] for alias in aliases), default=0.0),
             ),
             Signal.TENANT_NAME: max(
-                _name_strength(record.current_tenants, chunks, tenant_cutoff, sorted_name_chunks),
+                max((score[1] for score in current_scores), default=0.0),
                 former,
             ),
         }
@@ -336,17 +389,18 @@ def shortlist(
         ):
             corroborated_ids.add(record.record_id)
         if any(signals.values()):
-            building_context = building_text
-            for alias in [record.address, *record.aliases]:
-                if alias.strip():
+            building_is_explicit = False
+            if signals[Signal.BUILDING] > 0:
+                building_context = building_text
+                for alias in aliases:
                     building_context = re.sub(
-                        rf"(?<!\S){re.escape(normalize_address(alias))}(?!\S)",
+                        rf"(?<!\S){re.escape(alias)}(?!\S)",
                         "",
                         building_context,
                     )
-            building_is_explicit = signals[Signal.BUILDING] > 0 and contains_phrase(
-                normalize_address(record.building), " ".join(building_context.split())
-            )
+                building_is_explicit = contains_phrase(
+                    normalize_address(record.building), " ".join(building_context.split())
+                )
             candidate = Candidate(record.record_id, signals, former_name, building_is_explicit)
             candidates.append(candidate)
             graded[record.record_id] = replace(

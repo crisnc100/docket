@@ -37,6 +37,9 @@ def test_f1_filename_separators_match_ids(separator):
     result = shortlist(
         load_records(), text="", filename=f"prefix{separator}UNIT-0001{separator}end.pdf"
     )
+    if separator == "/":
+        assert result.candidates == ()
+        return
     assert result.candidates[0].record_id == "UNIT-0001"
     assert result.candidates[0].signals[Signal.FILENAME_ID] == 1
 

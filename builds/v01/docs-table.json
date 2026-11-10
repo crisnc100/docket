@@ -1,0 +1,562 @@
+{
+ "rows": [
+  {
+   "behavior": "Project scaffold, local services and verify.sh",
+   "files": [
+    "pyproject.toml",
+    "uv.lock",
+    ".python-version",
+    ".gitignore",
+    ".env.example",
+    "LICENSE",
+    "compose.yaml",
+    "config/s3.local.json",
+    "verify.sh",
+    ".github/workflows/verify.yml",
+    "scripts/check_coverage.py",
+    "docket/__init__.py",
+    "docket/settings.py",
+    "tests/conftest.py",
+    "tests/test_scaffold.py",
+    "tests/test_temporal_environment.py",
+    "tests/test_pr1_review_compose.py",
+    "tests/core/test_coverage_gate.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "uv installs Python 3.12; project requires 3.12",
+       "at": "pyproject.toml:5"
+      },
+      {
+       "claim": "compose runs Postgres, Temporal dev server and SeaweedFS",
+       "at": "compose.yaml:2"
+      },
+      {
+       "claim": "Temporal dev server service",
+       "at": "compose.yaml:26"
+      },
+      {
+       "claim": "SeaweedFS S3 service",
+       "at": "compose.yaml:34"
+      },
+      {
+       "claim": "Postgres on 127.0.0.1:55432",
+       "at": "compose.yaml:8"
+      },
+      {
+       "claim": "Temporal on 127.0.0.1:7233 and 8233",
+       "at": "compose.yaml:27"
+      },
+      {
+       "claim": "S3 on 127.0.0.1:9000",
+       "at": "compose.yaml:40"
+      },
+      {
+       "claim": "verify.sh creates tables via alembic upgrade head",
+       "at": "verify.sh:10"
+      },
+      {
+       "claim": "verify.sh runs ruff",
+       "at": "verify.sh:7"
+      },
+      {
+       "claim": "verify.sh runs pyright",
+       "at": "verify.sh:9"
+      },
+      {
+       "claim": "pyright strict on docket/core",
+       "at": "pyproject.toml:37"
+      },
+      {
+       "claim": "verify.sh runs pytest with branch coverage",
+       "at": "verify.sh:11"
+      },
+      {
+       "claim": "coverage floors per core module",
+       "at": "scripts/check_coverage.py:9"
+      },
+      {
+       "claim": "verify.sh runs detect-secrets",
+       "at": "verify.sh:13"
+      },
+      {
+       "claim": "any skipped test fails the run",
+       "at": "tests/conftest.py:7"
+      },
+      {
+       "claim": "spike needs OPENROUTER_API_KEY, read from env or .env",
+       "at": "docket/settings.py:6"
+      },
+      {
+       "claim": "daily cap defaults to $1.50 via DOCKET_DAILY_BUDGET_USD",
+       "at": "docket/settings.py:14"
+      },
+      {
+       "claim": "Apache-2.0 license",
+       "at": "pyproject.toml:6"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Ledger schema and migrations",
+   "files": [
+    "alembic.ini",
+    "migrations/env.py",
+    "migrations/script.py.mako",
+    "migrations/versions/690f4793dd3f_create_document_and_budget_foundations.py",
+    "docket/db.py",
+    "tests/test_database.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "act and observe modes on documents",
+       "at": "docket/db.py:28"
+      },
+      {
+       "claim": "event idem_key is unique",
+       "at": "docket/db.py:61"
+      },
+      {
+       "claim": "daily cap kept in Postgres budget_ledger",
+       "at": "docket/db.py:80"
+      },
+      {
+       "claim": "migrations/ holds Alembic migrations",
+       "at": "alembic.ini:2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Records, categories and scoring config",
+   "files": [
+    "config/records.csv",
+    "config/categories.yaml",
+    "config/scoring.json",
+    "docket/config.py",
+    "scripts/unique_tenants.py",
+    "tests/test_config.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "records are UNIT-#### ids",
+       "at": "docket/config.py:28"
+      },
+      {
+       "claim": "UNIT-0001 is 1010 Cedar Street Apt 1",
+       "at": "config/records.csv:2"
+      },
+      {
+       "claim": "200 synthetic units (201 lines incl. header)",
+       "at": "config/records.csv:201"
+      },
+      {
+       "claim": "weights are untuned defaults",
+       "at": "config/scoring.json:3"
+      },
+      {
+       "claim": "signal weights live in config/scoring.json",
+       "at": "config/scoring.json:4"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Synthetic corpus and gold labels",
+   "files": [
+    "docket/corpus.py",
+    "tests/test_corpus.py",
+    "tests/test_pr1_review_corpus.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "case types cover clean, single-signal, conflict, decoy, injection, duplicate, very long and broken files",
+       "at": "docket/corpus.py:15"
+      },
+      {
+       "claim": "170 documents per seed (10 batches x 17 cases)",
+       "at": "docket/corpus.py:117"
+      },
+      {
+       "claim": "labels.jsonl holds the answers",
+       "at": "docket/corpus.py:228"
+      },
+      {
+       "claim": "same seed gives same text and labels",
+       "at": "tests/test_corpus.py:39"
+      },
+      {
+       "claim": "corpus generate --seed and --output options",
+       "at": "docket/cli.py:37"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Text extraction and typed rejections",
+   "files": [
+    "docket/core/extraction.py",
+    "tests/core/test_extraction.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "PDF text read with pypdf",
+       "at": "docket/core/extraction.py:66"
+      },
+      {
+       "claim": "zero_byte rejection",
+       "at": "docket/core/extraction.py:58"
+      },
+      {
+       "claim": "too_large rejection",
+       "at": "docket/core/extraction.py:60"
+      },
+      {
+       "claim": "unsupported_type for non-PDF",
+       "at": "docket/core/extraction.py:64"
+      },
+      {
+       "claim": "encrypted rejection",
+       "at": "docket/core/extraction.py:68"
+      },
+      {
+       "claim": "corrupt rejection",
+       "at": "docket/core/extraction.py:72"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Candidate shortlist and conflict flag",
+   "files": [
+    "docket/core/candidates.py",
+    "tests/core/test_candidates.py",
+    "tests/core/test_pr1_review_candidates.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "keeps up to five candidates",
+       "at": "docket/core/candidates.py:94"
+      },
+      {
+       "claim": "explicit_id from text or subject",
+       "at": "docket/core/candidates.py:100"
+      },
+      {
+       "claim": "filename_id from file name",
+       "at": "docket/core/candidates.py:101"
+      },
+      {
+       "claim": "address or alias match",
+       "at": "docket/core/candidates.py:115"
+      },
+      {
+       "claim": "Street/St and Apt/Unit equivalence",
+       "at": "docket/core/candidates.py:30"
+      },
+      {
+       "claim": "# treated as unit",
+       "at": "docket/core/candidates.py:12"
+      },
+      {
+       "claim": "current or former tenant, fuzzy match",
+       "at": "docket/core/candidates.py:126"
+      },
+      {
+       "claim": "close spellings count via fuzzy ratio cutoff",
+       "at": "docket/core/candidates.py:56"
+      },
+      {
+       "claim": "building counts only apart from matched address",
+       "at": "docket/core/candidates.py:142"
+      },
+      {
+       "claim": "conflict when evidence points to more than one record",
+       "at": "docket/core/candidates.py:150"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Corroboration scoring and tiers",
+   "files": [
+    "docket/core/scoring.py",
+    "tests/core/test_scoring.py",
+    "tests/test_pr1_findings.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "tiers none, medium, strong",
+       "at": "docket/core/scoring.py:63"
+      },
+      {
+       "claim": "strong needs two independent signals; one is capped below strong",
+       "at": "docket/core/scoring.py:136"
+      },
+      {
+       "claim": "conflict sets score 0 and review",
+       "at": "docket/core/scoring.py:122"
+      },
+      {
+       "claim": "filing needs strong tier",
+       "at": "docket/core/scoring.py:144"
+      },
+      {
+       "claim": "building ignored unless explicit",
+       "at": "docket/core/scoring.py:96"
+      },
+      {
+       "claim": "pick not on shortlist raises InvalidChoice",
+       "at": "docket/core/scoring.py:120"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "docket score command",
+   "files": [
+    "docket/cli.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "score runs extraction, shortlist and scoring with no model call",
+       "at": "docket/cli.py:61"
+      },
+      {
+       "claim": "prints chosen_record_id, score, tier, conflict, would_auto_file, reason",
+       "at": "docket/cli.py:113"
+      },
+      {
+       "claim": "rejected file prints status rejected and exits 1",
+       "at": "docket/cli.py:75"
+      },
+      {
+       "claim": "unsupported_type rejection exits 1",
+       "at": "docket/cli.py:87"
+      },
+      {
+       "claim": "example output and corpus examples observed by running uv run docket score",
+       "at": "docket/cli.py:96"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Idempotent S3 storage",
+   "files": [
+    "docket/core/storage.py",
+    "tests/core/test_storage.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "key is building/record_id/category/hash.pdf",
+       "at": "docket/core/storage.py:34"
+      },
+      {
+       "claim": "key parts must match [A-Za-z0-9_-]+",
+       "at": "docket/core/storage.py:32"
+      },
+      {
+       "claim": "same bytes again is a no-op",
+       "at": "docket/core/storage.py:120"
+      },
+      {
+       "claim": "different bytes raise StorageConflict",
+       "at": "docket/core/storage.py:119"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Ledger events and status whitelist",
+   "files": [
+    "docket/core/ledger.py",
+    "docket/core/__init__.py",
+    "tests/core/test_ledger.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "event written once per document and step",
+       "at": "docket/core/ledger.py:74"
+      },
+      {
+       "claim": "status moves only along an allowed list",
+       "at": "docket/core/ledger.py:92"
+      },
+      {
+       "claim": "final statuses have no allowed moves",
+       "at": "docket/core/ledger.py:38"
+      },
+      {
+       "claim": "observe mode cannot file or wait for review",
+       "at": "docket/core/ledger.py:98"
+      },
+      {
+       "claim": "act mode cannot use would_file/would_review",
+       "at": "docket/core/ledger.py:105"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Model gateway: modes, replay, budget, ParseError",
+   "files": [
+    "docket/llm/__init__.py",
+    "docket/llm/gateway.py",
+    "docket/llm/replay.py",
+    "docket/llm/budget.py",
+    "docket/llm/errors.py",
+    "tests/test_gateway.py",
+    "tests/test_pr1_review_gateway.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "OpenRouter base URL",
+       "at": "docket/llm/gateway.py:40"
+      },
+      {
+       "claim": "live, record, replay modes",
+       "at": "docket/llm/gateway.py:22"
+      },
+      {
+       "claim": "record accepts only the synthetic corpus",
+       "at": "docket/llm/gateway.py:121"
+      },
+      {
+       "claim": "replay returns saved answers without a transport",
+       "at": "docket/llm/gateway.py:125"
+      },
+      {
+       "claim": "worst-case reservation before each call",
+       "at": "docket/llm/gateway.py:132"
+      },
+      {
+       "claim": "per-run cap",
+       "at": "docket/llm/budget.py:56"
+      },
+      {
+       "claim": "daily cap in Postgres",
+       "at": "docket/llm/budget.py:80"
+      },
+      {
+       "claim": "charges real cost after call",
+       "at": "docket/llm/gateway.py:164"
+      },
+      {
+       "claim": "ParseError is not retried",
+       "at": "docket/llm/errors.py:6"
+      }
+     ]
+    },
+    {
+     "path": "docs/adr/001-model-enum-spike.md",
+     "claims": [
+      {
+       "claim": "strict per-call json_schema",
+       "at": "docket/llm/gateway.py:65"
+      },
+      {
+       "claim": "answer revalidated with Pydantic",
+       "at": "docket/llm/gateway.py:169"
+      },
+      {
+       "claim": "raw JSON fallback uses the same schema",
+       "at": "docket/llm/gateway.py:168"
+      },
+      {
+       "claim": "SDK cut-off, filtered or invalid output raises ParseError",
+       "at": "docket/llm/gateway.py:138"
+      },
+      {
+       "claim": "no provider fallback",
+       "at": "docket/llm/gateway.py:51"
+      },
+      {
+       "claim": "local tests use a fake HTTP transport",
+       "at": "tests/test_gateway.py:273"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Model enum spike command",
+   "files": [
+    "docket/llm/spike.py",
+    "tests/test_spike.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "spike-models checks a different allowed id list per call",
+       "at": "docket/llm/spike.py:39"
+      }
+     ]
+    },
+    {
+     "path": "docs/adr/001-model-enum-spike.md",
+     "claims": [
+      {
+       "claim": "spike replaces the Result section with the measured result",
+       "at": "docket/llm/spike.py:81"
+      },
+      {
+       "claim": "spike writes the JSON result file",
+       "at": "docket/llm/spike.py:67"
+      },
+      {
+       "claim": "no key prints PENDING and makes no call",
+       "at": "docket/cli.py:26"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

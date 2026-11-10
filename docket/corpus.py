@@ -94,6 +94,20 @@ def generate(
     records = load_records(records_path)
     if len(records) < 2:
         raise ValueError("Corpus requires at least two real records")
+    former_records = [record for record in records if record.former_tenants]
+    neighbours = {
+        record.record_id: [
+            other
+            for other in records
+            if other.building == record.building and other.record_id != record.record_id
+        ]
+        for record in records
+    }
+    neighbour_records = [record for record in records if neighbours[record.record_id]]
+    if not former_records:
+        raise ValueError("Corpus requires a record with former tenants")
+    if not neighbour_records:
+        raise ValueError("Corpus requires neighbouring units in one building")
     rng = random.Random(seed)
     fake = Faker("en_US")
     fake.seed_instance(seed)
@@ -105,6 +119,10 @@ def generate(
         clean_payload = b""
         for case_type in CASE_TYPES:
             record = rng.choice(records)
+            if case_type == "former_tenant" and not record.former_tenants:
+                record = rng.choice(former_records)
+            elif case_type == "decoy_near_miss_address" and not neighbours[record.record_id]:
+                record = rng.choice(neighbour_records)
             other = rng.choice([item for item in records if item.record_id != record.record_id])
             category = categories[(batch + CASE_TYPES.index(case_type)) % len(categories)]
             document_id = f"doc-{len(labels) + 1:04d}"
@@ -136,13 +154,7 @@ def generate(
                 body = identifying_lines(record) + identifying_lines(other)
                 gold, expected = None, "review"
             elif case_type == "decoy_near_miss_address":
-                other = rng.choice(
-                    [
-                        item
-                        for item in records
-                        if item.building == record.building and item.record_id != record.record_id
-                    ]
-                )
+                other = rng.choice(neighbours[record.record_id])
                 body = [
                     f"Address: {record.address.replace('Street', 'Streeet')}",
                     f"Tenant: {record.current_tenants[0]}",

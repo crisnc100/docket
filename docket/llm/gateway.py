@@ -4,7 +4,13 @@ from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from typing import Any
 
+from langchain_core.exceptions import OutputParserException
 from langchain_openai import ChatOpenAI
+from openai import (
+    APIResponseValidationError,
+    ContentFilterFinishReasonError,
+    LengthFinishReasonError,
+)
 from pydantic import BaseModel, ValidationError
 
 from docket.llm.budget import Budget, PriceCeiling
@@ -61,14 +67,22 @@ class OpenRouterTransport:
         return await chain.ainvoke(prompt)
 
 
-def response_cost(raw: Any) -> Decimal:
+def usage_cost(usage: Any) -> Decimal:
     try:
-        cost = Decimal(str(raw.response_metadata["token_usage"]["cost"]))
-    except (AttributeError, KeyError, TypeError, InvalidOperation) as exc:
+        cost = Decimal(str(usage["cost"]))
+    except (KeyError, TypeError, InvalidOperation) as exc:
         raise UsageError("OpenRouter usage is missing a valid cost") from exc
     if not cost.is_finite() or cost < 0:
         raise UsageError("OpenRouter usage cost must be finite and non-negative")
     return cost
+
+
+def response_cost(raw: Any) -> Decimal:
+    try:
+        usage = raw.response_metadata["token_usage"]
+    except (AttributeError, KeyError, TypeError) as exc:
+        raise UsageError("OpenRouter usage is missing a valid cost") from exc
+    return usage_cost(usage)
 
 
 class Gateway:
@@ -121,6 +135,22 @@ class Gateway:
             self.call_count += 1
             try:
                 result = await self.transport(prompt, schema)
+            except (
+                LengthFinishReasonError,
+                ContentFilterFinishReasonError,
+                APIResponseValidationError,
+                OutputParserException,
+                ValidationError,
+            ) as exc:
+                usage = getattr(getattr(exc, "completion", None), "usage", None)
+                if usage is not None:
+                    try:
+                        cost = usage_cost(usage.model_dump())
+                    except UsageError:
+                        pass
+                    else:
+                        self.budget.settle(day, worst, cost)
+                raise ParseError("Model output does not match the per-call schema") from exc
             except Exception as exc:
                 if getattr(exc, "status_code", None) == 429:
                     self.budget.settle(day, worst, Decimal(0))

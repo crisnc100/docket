@@ -301,3 +301,32 @@ at .9500000/strong with would_auto_file=true. No code changed after this green r
 Finding-by-finding file:line and test evidence is in
 builds/v01/pr1-fix-checkpoint.md. Changes stay in the worktree for the operator;
 no commit attempt, push, PR, P3 implementation or model call occurred.
+## PR1 review fixes on core
+
+Unit identifiers retain letters and internal hyphens.
+Hyphens between address words remain separators, including in filenames.
+An address phrase is removed before a building mention is counted as independent.
+Separate building mentions still count. Candidate ranking and scoring policy are unchanged.
+
+Client output and schema exceptions become non-retryable ParseError failures.
+Valid reported usage settles the reservation. Unknown billing keeps the reservation.
+Timeout handling, rate-limit retries and recording rules remain unchanged.
+
+Corpus cases select records with the evidence they need.
+Generation stops before writing if no record has former tenants or no building has two units.
+The shipped config keeps its existing selection sequence.
+Tenant names belong to only one unit. The name helper keeps first owners and uses seed zero
+for replacements, avoiding every existing name. Only two name fields changed.
+Both seeds were regenerated. Three PDFs changed; labels and filenames are unchanged.
+Existing encrypted PDFs were retained where regenerated decrypted text was identical.
+
+Every published compose port binds to 127.0.0.1.
+Container inspection confirms all four bindings and healthy backing services.
+
+The regression tests reproduced 22 failures before implementation, with seven passing controls.
+All 30 new tests pass. No existing test changed.
+Full verification passes with 249 tests and zero skips.
+Candidate branch coverage is 96.15%; scoring, ledger and storage are 100%.
+Both corpus determinism tests and secret checks pass.
+No model call, review, grade or commit was run by the implementer.
+See pr1-review-fix-checkpoint.md and pr1-review-fix-evidence.txt for evidence.

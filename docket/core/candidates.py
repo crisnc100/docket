@@ -8,12 +8,11 @@ from docket.config import Record, Signal
 
 # Underscores are regex word characters but delimit record ids in attachment names.
 ID_PATTERN = re.compile(r"(?<![^\W_])UNIT-[0-9]{4}(?![^\W_])", re.IGNORECASE)
-# Consume each separator run once so unit matching cannot rescan it.
 UNIT_PATTERN = re.compile(
     r"(?<!\w)(?:(?:apartment|apt|unit|suite|ste)[\s._-]++|#[\s._-]*+|"
     r"(?P<street>street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln)"
     r"[\s._-]++(?!#|(?:apartment|apt|unit|suite|ste)(?=[\s._-]|$))(?=[^\s\d]*+\d))"
-    r"(?P<value>\S++)(?:[ \t]++(?P<letter>[a-z])(?!\w))?"
+    r"(?P<value>\S++)"
 )
 ADDRESS_TOKEN_PATTERN = re.compile(r"(?<=unit )\S+|(?<![\w-])\d[\w-]*")
 ADDRESS_SPAN_PATTERN = re.compile(
@@ -23,10 +22,29 @@ ADDRESS_SPAN_PATTERN = re.compile(
 )
 LABEL_PATTERN = re.compile(r"\b(?P<name>[a-z]+)[^\S\r\n]*:", re.IGNORECASE)
 FULL_SIGNAL_STRENGTH = 1.0
+MAX_MATCH_TOKEN_CHARS = 64
+MAX_MATCH_LINE_CHARS = 8192
+
+
+def _bounded_prefix(text: str, limit: int) -> str:
+    # Keep an end marker so a cut unit cannot become a shorter valid unit.
+    return text if len(text) <= limit else text[: limit - 1] + "_"
+
+
+def bounded_matching_text(text: str) -> str:
+    # Bound untrusted PDF tokens and lines before matching so regex work stays linear.
+    text = unicodedata.normalize("NFKC", text).casefold()
+    return "\n".join(
+        _bounded_prefix(
+            " ".join(_bounded_prefix(token, MAX_MATCH_TOKEN_CHARS) for token in line.split()),
+            MAX_MATCH_LINE_CHARS,
+        )
+        for line in text.splitlines()
+    )
 
 
 def normalize_text(text: str) -> str:
-    return " ".join(re.sub(r"[^\w]+", " ", unicodedata.normalize("NFKC", text).casefold()).split())
+    return " ".join(re.sub(r"[^\w]+", " ", bounded_matching_text(text)).split())
 
 
 def unit_parts(value: str) -> tuple[str, str]:
@@ -42,15 +60,13 @@ def unit_parts(value: str) -> tuple[str, str]:
 
 
 def normalize_address(text: str) -> str:
-    text = unicodedata.normalize("NFKC", text).casefold()
+    text = bounded_matching_text(text)
     parts: list[str] = []
     end = 0
     for match in UNIT_PATTERN.finditer(text):
         value, tail = unit_parts(match.group("value"))
         if not any(character.isdigit() for character in value) and len(value) != 1:
             continue
-        if match.group("letter"):
-            value += "-" + match.group("letter")
         parts.extend(
             [
                 normalize_text(text[end : match.start()]),
@@ -80,6 +96,7 @@ def normalize_address(text: str) -> str:
 
 def strip_address_labels(line: str) -> str:
     # Scan labels once so long whitespace is not rescanned at each position.
+    line = bounded_matching_text(line)
     labels = list(LABEL_PATTERN.finditer(line))
     parts: list[str] = []
     start = 0
@@ -94,7 +111,7 @@ def strip_address_labels(line: str) -> str:
 def independent_building_context(text: str) -> str:
     return " ".join(
         ADDRESS_SPAN_PATTERN.sub(" ", normalize_address(strip_address_labels(line)))
-        for line in text.splitlines()
+        for line in bounded_matching_text(text).splitlines()
     )
 
 
@@ -135,12 +152,32 @@ def _name_strength(
 
 
 def address_strength(aliases: list[str], chunks: list[str], cutoff: float) -> float:
-    addresses = [normalize_address(chunk) for chunk in chunks]
+    addresses = [address for chunk in chunks for address in _normalized_address_chunks(chunk)]
     return _address_strength(
         aliases,
         [(address, ADDRESS_TOKEN_PATTERN.findall(address)) for address in addresses],
         cutoff,
     )
+
+
+def _normalized_address_chunks(text: str) -> list[str]:
+    text = bounded_matching_text(text)
+    chunks: list[str] = []
+    start = 0
+    for match in UNIT_PATTERN.finditer(text):
+        if match.group("value")[-1] in ".,;:!?)]}\"'”’»":
+            continue
+        tail = text[match.end() :]
+        following = tail.lstrip(" \t")
+        if tail == following or not following or not following[0].isalpha():
+            continue
+        if len(following) > 1 and (following[1].isalnum() or following[1] == "_"):
+            continue
+        # A separate bare letter makes the unit ambiguous and cannot support an address match.
+        chunks.append(normalize_address(text[start : match.start()]))
+        start = match.end() + len(tail) - len(following) + 1
+    chunks.append(normalize_address(text[start:]))
+    return chunks
 
 
 def _address_strength(
@@ -204,7 +241,8 @@ def shortlist(
     explicit = {value.upper() for value in ID_PATTERN.findall(text + "\n" + subject)}
     filename_ids = {value.upper() for value in ID_PATTERN.findall(filename)}
     all_ids = explicit | filename_ids
-    address_text = normalize_address("\n".join([text, subject, filename]))
+    text, subject, filename = (bounded_matching_text(value) for value in (text, subject, filename))
+    address_text = " \n ".join(_normalized_address_chunks("\n".join([text, subject, filename])))
     normalized_text = normalize_text("\n".join([text, subject, filename]))
     building_text = independent_building_context("\n".join([text, subject, filename]))
     chunks = [
@@ -217,8 +255,11 @@ def shortlist(
     # Sort each chunk once instead of repeating the sort for every record.
     sorted_name_chunks = [" ".join(sorted(chunk.split())) for chunk in chunks]
     address_chunks = [
-        normalize_address(re.sub(r"^address\s*:\s*", "", line, flags=re.IGNORECASE))
+        address
         for line in (text + "\n" + subject + "\n" + filename).splitlines()
+        for address in _normalized_address_chunks(
+            re.sub(r"^address\s*:\s*", "", line, flags=re.IGNORECASE)
+        )
     ]
     tokenized_addresses = [
         (chunk, ADDRESS_TOKEN_PATTERN.findall(chunk)) for chunk in address_chunks

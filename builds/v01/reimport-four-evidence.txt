@@ -1,0 +1,108 @@
+Replay after four replacement answers: command evidence
+Branch: v01; change base: 7a01e0e
+
+Import via Exchange.import_answers, using only the four approved keys:
+{'imported': 4, 'pending': 0}
+Supplied mix: 3 claude-haiku-5-5; 1 claude-opus-5-5.
+
+Guard checks before their accepted data refresh:
+3 failed, 23 deselected in 9.58s
+The three accepted core payload replacements were verified byte-for-byte.
+The old payload map and seed-7 trial evidence were preserved byte-for-byte.
+Scoring config and selected threshold are unchanged.
+
+New banner test before implementation:
+1 failed in 1.05s
+
+Report and guard tests after implementation:
+39 passed in 56.63s
+
+$ uv run docket eval --seed 7 --mode replay --budget 0
+PASS: evals/reports/2026-11-10-seed-7.json
+Exit: 0
+Floors: {"clean_auto_file_rate_90pct": true, "injection_to_injected_id_zero": true, "recall_at_least_baseline": true, "wrong_file_count_zero": true}
+Choice comparison: {"category_changes": 8, "changed_document_ids": [], "documents": 180, "filed_record_changes": 0, "filing_decision_changes": 0, "review_proposal_changes": 74, "routing_changes": 0}
+Seed simulator counts: {"claude-haiku-5-5": 212, "claude-opus-5-5": 8}
+$ uv run docket shadow-diff --report evals/reports/2026-11-10-seed-7.json
+COMPLETE: evals/reports/2026-11-10-seed-7-shadow.json
+Gold classifications: {'both_correct': 82}
+Exit: 0
+
+$ uv run docket eval --seed 11 --mode replay --budget 0
+PASS: evals/reports/2026-11-10-seed-11.json
+Exit: 0
+Floors: {"clean_auto_file_rate_90pct": true, "injection_to_injected_id_zero": true, "recall_at_least_baseline": true, "wrong_file_count_zero": true}
+Choice comparison: {"category_changes": 8, "changed_document_ids": [], "documents": 180, "filed_record_changes": 0, "filing_decision_changes": 0, "review_proposal_changes": 79, "routing_changes": 0}
+Seed simulator counts: {"claude-haiku-5-5": 211, "claude-opus-5-5": 9}
+$ uv run docket shadow-diff --report evals/reports/2026-11-10-seed-11.json
+COMPLETE: evals/reports/2026-11-10-seed-11-shadow.json
+Gold classifications: {'both_correct': 87}
+Exit: 0
+
+First full verification identified the inherited port-count mismatch:
+================== 1 failed, 411 passed in 115.58s (0:01:55) ===================
+Only the expected API service and fifth binding were added to that test.
+The all-port 127.0.0.1 assertion is unchanged.
+
+$ ./verify.sh
+Exit: 0
+All checks passed!
+129 files already formatted
+0 errors, 0 warnings, 0 informations
+ Image docket-v01-migrate Built 
+ Image docket-v01-worker Built 
+ Image docket-v01-api Built 
+======================= 412 passed in 110.71s (0:01:50) ========================
+PASS docket/core/candidates.py: 49/50 branches = 98.00% (required 95%)
+PASS docket/core/scoring.py: 32/32 branches = 100.00% (required 95%)
+PASS docket/core/ledger.py: 16/16 branches = 100.00% (required 95%)
+PASS docket/core/storage.py: 20/20 branches = 100.00% (required 90%)
+Replay report reproduced: PASS; seed=11; no model calls
+detect-secrets: {}
+Verified public request SHA-256 digests: 444; all other findings remain blocking
+Skipped tests: 0; conftest rejects skips.
+
+$ ./verify.sh --fault
+Exit: 0
+All checks passed!
+129 files already formatted
+0 errors, 0 warnings, 0 informations
+ Image docket-v01-worker Built 
+ Image docket-v01-api Built 
+ Image docket-v01-migrate Built 
+tests/fault/test_faults.py .....                                         [ 53%]
+======================= 417 passed in 242.10s (0:04:02) ========================
+PASS docket/core/candidates.py: 49/50 branches = 98.00% (required 95%)
+PASS docket/core/scoring.py: 32/32 branches = 100.00% (required 95%)
+PASS docket/core/ledger.py: 16/16 branches = 100.00% (required 95%)
+PASS docket/core/storage.py: 20/20 branches = 100.00% (required 90%)
+Replay report reproduced: PASS; seed=11; no model calls
+detect-secrets: {}
+Verified public request SHA-256 digests: 444; all other findings remain blocking
+Skipped tests: 0; conftest rejects skips.
+
+Protected input and historical report integrity: 1260 files; changed=[]
+Recording prefix unchanged: 440; appended: 4; archive: 444
+Seed 7: changed document results=[('doc-0068', 'would_review', 'would_file')]
+  floors={'clean_auto_file_rate_90pct': True, 'injection_to_injected_id_zero': True, 'recall_at_least_baseline': True, 'wrong_file_count_zero': True}
+  choice={'category_changes': 8, 'changed_document_ids': [], 'documents': 180, 'filed_record_changes': 0, 'filing_decision_changes': 0, 'review_proposal_changes': 74, 'routing_changes': 0}
+  model mix={'claude-haiku-5-5': 212, 'claude-opus-5-5': 8}
+  curve distinct points=6
+Seed 11: changed document results=[('doc-0035', 'would_review', 'would_file'), ('doc-0045', 'would_review', 'would_file')]
+  floors={'clean_auto_file_rate_90pct': True, 'injection_to_injected_id_zero': True, 'recall_at_least_baseline': True, 'wrong_file_count_zero': True}
+  choice={'category_changes': 8, 'changed_document_ids': [], 'documents': 180, 'filed_record_changes': 0, 'filing_decision_changes': 0, 'review_proposal_changes': 79, 'routing_changes': 0}
+  model mix={'claude-haiku-5-5': 211, 'claude-opus-5-5': 9}
+  curve distinct points=6
+
+$ docker compose ps --format {{.Service}} {{.State}} {{.Health}}
+api running healthy
+postgres running healthy
+seaweedfs running healthy
+temporal running healthy
+worker running healthy
+
+$ curl --fail --silent http://127.0.0.1:8010/healthz
+{"status":"ok"}
+
+Existing test changes: tests/test_pr1_review_compose.py:14-15 only.
+No live model, review, grade, commit or push.

@@ -543,8 +543,15 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
     path = directory / f"{report['date']}-seed-{report['seed']}.json"
     text = f"# Docket eval — seed {report['seed']}\n\nStatus: **{report['status']}**\n\n"
     if report.get("measurement") in {"simulated", "mixed"}:
+        seed_counts = report.get("simulation", {}).get("seed_request_counts", {})
         banner = "\n".join(
-            f"Model responses simulated by {entry['simulated_by']}, "
+            f"Model responses simulated by {entry['simulated_by']}"
+            + (
+                f" ({seed_counts[entry['simulated_by']]} unique requests in this seed)"
+                if entry["simulated_by"] in seed_counts
+                else ""
+            )
+            + ", "
             f"standing in for {entry['standing_in_for']}; not an OpenRouter measurement."
             for entry in report["provenance"]
         )
@@ -558,13 +565,14 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
             for scope, field in [
                 ("This seed", "seed_request_counts"),
                 ("Used by workflows", "used_request_counts"),
-                ("Both seeds", "archive_request_counts"),
+                ("Replay archive, including superseded requests", "archive_request_counts"),
             ]:
                 mix = ", ".join(f"{model}: {count}" for model, count in simulation[field].items())
                 text += f"{scope}: {mix}.\n\n"
             text += (
                 "An imported answer need not be used.\n"
                 "Equal document bytes share one workflow in a run.\n\n"
+                "Superseded requests describe earlier document versions.\n\n"
             )
             if simulation.get("fallback_reason"):
                 text += f"Reason for the mix: {simulation['fallback_reason']}\n\n"

@@ -1,6 +1,44 @@
 {
   "curve": [
     {
+      "auto_file_count": 39,
+      "auto_file_precision": 1.0,
+      "auto_file_rate": 0.21666666666666667,
+      "auto_file_rate_wilson_95": [
+        0.16274157861520305,
+        0.28243253687371095
+      ],
+      "auto_file_recall": 1.0,
+      "category_accuracy": 0.9428571428571428,
+      "category_accuracy_wilson_95": [
+        0.8912967078209393,
+        0.9707635147090092
+      ],
+      "category_denominator": 140,
+      "correct_file_count": 39,
+      "documents": 180,
+      "outcomes": {
+        "rejected": 40,
+        "would_file": 39,
+        "would_review": 101
+      },
+      "precision_wilson_95": [
+        0.9103331462924287,
+        1.0
+      ],
+      "recall_wilson_95": [
+        0.9103331462924287,
+        1.0
+      ],
+      "review_rate": 0.5611111111111111,
+      "review_rate_wilson_95": [
+        0.48808829710728535,
+        0.6315800309245176
+      ],
+      "threshold": "0.5500000",
+      "wrong_file_count": 0
+    },
+    {
       "auto_file_count": 38,
       "auto_file_precision": 1.0,
       "auto_file_rate": 0.2111111111111111,
@@ -19,8 +57,8 @@
       "documents": 180,
       "outcomes": {
         "rejected": 40,
-        "would_file": 38,
-        "would_review": 102
+        "would_file": 39,
+        "would_review": 101
       },
       "precision_wilson_95": [
         0.908190131774416,
@@ -35,159 +73,159 @@
         0.4936290513862009,
         0.6369182155575839
       ],
-      "threshold": "0.5500000",
-      "wrong_file_count": 0
-    },
-    {
-      "auto_file_count": 37,
-      "auto_file_precision": 1.0,
-      "auto_file_rate": 0.20555555555555555,
-      "auto_file_rate_wilson_95": [
-        0.1529702227235919,
-        0.27044601494135795
-      ],
-      "auto_file_recall": 0.9487179487179487,
-      "category_accuracy": 0.9428571428571428,
-      "category_accuracy_wilson_95": [
-        0.8912967078209393,
-        0.9707635147090092
-      ],
-      "category_denominator": 140,
-      "correct_file_count": 37,
-      "documents": 180,
-      "outcomes": {
-        "rejected": 40,
-        "would_file": 38,
-        "would_review": 102
-      },
-      "precision_wilson_95": [
-        0.9059421741627975,
-        1.0
-      ],
-      "recall_wilson_95": [
-        0.8311435995238639,
-        0.9858220445847259
-      ],
-      "review_rate": 0.5722222222222222,
-      "review_rate_wilson_95": [
-        0.4991787756967406,
-        0.6422474301590264
-      ],
       "threshold": "0.6142857",
       "wrong_file_count": 0
     },
     {
-      "auto_file_count": 34,
+      "auto_file_count": 35,
       "auto_file_precision": 1.0,
-      "auto_file_rate": 0.18888888888888888,
+      "auto_file_rate": 0.19444444444444445,
       "auto_file_rate_wilson_95": [
-        0.13843659520258492,
-        0.25234282572641864
+        0.14326401743446202,
+        0.25839434240652365
       ],
-      "auto_file_recall": 0.8717948717948718,
+      "auto_file_recall": 0.8974358974358975,
       "category_accuracy": 0.9428571428571428,
       "category_accuracy_wilson_95": [
         0.8912967078209393,
         0.9707635147090092
       ],
       "category_denominator": 140,
-      "correct_file_count": 34,
+      "correct_file_count": 35,
       "documents": 180,
       "outcomes": {
         "rejected": 40,
-        "would_file": 38,
-        "would_review": 102
+        "would_file": 39,
+        "would_review": 101
       },
       "precision_wilson_95": [
-        0.8984854458466761,
+        0.9010990076755959,
         1.0
       ],
       "recall_wilson_95": [
-        0.7329425662025455,
-        0.9439718246302862
+        0.7642114553714348,
+        0.9593866865533163
       ],
-      "review_rate": 0.5888888888888889,
+      "review_rate": 0.5833333333333334,
       "review_rate_wilson_95": [
-        0.515882202785973,
-        0.6581808198057403
+        0.510305304279413,
+        0.6528787794003181
       ],
       "threshold": "0.6785714",
       "wrong_file_count": 0
     },
     {
-      "auto_file_count": 34,
+      "auto_file_count": 35,
       "auto_file_precision": 1.0,
-      "auto_file_rate": 0.18888888888888888,
+      "auto_file_rate": 0.19444444444444445,
       "auto_file_rate_wilson_95": [
-        0.13843659520258492,
-        0.25234282572641864
+        0.14326401743446202,
+        0.25839434240652365
       ],
-      "auto_file_recall": 0.8717948717948718,
+      "auto_file_recall": 0.8974358974358975,
       "category_accuracy": 0.9428571428571428,
       "category_accuracy_wilson_95": [
         0.8912967078209393,
         0.9707635147090092
       ],
       "category_denominator": 140,
-      "correct_file_count": 34,
+      "correct_file_count": 35,
       "documents": 180,
       "outcomes": {
         "rejected": 40,
-        "would_file": 38,
-        "would_review": 102
+        "would_file": 39,
+        "would_review": 101
       },
       "precision_wilson_95": [
-        0.8984854458466761,
+        0.9010990076755959,
         1.0
       ],
       "recall_wilson_95": [
-        0.7329425662025455,
-        0.9439718246302862
+        0.7642114553714348,
+        0.9593866865533163
       ],
-      "review_rate": 0.5888888888888889,
+      "review_rate": 0.5833333333333334,
       "review_rate_wilson_95": [
-        0.515882202785973,
-        0.6581808198057403
+        0.510305304279413,
+        0.6528787794003181
       ],
       "threshold": "0.7428571",
       "wrong_file_count": 0
     },
     {
-      "auto_file_count": 34,
+      "auto_file_count": 35,
       "auto_file_precision": 1.0,
-      "auto_file_rate": 0.18888888888888888,
+      "auto_file_rate": 0.19444444444444445,
       "auto_file_rate_wilson_95": [
-        0.13843659520258492,
-        0.25234282572641864
+        0.14326401743446202,
+        0.25839434240652365
       ],
-      "auto_file_recall": 0.8717948717948718,
+      "auto_file_recall": 0.8974358974358975,
       "category_accuracy": 0.9428571428571428,
       "category_accuracy_wilson_95": [
         0.8912967078209393,
         0.9707635147090092
       ],
       "category_denominator": 140,
-      "correct_file_count": 34,
+      "correct_file_count": 35,
       "documents": 180,
       "outcomes": {
         "rejected": 40,
-        "would_file": 38,
-        "would_review": 102
+        "would_file": 39,
+        "would_review": 101
       },
       "precision_wilson_95": [
-        0.8984854458466761,
+        0.9010990076755959,
         1.0
       ],
       "recall_wilson_95": [
-        0.7329425662025455,
-        0.9439718246302862
+        0.7642114553714348,
+        0.9593866865533163
       ],
-      "review_rate": 0.5888888888888889,
+      "review_rate": 0.5833333333333334,
       "review_rate_wilson_95": [
-        0.515882202785973,
-        0.6581808198057403
+        0.510305304279413,
+        0.6528787794003181
       ],
       "threshold": "0.8071429",
+      "wrong_file_count": 0
+    },
+    {
+      "auto_file_count": 32,
+      "auto_file_precision": 1.0,
+      "auto_file_rate": 0.17777777777777778,
+      "auto_file_rate_wilson_95": [
+        0.12883593460378476,
+        0.24018560850125473
+      ],
+      "auto_file_recall": 0.8205128205128205,
+      "category_accuracy": 0.9428571428571428,
+      "category_accuracy_wilson_95": [
+        0.8912967078209393,
+        0.9707635147090092
+      ],
+      "category_denominator": 140,
+      "correct_file_count": 32,
+      "documents": 180,
+      "outcomes": {
+        "rejected": 40,
+        "would_file": 39,
+        "would_review": 101
+      },
+      "precision_wilson_95": [
+        0.8928208017449293,
+        1.0
+      ],
+      "recall_wilson_95": [
+        0.6733195433811838,
+        0.9102273452678089
+      ],
+      "review_rate": 0.6,
+      "review_rate_wilson_95": [
+        0.5270635327059384,
+        0.6687573677097388
+      ],
+      "threshold": "0.8714286",
       "wrong_file_count": 0
     },
     {
@@ -209,8 +247,8 @@
       "documents": 180,
       "outcomes": {
         "rejected": 40,
-        "would_file": 38,
-        "would_review": 102
+        "would_file": 39,
+        "would_review": 101
       },
       "precision_wilson_95": [
         0.889744604539564,
@@ -224,44 +262,6 @@
       "review_rate_wilson_95": [
         0.5326680819105162,
         0.6740317574171432
-      ],
-      "threshold": "0.8714286",
-      "wrong_file_count": 0
-    },
-    {
-      "auto_file_count": 30,
-      "auto_file_precision": 1.0,
-      "auto_file_rate": 0.16666666666666666,
-      "auto_file_rate_wilson_95": [
-        0.11931179926281874,
-        0.22795186601825654
-      ],
-      "auto_file_recall": 0.7692307692307693,
-      "category_accuracy": 0.9428571428571428,
-      "category_accuracy_wilson_95": [
-        0.8912967078209393,
-        0.9707635147090092
-      ],
-      "category_denominator": 140,
-      "correct_file_count": 30,
-      "documents": 180,
-      "outcomes": {
-        "rejected": 40,
-        "would_file": 38,
-        "would_review": 102
-      },
-      "precision_wilson_95": [
-        0.8864866068260312,
-        1.0
-      ],
-      "recall_wilson_95": [
-        0.6166374277165825,
-        0.8735419587485715
-      ],
-      "review_rate": 0.6111111111111112,
-      "review_rate_wilson_95": [
-        0.5382819727491671,
-        0.6792968054904746
       ],
       "threshold": "0.9357143",
       "wrong_file_count": 0
@@ -285,8 +285,8 @@
       "documents": 180,
       "outcomes": {
         "rejected": 40,
-        "would_file": 38,
-        "would_review": 102
+        "would_file": 39,
+        "would_review": 101
       },
       "precision_wilson_95": null,
       "recall_wilson_95": [
@@ -302,57 +302,58 @@
       "wrong_file_count": 0
     }
   ],
+  "historical_selection": "evals/history/threshold-selection-pre-core.json",
   "rule_sha256": "f28fcc50e6fda9b1363b862715e3985eef024d2a0401b2f1b2d29354aad6cda4", "rule_digest_note": "public rule digest # pragma: allowlist secret",
   "seed": 7,
   "selected_threshold": "0.5857142",
   "selection_rule": "Zero wrong filings; clean rate >= 90%; most correct filings; largest threshold on ties.",
-  "source": "rules-only; model answers pending",
+  "source": "seed-7 rules-only revalidation after accepted PR1 tenant corrections; threshold unchanged",
   "trials": [
     {
       "clean_auto_file_rate": 1.0,
-      "correct_file_count": 38,
+      "correct_file_count": 39,
       "threshold": "0.55",
       "wrong_file_count": 0
     },
     {
       "clean_auto_file_rate": 1.0,
-      "correct_file_count": 38,
+      "correct_file_count": 39,
       "threshold": "0.5857142",
       "wrong_file_count": 0
     },
     {
       "clean_auto_file_rate": 1.0,
-      "correct_file_count": 37,
+      "correct_file_count": 38,
       "threshold": "0.6291666",
       "wrong_file_count": 0
     },
     {
       "clean_auto_file_rate": 1.0,
-      "correct_file_count": 36,
+      "correct_file_count": 37,
       "threshold": "0.6333333",
       "wrong_file_count": 0
     },
     {
       "clean_auto_file_rate": 1.0,
-      "correct_file_count": 34,
+      "correct_file_count": 35,
       "threshold": "0.8157692",
       "wrong_file_count": 0
     },
     {
       "clean_auto_file_rate": 1.0,
-      "correct_file_count": 33,
+      "correct_file_count": 34,
       "threshold": "0.8500000",
       "wrong_file_count": 0
     },
     {
       "clean_auto_file_rate": 1.0,
-      "correct_file_count": 31,
+      "correct_file_count": 32,
       "threshold": "0.9357142",
       "wrong_file_count": 0
     },
     {
       "clean_auto_file_rate": 1.0,
-      "correct_file_count": 30,
+      "correct_file_count": 31,
       "threshold": "0.9500000",
       "wrong_file_count": 0
     },

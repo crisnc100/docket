@@ -617,3 +617,37 @@ Candidate branch coverage is 96.15%; scoring, ledger and storage are 100%.
 Both corpus determinism tests and secret checks pass.
 No model call, review, grade or commit was run by the implementer.
 See pr1-review-fix-checkpoint.md and pr1-review-fix-evidence.txt for evidence.
+## Replay after the accepted tenant corrections
+
+The operator supplied four replacement answers: three Haiku and one Opus.
+All pass request-schema and provenance validation.
+The original 440 recording bytes remain unchanged; four entries were appended.
+The archive has 425 Haiku and 19 Opus answers, including four old document versions.
+Current seed requests use 423 Haiku and 17 Opus answers.
+Report banners name the counts for each seed and separate them from the archive.
+The extra Opus answer follows a false Haiku safety block reported by the operator.
+
+Only three accepted core PDF hashes changed in the original payload guard.
+Their bytes were checked against core. The prior hash map is preserved in corpus/history/.
+Seed-7 trial counts were revalidated after the tenant correction.
+The original selection is preserved in evals/history/. The threshold stays at 0.5857142.
+No scoring config changed and no setting was selected using seed 11.
+The existing payload and trial-table assertions remain intact.
+New tests check the three permitted data changes and the unchanged threshold.
+
+Both seed evaluations pass. Seed 7 files 39 documents; seed 11 files 38.
+The held-out floors pass: zero wrong filings, 100% clean filing,
+zero filings to injected ids and recall 38/39, equal to the baseline.
+Choose changes no filing decision or filed record on either seed.
+Review proposals still differ on 74 and 79 documents.
+Category accuracy remains 124/140 versus the baseline's 132/140.
+Both curves have eight points and six distinct precision/rate pairs.
+The regenerated reports and shadow diffs remain labelled simulated.
+
+The incoming PR1 port test expected only the three backing services and four bindings.
+Its expectations include the P3 API and fifth binding. Its all-port loopback assertion is unchanged.
+This is the only existing test file changed and needs the operator's separate test-only commit.
+Normal verification passes with 412 tests; fault verification passes with 417 tests.
+Both have zero skips, required coverage, reproduced replay results and clean secret checks.
+All five services are healthy. No model call, review, grade, commit or push was run.
+See reimport-four-checkpoint.md and reimport-four-evidence.txt for evidence.

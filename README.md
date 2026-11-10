@@ -172,31 +172,32 @@ Imported answers must match each request's response schema. Their provenance nam
 both the simulator and the model it stands in for. Replay makes no external calls.
 See [docs/rerecord.md](docs/rerecord.md) for the commands.
 
-The saved reports use simulated answers: 422 Haiku answers and 18 Opus answers.
-Opus supplied the 18 answers that Haiku's safety filter blocked on synthetic text.
+The current reports use simulated answers: 423 Haiku answers and 17 Opus answers.
+Opus supplied answers after Haiku's safety filter blocked synthetic text.
+The archive retains 444 answers, including four requests for earlier document text.
+Its mix is 425 Haiku and 19 Opus answers. No old recording was replaced.
 These are not OpenRouter measurements. The filing threshold is 0.5857142, selected
 on seed 7 only. Weights and tier thresholds remain untuned defaults.
 Seed 11 is held out and selects no settings.
 
-The [seed-7 report](evals/reports/2026-11-09-seed-7.md) and
-[seed-11 report](evals/reports/2026-11-09-seed-11.md) describe the saved run before
-the tenant-name corrections merged from core. They require replay against the
-merged corpus before those results apply to this tree.
-In that saved run, model choice changed no filing decision or filed record on
-either seed. It changed suggested records for documents already going to review.
-The model showed no filing gain over the rules-only baseline, which chooses the
+The [seed-7 report](evals/reports/2026-11-10-seed-7.md) and
+[seed-11 report](evals/reports/2026-11-10-seed-11.md) replay the merged corpus.
+Model choice changes no filing decision or filed record on either seed.
+It changes suggested records on 74 review cases in seed 7 and 79 in seed 11.
+Those documents still go to review.
+The model shows no filing gain over the rules-only baseline, which chooses the
 highest-scored candidate without a model.
 
-The saved held-out run had zero wrong filings, 90% clean filing, no filings to
-injected ids and recall of 36/39, equal to the baseline.
+The held-out run has zero wrong filings, 100% clean filing, no filings to
+injected ids and recall of 38/39 (97.44%), equal to the baseline.
 Recall is the share of expected filings found correctly.
-Its eight-point threshold curve had six distinct precision/rate pairs.
+Its eight-point threshold curve has six distinct precision/rate pairs.
 Precision is the share of automatic filings with the expected record and category.
-It was 100% when there were filings; higher thresholds reduced the share filed.
-Category accuracy was 124/140 for Docket and 132/140 for the baseline on both seeds.
+It is 100% when there are filings; higher thresholds reduce the share filed.
+Category accuracy is 124/140 for Docket and 132/140 for the baseline on both seeds.
 Category accuracy is the share of non-rejected documents with the expected category.
-Eight documents per seed with no candidates received misc without a model call.
-These numbers describe the saved reports, not a measurement of the merged corpus.
+Eight documents per seed with no candidates receive misc without a model call.
+These are simulated results, not measurements of OpenRouter.
 
 `docket shadow-diff --report <report.json>` compares Docket with the baseline and
 checks each disagreement against the corpus labels.

@@ -31,7 +31,8 @@ class PriceCeiling:
     def worst_case(self, serialized_request: str, max_output_tokens: int) -> Decimal:
         if max_output_tokens < 1:
             raise ValueError("max_output_tokens must be positive")
-        # UTF-8 bytes bound text tokens; reserve extra for provider/schema framing.
+        # A token is at least one UTF-8 byte, so the byte count bounds the input tokens.
+        # The 4096 extra leaves room for what the provider adds around the schema and prompt.
         input_bound = len(serialized_request.encode("utf-8")) + 4096
         return money(
             (

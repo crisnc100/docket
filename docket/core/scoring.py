@@ -131,7 +131,8 @@ def score_choice(
             "conflicting_records",
         )
     value = raw_score
-    # The numeric cap keeps a threshold-only consumer from treating one signal as strong.
+    # Cap the number too, so a caller that only checks the threshold cannot treat one signal
+    # as strong.
     if len(independent) < 2:
         value = min(value, config.strong_threshold - QUANTUM)
     if value >= config.strong_threshold and len(independent) >= 2:

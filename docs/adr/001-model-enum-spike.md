@@ -19,18 +19,21 @@ The script fails if either output is invalid or differs from the requested id.
 
 ## Result
 
-PENDING. No live requests were made and no result file is claimed. Local HTTP
-transport tests establish the request shape and usage parsing only; they do not
-establish provider compliance. A successful live experiment writes its measured
-result here and retains the JSON evidence. A failing provider/model requires a
-callback rather than a silent fallback.
+PENDING. No live call has been made, so there is no result file yet. The local
+tests use a fake HTTP transport. They check the request shape and how the cost is
+read from the usage data. They do not show that a real provider keeps to the enum.
+When the experiment passes, `docket spike-models` replaces this section with the
+measured result and keeps the JSON file. If it fails, Docket does not switch to
+another model or provider on its own.
 
 ## Decision
 
-Use strict per-call JSON schemas and revalidate the result with Pydantic. The
-local parse fallback handles valid JSON content when structured parsing is
-unavailable; it does not broaden the enum. Unparseable output is a non-retryable
-`ParseError`. No alternative model or provider has been measured.
+Use a strict JSON schema built for each call, and check the answer again with
+Pydantic. If the structured parser returns nothing, Docket parses the raw JSON
+against the same schema, so this fallback cannot accept an id outside the enum.
+Output that does not fit, including answers the SDK reports as cut off, filtered
+or invalid, raises `ParseError`, which is never retried. No other model or provider
+has been measured.
 
 Protocol references:
 [structured output](https://openrouter.ai/docs/guides/features/structured-outputs),

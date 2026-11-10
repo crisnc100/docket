@@ -21,7 +21,7 @@ def normalize_address(text: str) -> str:
     text = unicodedata.normalize("NFKC", text).casefold()
     parts: list[str] = []
     end = 0
-    # Unit identifiers such as 1-2 must keep their hyphens when filenames are split.
+    # Keep unit tokens such as 4b and 1-2 whole; normalize_text would split 1-2 into two words.
     for match in UNIT_PATTERN.finditer(text):
         parts.extend([normalize_text(text[end : match.start()]), "unit", match.group(1)])
         end = match.end()

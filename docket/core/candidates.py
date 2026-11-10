@@ -301,7 +301,10 @@ def shortlist(
         raise ValueError("Record ids must be unique")
     filename = filename.replace("\\", "/").rsplit("/", 1)[-1]
     text, subject, filename = (_normalize(value) for value in (text, subject, filename))
-    # Untrusted PDF text needs field and token caps so regex work stays linear.
+    # Untrusted PDF text gets one budget per field so matching time stays bounded. An
+    # over-budget field is left out and the document goes to review: cutting the field
+    # could hide a contradicting address. Inside the budget, long tokens and lines are
+    # capped so regex work stays linear. Ids from every field still count toward a conflict.
     body_over_budget = len(text) > MAX_BODY_CHARS or _line_count(text) > MAX_BODY_LINES
     subject_over_budget = len(subject) > MAX_SUBJECT_CHARS
     filename_over_budget = len(filename) > MAX_FILENAME_CHARS

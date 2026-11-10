@@ -1,6 +1,6 @@
 # Importing and replaying evaluation
 
-Run commands from the v01 worktree.
+Run commands from the repository root.
 Start services with `docker compose up -d --wait`.
 Seed 7 is for tuning.
 Seed 11 is held out: it is used only for the final check.
@@ -53,23 +53,22 @@ uv run python scripts/pack_exchange.py
 uv run python scripts/pack_exchange.py --check
 uv run docket eval --seed 7 --mode replay --budget 0
 uv run docket eval --seed 11 --mode replay --budget 0
-uv run docket shadow-diff --report evals/reports/2026-11-10-seed-11.json
+uv run docket shadow-diff
 ./verify.sh
 ./verify.sh --fault
 ```
 
-Use the actual report date in the shadow-diff command.
-A shadow diff compares Docket with the rules-only baseline.
+Shadow diff reads the newest seed-11 report unless you pass `--report`.
+It compares Docket with the rules-only baseline.
 It checks each difference against the expected decision.
 A review decision can be correct even when its proposed record or category differs.
 Category accuracy is reported separately.
 
-Import checks all supplied answers before writing any to the archive.
+Import checks all supplied answers before saving any to `evals/recordings/calls.jsonl`.
+Replay reads that file. It uses JSON Lines (JSONL): one JSON object per line.
 Bad fields, values, request keys or model provenance cause an error.
 Missing answers leave the report pending.
-Conflicting saved answers cannot be overwritten.
-The archive uses JSON Lines (JSONL): one JSON object per line.
-Replay reads `evals/recordings/calls.jsonl`.
+A saved answer is never overwritten.
 Repack after importing answers, while both working folders are present.
 The durable evidence is `evals/recordings/exchange.jsonl.gz`.
 It keeps the exact request and answer text, file hashes and provenance.
@@ -79,19 +78,12 @@ Replay and verification work without the untracked working folders.
 
 ## Current simulation
 
-The operator supplied 444 fresh answers.
-Saved provenance confirms 425 from claude-haiku-5-5 and 19 from claude-opus-5-5.
-Current requests use 440 answers. Four older answers remain as evidence.
-The operator reports false safety blocks on 19 synthetic filler text requests.
-Those requests were rerun on Opus.
-Each call saw only its own system prompt, messages and schema.
-It saw no expected labels, code or other answers.
+[evals/recordings/README.md](../evals/recordings/README.md) gives the current answer
+counts and the archive format.
+[Decision 004](adr/004-simulated-model-measurements.md) explains how the answers were
+made.
 
-Reports carry the simulated banner and the answer mix.
-They separate supplied answers from unique answers used by workflows.
-Equal document bytes share one workflow within a run.
-Provider cost is unknown and stays null.
-The implementer did not make model calls or change the supplied answers.
+## Replay check
 
 The replay check runs through `scripts/reproduce_eval.py`.
 It compares seed 11 with the saved report.

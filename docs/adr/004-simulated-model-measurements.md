@@ -2,37 +2,46 @@
 
 Status: imported and measured. Real-provider checks are deferred.
 
-The operator supplied 400 answers.
-Each answer came from a fresh call with only its request and response schema.
-A schema lists the allowed fields, types and values.
-The operator reports that no call saw expected labels, code or other answers.
-The implementer did not invoke a model or write an answer.
+## Context
 
-Saved provenance confirms 382 Haiku answers and 18 Opus answers.
-Provenance names the simulator and the target model.
-Each seed has 191 answers from claude-haiku-5-5 and 9 from claude-opus-5-5.
-The operator reports false safety blocks on 18 synthetic filler text requests.
-Those requests were rerun on Opus.
-The archive keeps each answer's actual model identity.
+No OpenRouter key is available, but the evaluation needs a model answer for every
+request the workflow makes. Docket must not invent those answers itself.
 
-Import checked every answer against its saved schema.
-The record choice could only name a shortlisted ID or `none`.
-All 400 passed. Import kept the original answers unchanged.
-A request key binds its prompt, schema, input and target model.
-Different answers cannot replace an existing saved entry.
+## Decision
 
-Reports start with the required simulated banner.
-They list counts for the seed, workflow use and the whole archive.
-Counts come from saved answers, not the operator's stated totals.
-Method and fallback details are marked as operator reports.
-Simulated provider cost stays null.
+Docket exports each request to a file, and the operator supplies the answers.
+Claude Haiku answered in place of the target model. Opus answered the requests that
+Haiku's safety filter falsely blocked on synthetic filler text. The operator reports
+that each answer came from a fresh call that saw only its request and response
+schema, and no expected labels, code or other answers. A response schema lists the
+allowed fields, types and values. Docket's code made no model call and stored every
+supplied answer unchanged.
 
-Seed 7 and seed 11 pass the four filing floors at score 0.55.
-The reports contain the measured curves, intervals and category accuracy.
-No scoring value changed for this run.
-Replay uses saved answers and makes no model calls.
-The replay check compares metrics, each document's result and model provenance.
+Import checks every answer against its saved schema before saving any of them. A
+record choice can only name a shortlisted id or `none`. A request key binds the
+prompt, schema, input and target model, so a different answer cannot replace a
+saved one. Each answer's provenance names the model that gave it and the model it
+stands in for. The answer counts are in
+[evals/recordings/README.md](../../evals/recordings/README.md).
 
-These results do not measure OpenRouter schema handling, quality or cost.
-The real-provider spike and evaluation still need a key.
-Use a separate archive for those measurements.
+Reports start with a simulated banner and give their answer counts from saved
+provenance, not from the operator's totals. Method and fallback details are marked
+as operator reports. Simulated provider cost stays null.
+
+## Result
+
+The filing threshold is 0.5857142. It was chosen on seed 7 from rules-only scores
+(`scripts/tune_threshold.py`, evidence in `evals/threshold-selection.json`). Weights
+and tier thresholds are untuned defaults. Seed 11 is held out and chose no setting.
+
+Seed 7 and seed 11 both pass the four filing floors at that threshold: no wrong
+filings, at least 90% of clean documents filed, no filing to an injected id, and
+recall at least equal to the baseline. On seed 11 the model's choose step changes no
+filing decision. The reports hold the curves, intervals and category accuracy.
+
+Replay uses saved answers and makes no model calls. The replay check compares the
+metrics, each document's result and the model provenance with the saved report.
+
+These results do not measure OpenRouter schema handling, quality or cost. The
+real-provider spike and evaluation still need a key, and their answers go in a
+separate archive.

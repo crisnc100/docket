@@ -24,6 +24,8 @@ from docket.prompts import choose_request, classify_request
 from docket.runtime import Runtime
 
 
+# Blocking work must run in a thread: a blocked event loop stops these beats, and
+# Temporal retries the activity once the heartbeat timeout passes.
 @contextlib.asynccontextmanager
 async def heartbeats():
     async def beat():

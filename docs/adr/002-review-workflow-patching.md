@@ -1,6 +1,6 @@
 # ADR-002: version commands for in-flight reviews
 
-Status: accepted for P3. Historical deploy alternatives have not been measured.
+Status: accepted. No workflow-changing deployment has been made yet.
 
 A review may wait across worker deployments. The activity names, order, payloads,
 update/signal names, and review timer are part of its recorded command contract.

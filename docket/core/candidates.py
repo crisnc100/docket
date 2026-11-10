@@ -8,11 +8,12 @@ from docket.config import Record, Signal
 
 # Underscores are regex word characters but delimit record ids in attachment names.
 ID_PATTERN = re.compile(r"(?<![^\W_])UNIT-[0-9]{4}(?![^\W_])", re.IGNORECASE)
+# Consume each separator run once so unit matching cannot rescan it.
 UNIT_PATTERN = re.compile(
-    r"(?<!\w)(?:(?:apartment|apt|unit|suite|ste)[\s._-]+|#[\s._-]*|"
+    r"(?<!\w)(?:(?:apartment|apt|unit|suite|ste)[\s._-]++|#[\s._-]*+|"
     r"(?P<street>street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln)"
-    r"[\s._-]+(?!#|(?:apartment|apt|unit|suite|ste)(?=[\s._-]|$))(?=\S*\d))"
-    r"(?P<value>\S+)(?:[ \t]+(?P<letter>[a-z])(?!\w))?"
+    r"[\s._-]++(?!#|(?:apartment|apt|unit|suite|ste)(?=[\s._-]|$))(?=[^\s\d]*+\d))"
+    r"(?P<value>\S++)(?:[ \t]++(?P<letter>[a-z])(?!\w))?"
 )
 ADDRESS_TOKEN_PATTERN = re.compile(r"(?<=unit )\S+|(?<![\w-])\d[\w-]*")
 ADDRESS_SPAN_PATTERN = re.compile(
@@ -37,7 +38,7 @@ def unit_parts(value: str) -> tuple[str, str]:
         word = re.search(r"-[a-z]{2,}(?=-|$)", value)
         if word:
             value, tail = value[: word.start()], value[word.start() :] + " " + tail
-    return value, tail
+    return value.rstrip(".,;:!?)]}\"'”’»"), tail
 
 
 def normalize_address(text: str) -> str:
@@ -110,36 +111,52 @@ def tenant_score(names: list[str], chunks: list[str], cutoff: float) -> float:
         for chunk in chunks:
             if contains_phrase(normalized, chunk):
                 return 1.0
-            best = max(best, fuzz.ratio(normalized, chunk) / 100)
+            best = max(best, fuzz.ratio(normalized, chunk, score_cutoff=cutoff * 100) / 100)
     return best if best >= cutoff else 0.0
 
 
 def name_strength(names: list[str], chunks: list[str], cutoff: float) -> float:
+    return _name_strength(
+        names, chunks, cutoff, [" ".join(sorted(chunk.split())) for chunk in chunks]
+    )
+
+
+def _name_strength(
+    names: list[str], chunks: list[str], cutoff: float, sorted_chunks: list[str]
+) -> float:
     best = tenant_score(names, chunks, cutoff)
     for name in names:
         normalized = normalize_text(name)
         if normalized:
-            for chunk in chunks:
-                best = max(best, fuzz.token_sort_ratio(normalized, chunk) / 100)
+            sorted_name = " ".join(sorted(normalized.split()))
+            for chunk in sorted_chunks:
+                best = max(best, fuzz.ratio(sorted_name, chunk, score_cutoff=cutoff * 100) / 100)
     return best if best >= cutoff else 0.0
 
 
 def address_strength(aliases: list[str], chunks: list[str], cutoff: float) -> float:
-    return _address_strength(aliases, [normalize_address(chunk) for chunk in chunks], cutoff)
+    addresses = [normalize_address(chunk) for chunk in chunks]
+    return _address_strength(
+        aliases,
+        [(address, ADDRESS_TOKEN_PATTERN.findall(address)) for address in addresses],
+        cutoff,
+    )
 
 
-def _address_strength(aliases: list[str], chunks: list[str], cutoff: float) -> float:
+def _address_strength(
+    aliases: list[str], chunks: list[tuple[str, list[str]]], cutoff: float
+) -> float:
     best = 0.0
     for alias in aliases:
         normalized = normalize_address(alias)
         tokens = ADDRESS_TOKEN_PATTERN.findall(normalized)
         if not tokens:
             continue
-        for address in chunks:
+        for address, address_tokens in chunks:
             if contains_phrase(normalized, address):
                 return 1.0
             # Similar street names cannot supply a missing or different house or unit token.
-            if ADDRESS_TOKEN_PATTERN.findall(address) == tokens:
+            if address_tokens == tokens:
                 best = max(best, fuzz.ratio(normalized, address) / 100)
     return best if best >= cutoff else 0.0
 
@@ -197,9 +214,14 @@ def shortlist(
         for line in (text + "\n" + subject + "\n" + filename).splitlines()
         if line.strip()
     ]
+    # Sort each chunk once instead of repeating the sort for every record.
+    sorted_name_chunks = [" ".join(sorted(chunk.split())) for chunk in chunks]
     address_chunks = [
         normalize_address(re.sub(r"^address\s*:\s*", "", line, flags=re.IGNORECASE))
         for line in (text + "\n" + subject + "\n" + filename).splitlines()
+    ]
+    tokenized_addresses = [
+        (chunk, ADDRESS_TOKEN_PATTERN.findall(chunk)) for chunk in address_chunks
     ]
     candidates: list[Candidate] = []
     graded: dict[str, Candidate] = {}
@@ -221,14 +243,17 @@ def shortlist(
                 contains_phrase(normalize_text(record.building), normalized_text)
             ),
         }
-        former = name_strength(record.former_tenants, chunks, tenant_cutoff)
+        former = _name_strength(record.former_tenants, chunks, tenant_cutoff, sorted_name_chunks)
         graded_signals = signals | {
             Signal.ADDRESS: max(
                 float(address),
-                _address_strength([record.address, *record.aliases], address_chunks, tenant_cutoff),
+                _address_strength(
+                    [record.address, *record.aliases], tokenized_addresses, tenant_cutoff
+                ),
             ),
             Signal.TENANT_NAME: max(
-                name_strength(record.current_tenants, chunks, tenant_cutoff), former
+                _name_strength(record.current_tenants, chunks, tenant_cutoff, sorted_name_chunks),
+                former,
             ),
         }
         # Full matches outside the shortlist can still contradict the selected record.

@@ -24,6 +24,25 @@ LABEL_PATTERN = re.compile(r"\b(?P<name>[a-z]+)[^\S\r\n]*:", re.IGNORECASE)
 FULL_SIGNAL_STRENGTH = 1.0
 MAX_MATCH_TOKEN_CHARS = 64
 MAX_MATCH_LINE_CHARS = 8192
+MAX_BODY_CHARS = 64000
+MAX_BODY_LINES = 2000
+MAX_SUBJECT_CHARS = 1000
+MAX_FILENAME_CHARS = 255
+LINE_BREAKS = "\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029"
+
+
+def _normalize(text: str) -> str:
+    return unicodedata.normalize("NFKC", text).casefold()
+
+
+def _line_count(text: str) -> int:
+    count = 0
+    previous = ""
+    for character in text:
+        if character in LINE_BREAKS and not (previous == "\r" and character == "\n"):
+            count += 1
+        previous = character
+    return count + int(bool(text) and text[-1] not in LINE_BREAKS)
 
 
 def _bounded_prefix(text: str, limit: int) -> str:
@@ -32,8 +51,6 @@ def _bounded_prefix(text: str, limit: int) -> str:
 
 
 def bounded_matching_text(text: str) -> str:
-    # Bound untrusted PDF tokens and lines before matching so regex work stays linear.
-    text = unicodedata.normalize("NFKC", text).casefold()
     return "\n".join(
         _bounded_prefix(
             " ".join(_bounded_prefix(token, MAX_MATCH_TOKEN_CHARS) for token in line.split()),
@@ -44,7 +61,7 @@ def bounded_matching_text(text: str) -> str:
 
 
 def normalize_text(text: str) -> str:
-    return " ".join(re.sub(r"[^\w]+", " ", bounded_matching_text(text)).split())
+    return " ".join(re.sub(r"[^\w]+", " ", _normalize(text)).split())
 
 
 def unit_parts(value: str) -> tuple[str, str]:
@@ -60,7 +77,7 @@ def unit_parts(value: str) -> tuple[str, str]:
 
 
 def normalize_address(text: str) -> str:
-    text = bounded_matching_text(text)
+    text = _normalize(text)
     parts: list[str] = []
     end = 0
     for match in UNIT_PATTERN.finditer(text):
@@ -96,7 +113,7 @@ def normalize_address(text: str) -> str:
 
 def strip_address_labels(line: str) -> str:
     # Scan labels once so long whitespace is not rescanned at each position.
-    line = bounded_matching_text(line)
+    line = _normalize(line)
     labels = list(LABEL_PATTERN.finditer(line))
     parts: list[str] = []
     start = 0
@@ -111,7 +128,7 @@ def strip_address_labels(line: str) -> str:
 def independent_building_context(text: str) -> str:
     return " ".join(
         ADDRESS_SPAN_PATTERN.sub(" ", normalize_address(strip_address_labels(line)))
-        for line in bounded_matching_text(text).splitlines()
+        for line in text.splitlines()
     )
 
 
@@ -161,21 +178,24 @@ def address_strength(aliases: list[str], chunks: list[str], cutoff: float) -> fl
 
 
 def _normalized_address_chunks(text: str) -> list[str]:
-    text = bounded_matching_text(text)
+    text = _normalize(text)
     chunks: list[str] = []
     start = 0
     for match in UNIT_PATTERN.finditer(text):
         if match.group("value")[-1] in ".,;:!?)]}\"'”’»":
             continue
-        tail = text[match.end() :]
-        following = tail.lstrip(" \t")
-        if tail == following or not following or not following[0].isalpha():
+        following = match.end()
+        while following < len(text) and text[following] in " \t":
+            following += 1
+        if following == match.end() or following == len(text) or not text[following].isalpha():
             continue
-        if len(following) > 1 and (following[1].isalnum() or following[1] == "_"):
+        if following + 1 < len(text) and (
+            text[following + 1].isalnum() or text[following + 1] == "_"
+        ):
             continue
         # A separate bare letter makes the unit ambiguous and cannot support an address match.
         chunks.append(normalize_address(text[start : match.start()]))
-        start = match.end() + len(tail) - len(following) + 1
+        start = following + 1
     chunks.append(normalize_address(text[start:]))
     return chunks
 
@@ -221,6 +241,7 @@ class CandidateResult:
     conflict: bool
     explicit_ids: tuple[str, ...]
     conflict_record_ids: tuple[str, ...]
+    over_budget: bool = False
 
 
 def shortlist(
@@ -238,25 +259,36 @@ def shortlist(
         raise ValueError("tenant_cutoff must be in (0, 1]")
     if len({record.record_id for record in records}) != len(records):
         raise ValueError("Record ids must be unique")
+    text, subject, filename = (_normalize(value) for value in (text, subject, filename))
+    filename = filename.replace("\\", "/").rsplit("/", 1)[-1]
+    # Untrusted PDF text needs field and token caps so regex work stays linear.
+    body_over_budget = len(text) > MAX_BODY_CHARS or _line_count(text) > MAX_BODY_LINES
+    subject_over_budget = len(subject) > MAX_SUBJECT_CHARS
+    filename_over_budget = len(filename) > MAX_FILENAME_CHARS
     explicit = {value.upper() for value in ID_PATTERN.findall(text + "\n" + subject)}
-    filename_ids = {value.upper() for value in ID_PATTERN.findall(filename)}
-    all_ids = explicit | filename_ids
-    text, subject, filename = (bounded_matching_text(value) for value in (text, subject, filename))
+    all_filename_ids = {value.upper() for value in ID_PATTERN.findall(filename)}
+    all_ids = explicit | all_filename_ids
+    filename_ids: set[str] = set() if filename_over_budget else all_filename_ids
+    text = "" if body_over_budget else bounded_matching_text(text)
+    subject = "" if subject_over_budget else bounded_matching_text(subject)
+    filename = "" if filename_over_budget else filename
     address_text = " \n ".join(_normalized_address_chunks("\n".join([text, subject, filename])))
     normalized_text = normalize_text("\n".join([text, subject, filename]))
     building_text = independent_building_context("\n".join([text, subject, filename]))
+    # Repeated lines cannot change a maximum match strength.
+    lines = list(dict.fromkeys((text + "\n" + subject + "\n" + filename).splitlines()))
     chunks = [
         normalize_text(
             re.sub(r"^(?:former tenant|tenant|resident|name)\s*:\s*", "", line, flags=re.IGNORECASE)
         )
-        for line in (text + "\n" + subject + "\n" + filename).splitlines()
+        for line in lines
         if line.strip()
     ]
     # Sort each chunk once instead of repeating the sort for every record.
     sorted_name_chunks = [" ".join(sorted(chunk.split())) for chunk in chunks]
     address_chunks = [
         address
-        for line in (text + "\n" + subject + "\n" + filename).splitlines()
+        for line in lines
         for address in _normalized_address_chunks(
             re.sub(r"^address\s*:\s*", "", line, flags=re.IGNORECASE)
         )
@@ -328,4 +360,5 @@ def shortlist(
         conflict,
         tuple(sorted(all_ids)),
         tuple(sorted(corroborated_ids)) if conflict else (),
+        body_over_budget or subject_over_budget or filename_over_budget,
     )

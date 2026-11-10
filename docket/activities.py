@@ -92,6 +92,7 @@ class Activities:
                 conflict=result.conflict,
                 explicit_ids=list(result.explicit_ids),
                 conflict_record_ids=list(result.conflict_record_ids),
+                over_budget=result.over_budget,
                 valid_ids=[record.record_id for record in records],
             )
             await asyncio.to_thread(
@@ -149,6 +150,7 @@ class Activities:
                     stage["conflict"],
                     tuple(stage["explicit_ids"]),
                     tuple(stage["conflict_record_ids"]),
+                    stage.get("over_budget", False),
                 ),
                 stage["chosen"],
                 load_scoring_config(),

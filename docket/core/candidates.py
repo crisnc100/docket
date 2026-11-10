@@ -8,7 +8,10 @@ from docket.config import Record, Signal
 
 # Underscores are regex word characters but delimit record ids in attachment names.
 ID_PATTERN = re.compile(r"(?<![^\W_])UNIT-[0-9]{4}(?![^\W_])", re.IGNORECASE)
-ADDRESS_TOKEN_PATTERN = re.compile(r"(?<![\w-])\d[\w-]*")
+UNIT_PATTERN = re.compile(
+    r"(?<!\w)(?:(?:apartment|apt|unit)[\s._-]+|#[\s._-]*)([a-z0-9]+(?:-[a-z0-9]+)*)"
+)
+ADDRESS_TOKEN_PATTERN = re.compile(r"(?<![\w-])\d[\w-]*|(?<=unit )[a-z0-9]+(?:-[a-z0-9]+)*")
 FULL_SIGNAL_STRENGTH = 1.0
 
 
@@ -17,10 +20,15 @@ def normalize_text(text: str) -> str:
 
 
 def normalize_address(text: str) -> str:
-    text = re.sub(r"#\s*(?=\d)", " unit ", text)
-    normalized = " ".join(
-        re.sub(r"[^\w-]+", " ", unicodedata.normalize("NFKC", text).casefold()).split()
-    )
+    text = unicodedata.normalize("NFKC", text).casefold()
+    parts: list[str] = []
+    end = 0
+    # Unit identifiers such as 1-2 must keep their hyphens when filenames are split.
+    for match in UNIT_PATTERN.finditer(text):
+        parts.extend([normalize_text(text[end : match.start()]), "unit", match.group(1)])
+        end = match.end()
+    parts.append(normalize_text(text[end:]))
+    normalized = " ".join(" ".join(parts).split())
     replacements = {
         "street": "st",
         "avenue": "ave",

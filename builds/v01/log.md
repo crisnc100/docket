@@ -560,3 +560,30 @@ Verification for the conflict and address checks passes with 329 tests normally
 and 334 tests with faults. Both have zero skips and 100% required branch coverage.
 Both reproduce the measured seed-11 report. All five compose services are healthy.
 See x1-x2-checkpoint.md and x1-x2-evidence.txt for failing-first and replay evidence.
+
+## Address words and unit identifiers
+
+Apt, Apartment, Unit and # identify a unit.
+The whole unit identifier keeps letters and internal hyphens.
+Other hyphens separate address words, including those in filenames.
+The fuzzy address guard compares letter-leading units as well as numeric ones.
+A1 and B1 supply no address support for each other.
+Unit 1-2 remains distinct from unit 1 and unit 12.
+The conflict rule, two-signal rule and filing thresholds remain unchanged.
+
+The new regression file has 23 cases. Before the implementation change,
+20 failed and three controls passed. All 23 pass with the change.
+No existing test changed. Direct checks against f497aaf reproduce both findings.
+Both supplied triggers go to review with the worktree code.
+
+Both seed evaluations pass with all 440 requests unchanged.
+Every report field, both shadow reports and all saved inputs remain unchanged.
+Seed 11 still has zero wrong filings, 90% clean filing, no filings to injected ids,
+and recall 36/39, equal to the baseline.
+The reports remain simulated measurements. No external model was called.
+
+Verification passes with 352 tests normally and 357 tests with faults.
+Both have zero skips, 100% required branch coverage and a reproduced held-out report.
+All five compose services are healthy. Secret checks pass.
+No dependency, commit or review was added by the implementer.
+See address-token-checkpoint.md and address-token-evidence.txt for command evidence.

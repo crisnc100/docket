@@ -153,7 +153,7 @@ def reconcile(older_than_minutes: float = 5) -> None:
 
 @app.command("eval")
 def eval_command(seed: int = 11, mode: str = "replay", budget: str = "2.00") -> None:
-    """Compare observe-mode Docket with rules-only results, with a hard run budget."""
+    """Evaluate a seed in observe mode against the rules-only baseline; --budget caps spend."""
     import asyncio
     from decimal import Decimal
 
@@ -168,7 +168,7 @@ def eval_command(seed: int = 11, mode: str = "replay", budget: str = "2.00") -> 
 
 @app.command("shadow-diff")
 def shadow_diff_command(report: str | None = None) -> None:
-    """Classify every observe/baseline disagreement against corpus gold."""
+    """Check each Docket/baseline disagreement against the labels; default: newest seed 11."""
     import json
     from pathlib import Path
 

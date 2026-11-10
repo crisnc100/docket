@@ -10,7 +10,7 @@ node_modules/
 .pytest_cache/
 .ruff_cache/
 .coverage
-# The exchange archive is the durable simulation record.
+# Simulation working folders; evals/recordings/exchange.jsonl.gz keeps their contents.
 /evals/pending/
 /evals/answers/
 /builds/v01/phase1*.jsonl

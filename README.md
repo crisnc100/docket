@@ -102,8 +102,8 @@ The workflow runs these steps:
    default).
 
 Every document ends with one final status and a reason: `filed`, `dismissed`,
-`needs_review_expired`, `rejected` or `failed`. In `observe` mode it ends as
-`would_file` or `would_review` instead. `docket reconcile` starts workflows for
+`needs_review_expired`, `rejected` or `failed`. In `observe` mode `would_file` and
+`would_review` replace the first three; `rejected` and `failed` still apply. `docket reconcile` starts workflows for
 uploads that never got one and marks abandoned documents `failed`.
 [ADR-002](docs/adr/002-review-workflow-patching.md) explains how to change the
 workflow while reviews are still waiting.

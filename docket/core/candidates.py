@@ -81,6 +81,7 @@ def normalize_address(text: str) -> str:
     parts: list[str] = []
     end = 0
     for match in UNIT_PATTERN.finditer(text):
+        # Keep unit tokens such as 4b and 1-2 whole; normalize_text would split 1-2 into two words.
         value, tail = unit_parts(match.group("value"))
         if not any(character.isdigit() for character in value) and len(value) != 1:
             continue
@@ -303,8 +304,9 @@ def shortlist(
     text, subject, filename = (_normalize(value) for value in (text, subject, filename))
     # Untrusted PDF text gets one budget per field so matching time stays bounded. An
     # over-budget field is left out and the document goes to review: cutting the field
-    # could hide a contradicting address. Inside the budget, long tokens and lines are
-    # capped so regex work stays linear. Ids from every field still count toward a conflict.
+    # could hide a contradicting address. Inside the budget, long tokens and lines in the
+    # body and subject are capped so regex work stays linear; the 255-character filename is
+    # not, so slugged names keep their .pdf. Ids from every field still count toward a conflict.
     body_over_budget = len(text) > MAX_BODY_CHARS or _line_count(text) > MAX_BODY_LINES
     subject_over_budget = len(subject) > MAX_SUBJECT_CHARS
     filename_over_budget = len(filename) > MAX_FILENAME_CHARS

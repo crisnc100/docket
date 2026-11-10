@@ -168,7 +168,7 @@ def eval_command(seed: int = 11, mode: str = "replay", budget: str = "2.00") -> 
 
 @app.command("shadow-diff")
 def shadow_diff_command(report: str | None = None) -> None:
-    """Check each Docket/baseline disagreement against the labels; default: newest seed 11."""
+    """Save a report's shadow comparison to <report>-shadow.json; default: newest seed 11."""
     import json
     from pathlib import Path
 

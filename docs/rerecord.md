@@ -19,7 +19,7 @@ uv run docket eval --seed 11 --mode export --budget 0
 ```
 
 Each seed has a request list in `evals/manifests/seed-N.json`.
-Each key names an untracked working file in `evals/pending/`.
+Export writes an untracked working file in `evals/pending/` only for keys with no saved answer.
 The file contains the system prompt, messages and response schema.
 A schema lists the allowed fields, types and values.
 It also names the activity, prompt version and target model.

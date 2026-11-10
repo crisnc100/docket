@@ -1,5 +1,7 @@
 {
   "archive": "calls.jsonl",
+  "exchange_archive": "exchange.jsonl.gz",
+  "exchange_verification": "uv run python scripts/pack_exchange.py --check",
   "context_source": "Operator report; counts checked against imported answer provenance",
   "fallback_reason": "Haiku falsely blocked 19 synthetic requests with its safety filter: 18 in the original batch and one after the accepted tenant corrections. The operator supplied Opus answers for those requests. Each answer names its simulator.",
   "graded_extension": {

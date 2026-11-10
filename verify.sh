@@ -14,6 +14,7 @@ uv sync --locked
 uv run ruff check .
 uv run ruff format --check .
 uv run pyright
+uv run python scripts/pack_exchange.py --check
 docker compose build
 if "$fault"; then
   docker compose up -d --wait

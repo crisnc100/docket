@@ -4,7 +4,7 @@ Run commands from the v01 worktree.
 Start services with `docker compose up -d --wait`.
 Seed 7 is for tuning.
 Seed 11 is held out: it is used only for the final check.
-The score threshold stays at the approved default, 0.55.
+The score threshold is 0.5857142, chosen on seed 7 only.
 
 Evaluation uses observe mode.
 This mode checks decisions without filing documents.
@@ -19,7 +19,7 @@ uv run docket eval --seed 11 --mode export --budget 0
 ```
 
 Each seed has a request list in `evals/manifests/seed-N.json`.
-Each key names a file in `evals/pending/`.
+Each key names an untracked working file in `evals/pending/`.
 The file contains the system prompt, messages and response schema.
 A schema lists the allowed fields, types and values.
 It also names the activity, prompt version and target model.
@@ -28,7 +28,7 @@ Rejected documents and empty shortlists need no model call.
 
 ## Supply and import answers
 
-The operator writes `evals/answers/<key>.json`.
+The operator writes an untracked working file at `evals/answers/<key>.json`.
 Use this shape with values from that request:
 
 ```json
@@ -49,9 +49,11 @@ The simulator must not see expected labels, code or other answers.
 ```sh
 uv run docket eval --seed 7 --mode import --budget 0
 uv run docket eval --seed 11 --mode import --budget 0
+uv run python scripts/pack_exchange.py
+uv run python scripts/pack_exchange.py --check
 uv run docket eval --seed 7 --mode replay --budget 0
 uv run docket eval --seed 11 --mode replay --budget 0
-uv run docket shadow-diff --report evals/reports/2026-11-09-seed-11.json
+uv run docket shadow-diff --report evals/reports/2026-11-10-seed-11.json
 ./verify.sh
 ./verify.sh --fault
 ```
@@ -67,14 +69,20 @@ Bad fields, values, request keys or model provenance cause an error.
 Missing answers leave the report pending.
 Conflicting saved answers cannot be overwritten.
 The archive uses JSON Lines (JSONL): one JSON object per line.
-Its path is `evals/recordings/calls.jsonl`.
+Replay reads `evals/recordings/calls.jsonl`.
+Repack after importing answers, while both working folders are present.
+The durable evidence is `evals/recordings/exchange.jsonl.gz`.
+It keeps the exact request and answer text, file hashes and provenance.
+A file hash is a digest used to check file integrity.
+The check command compares that evidence with every replay recording.
+Replay and verification work without the untracked working folders.
 
 ## Current simulation
 
-The operator supplied 400 fresh answers.
-Saved provenance confirms 382 from claude-haiku-5-5 and 18 from claude-opus-5-5.
-Each seed has 191 Haiku answers and 9 Opus answers.
-The operator reports false safety blocks on 18 synthetic filler text requests.
+The operator supplied 444 fresh answers.
+Saved provenance confirms 425 from claude-haiku-5-5 and 19 from claude-opus-5-5.
+Current requests use 440 answers. Four older answers remain as evidence.
+The operator reports false safety blocks on 19 synthetic filler text requests.
 Those requests were rerun on Opus.
 Each call saw only its own system prompt, messages and schema.
 It saw no expected labels, code or other answers.

@@ -6,22 +6,14 @@ import pytest
 from docket.config import Signal, load_records
 from docket.core.candidates import normalize_text, shortlist
 from docket.core.scoring import load_scoring_config, score_choice
+from tests.matching_inputs import distinct_capped_text
 
 
 def capped_attack(kind):
-    if kind == "unit_lines":
-        line = ("#1 " * 11)[:31]
-        text = (line + "\n") * 1999 + line + " "
-    else:
-        prefix, filler = {
-            "whitespace": ("Address:", " "),
-            "street_separators": ("St", "._"),
-            "street_keywords": ("", "st.st.st."),
-        }[kind]
-        length = 64000 - 1999 * 2
-        text = prefix + (filler * length)[: length - len(prefix)] + "\nx" * 1999
+    text = distinct_capped_text(kind)
     assert len(text) == 64000
     assert len(text.splitlines()) == 2000
+    assert len(set(text.splitlines())) == 2000
     return text
 
 

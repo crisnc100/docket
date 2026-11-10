@@ -16,7 +16,8 @@ def timed_shortlist(records, text):
     signal.setitimer(signal.ITIMER_REAL, 0.5)
     started = perf_counter()
     try:
-        shortlist(records, text=text)
+        result = shortlist(records, text=text)
+        assert not result.over_budget
         return perf_counter() - started
     except TimeoutError:
         return None
@@ -35,8 +36,9 @@ def test_matching_work_is_bounded_for_all_filler_generators():
     failures = []
     for prefix, filler, suffix in generators:
         times = []
-        for size in (200000, 400000):
-            text = prefix + (filler * (size // len(filler) + 1))[:size] + suffix
+        for size in (32000, 64000):
+            padding_size = size - len(prefix) - len(suffix)
+            text = prefix + (filler * (padding_size // len(filler) + 1))[:padding_size] + suffix
             samples = []
             for _ in range(3):
                 elapsed = timed_shortlist(records, text)
@@ -44,7 +46,7 @@ def test_matching_work_is_bounded_for_all_filler_generators():
                     break
                 samples.append(elapsed)
             times.append(median(samples) if len(samples) == 3 else None)
-        print(f"prefix={prefix!r}; filler={filler!r}; 200k={times[0]}; 400k={times[1]}")
+        print(f"prefix={prefix!r}; filler={filler!r}; 32k={times[0]}; 64k={times[1]}")
         if any(value is None for value in times):
             failures.append(f"{prefix!r}/{filler!r}: exceeded 0.5 seconds")
         else:
@@ -100,7 +102,7 @@ def test_ambiguous_spaced_unit_does_not_hide_another_address_on_the_line():
 def test_matching_bounds_cannot_turn_a_longer_unit_into_unit_one(boundary):
     record = load_records()[0]
     if boundary == "token":
-        address = record.address + "." * 200000 + "B"
+        address = record.address + "." * (64000 - len(record.address) - 1) + "B"
     else:
         address = record.address + "B"
         prefix_length = 8192 - address.index("1B") - 1
@@ -111,4 +113,5 @@ def test_matching_bounds_cannot_turn_a_longer_unit_into_unit_one(boundary):
         )
         address = prefix + address
     result = shortlist([record], text=address)
+    assert not result.over_budget
     assert all(candidate.signals[Signal.ADDRESS] == 0 for candidate in result.candidates)

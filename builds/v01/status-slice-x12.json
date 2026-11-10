@@ -1,0 +1,4 @@
+{"f1":{"status":"fixed","response":"real"},
+ "f2":{"status":"fixed","response":"real"},
+ "x1":{"status":"deferred","reason":"Fix-check: the unit pattern greedily takes every hyphen-joined segment after the designator, so some hyphenated filenames still lose address evidence. Floors are unaffected on both seeds.","fix":"Stop the unit token at the first segment after the designator (or at the file extension); add filename cases with trailing hyphen segments. PR3 step 0."},
+ "x2":{"status":"deferred","reason":"Fix-check: letter-leading unit ids are only protected right after a unit designator, so 'Suite A1' or a bare 'A1' still collapses.","fix":"Treat any alphanumeric token mixing letters and digits as a distinct unit token wherever it appears in the address; PR3 step 0."}}

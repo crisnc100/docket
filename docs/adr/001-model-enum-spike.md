@@ -12,9 +12,9 @@ different record ids will both return the requested member of their own enum.
 ## Experiment
 
 `uv run docket spike-models` performs the two synthetic calls with a $0.50 run
-cap and the persisted daily global cap. It writes measured model, provider,
-enum values, choices, call count and OpenRouter usage cost to
-`docs/adr/model-spike-result.json`. No input document or API key is recorded.
+cap and the persisted daily global cap. It writes the configured model and
+provider, the enum values, the measured choices, the call count and the
+OpenRouter usage cost to `docs/adr/model-spike-result.json`. No input document or API key is recorded.
 The script fails if either output is invalid or differs from the requested id.
 
 ## Result

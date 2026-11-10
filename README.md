@@ -59,7 +59,9 @@ Try a few others from `corpus/seed-7/`:
    - `building`: the building code. It counts only when it appears apart from the
      matched address.
 
-   If the evidence points to more than one record, Docket raises a *conflict*.
+   Docket raises a *conflict* when the evidence names more than one record. Only
+   three kinds of evidence count here: a record id (in the text, subject or file
+   name), a matching address, and an exact tenant name.
 3. **Score.** Each signal has a weight in `config/scoring.json`. The weights are
    untuned defaults. The score is between 0 and 1 and falls in a tier: `none`,
    `medium` or `strong`.
@@ -102,10 +104,18 @@ shortlist (`InvalidChoice`), and the score above still decides whether anything 
 - **Bad output.** An answer that does not fit the schema raises `ParseError`, which
   is not retried.
 
-`uv run docket spike-models` checks that the configured model keeps to a different
-list of allowed ids on each call. Copy `.env.example` to `.env` and set
-`OPENROUTER_API_KEY` first. See
-[docs/adr/001-model-enum-spike.md](docs/adr/001-model-enum-spike.md).
+`docket spike-models` checks that the configured model keeps to a different list
+of allowed ids on each call. It makes real calls, so it needs an OpenRouter key. It
+also needs Postgres with the tables created, because the daily cap is kept there:
+
+```sh
+cp .env.example .env        # then set OPENROUTER_API_KEY in .env
+docker compose up -d
+uv run alembic upgrade head
+uv run docket spike-models
+```
+
+See [docs/adr/001-model-enum-spike.md](docs/adr/001-model-enum-spike.md).
 
 ## Test corpus
 
@@ -137,8 +147,8 @@ docker compose up -d
 | Temporal | `127.0.0.1:7233`, web UI on `127.0.0.1:8233` |
 | S3       | `http://127.0.0.1:9000`                 |
 
-`verify.sh` creates the database tables, then runs ruff, pyright (strict on
-`docket/core`), pytest and detect-secrets. It fails if any test is skipped, or if
+`verify.sh` runs ruff and pyright (strict on `docket/core`), creates the database
+tables, then runs pytest and detect-secrets. It fails if any test is skipped, or if
 branch coverage of a core module falls below its floor in
 `scripts/check_coverage.py`.
 

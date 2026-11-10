@@ -177,12 +177,17 @@ def test_check_command_works_without_working_files(exchange_files, monkeypatch, 
 
 
 def test_secret_scan_checks_decompressed_answer_content(exchange_files):
-    exchange, _, archive = exchange_files
+    exchange, store, archive = exchange_files
     unknown = hashlib.sha256(b"test-only nonpublic value in compressed evidence").hexdigest()
     path = sorted(exchange.answers.glob("*.json"))[0]
     answer = json.loads(path.read_text())
     answer["provenance"]["simulated_by"] = unknown
     path.write_text(json.dumps(answer, indent=2))
+    rows = [
+        row.model_copy(update={"provenance": answer["provenance"]}) if row.key == path.stem else row
+        for row in store.entries()
+    ]
+    store.path.write_text("".join(row.model_dump_json() + "\n" for row in rows))
     pack_exchange(exchange.pending, exchange.answers, archive)
     shutil.rmtree(exchange.pending)
     shutil.rmtree(exchange.answers)

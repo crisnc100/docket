@@ -58,9 +58,10 @@ uv run docket shadow-diff
 ./verify.sh --fault
 ```
 
-Shadow diff reads the newest seed-11 report unless you pass `--report`.
-It compares Docket with the rules-only baseline.
-It checks each difference against the expected decision.
+`docket eval` compares Docket with the rules-only baseline.
+It checks each difference against the expected decision and stores the result in the report.
+`docket shadow-diff` saves that comparison as `<report>-shadow.json`.
+It reads the newest seed-11 report unless you pass `--report`.
 A review decision can be correct even when its proposed record or category differs.
 Category accuracy is reported separately.
 

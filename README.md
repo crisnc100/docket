@@ -121,8 +121,8 @@ The workflow uses storage and the ledger for each document.
   is written once. Status moves only along an allowed list, and a final status such
   as `filed` or `rejected` never changes.
 - A document runs in one of two modes. In `act` mode it can be filed or wait for
-  review. In `observe` mode it only records what would have happened, ending as
-  `would_file` or `would_review`.
+  review. In `observe` mode it only records what would have happened: `would_file`
+  or `would_review` replace filing and review, and `rejected` and `failed` still apply.
 
 ## Model gateway
 
@@ -196,9 +196,10 @@ The held-out result ([seed-11 report](evals/reports/2026-11-10-seed-11.md)):
   baseline.
 
 `verify.sh` fails unless the newest seed-11 report is a measured pass that replay
-reproduces exactly (`scripts/reproduce_eval.py`). `docket shadow-diff` checks each
-place where Docket and the baseline disagree against the corpus labels. It reads
-the newest seed-11 report unless you pass `--report`.
+reproduces exactly (`scripts/reproduce_eval.py`). `docket eval` checks each place
+where Docket and the baseline disagree against the corpus labels and stores that in
+the report. `docket shadow-diff` saves that comparison as `<report>-shadow.json`. It
+reads the newest seed-11 report unless you pass `--report`.
 
 The evidence is one committed archive, `evals/recordings/exchange.jsonl.gz`. It
 holds every request and answer exactly as exchanged, with their SHA-256 hashes and

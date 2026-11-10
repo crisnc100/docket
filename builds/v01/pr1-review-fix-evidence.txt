@@ -1,0 +1,78 @@
+PR1 review fix evidence
+Worktree: /Users/cortega/Documents/Projects/docket/docket-v01
+Branch: core; change base: 942ba4c
+
+$ uv run pytest tests/core/test_pr1_review_candidates.py tests/test_pr1_review_gateway.py tests/test_pr1_review_corpus.py tests/test_pr1_review_compose.py -q (before implementation)
+Exit: 1
+FAILED tests/core/test_pr1_review_candidates.py::test_different_unit_cannot_corroborate_shipped_unit_one[1-B]
+FAILED tests/core/test_pr1_review_candidates.py::test_different_unit_cannot_corroborate_shipped_unit_one[1-2]
+FAILED tests/core/test_pr1_review_candidates.py::test_address_derived_building_is_not_independent[False-1010 Cedar Street Apt 1]
+FAILED tests/core/test_pr1_review_candidates.py::test_address_derived_building_is_not_independent[False-1010 Cedar St #1]
+FAILED tests/core/test_pr1_review_candidates.py::test_address_derived_building_is_not_independent[True-1010 Cedar Street Apt 1]
+FAILED tests/core/test_pr1_review_candidates.py::test_address_derived_building_is_not_independent[True-1010 Cedar St #1]
+FAILED tests/test_pr1_review_gateway.py::test_sdk_output_failure_is_non_retryable_and_settles_known_usage[1e-05-length]
+FAILED tests/test_pr1_review_gateway.py::test_sdk_output_failure_is_non_retryable_and_settles_known_usage[1e-05-content_filter]
+FAILED tests/test_pr1_review_gateway.py::test_sdk_output_failure_is_non_retryable_and_settles_known_usage[None-length]
+FAILED tests/test_pr1_review_gateway.py::test_sdk_output_failure_is_non_retryable_and_settles_known_usage[None-content_filter]
+FAILED tests/test_pr1_review_gateway.py::test_sdk_output_failure_is_non_retryable_and_settles_known_usage[-1-length]
+FAILED tests/test_pr1_review_gateway.py::test_sdk_output_failure_is_non_retryable_and_settles_known_usage[-1-content_filter]
+FAILED tests/test_pr1_review_corpus.py::test_corpus_selects_eligible_records_for_each_case[empty_former]
+FAILED tests/test_pr1_review_corpus.py::test_corpus_selects_eligible_records_for_each_case[single_unit_building]
+FAILED tests/test_pr1_review_corpus.py::test_corpus_rejects_missing_case_eligibility_before_writing[former]
+FAILED tests/test_pr1_review_corpus.py::test_corpus_rejects_missing_case_eligibility_before_writing[neighbour]
+FAILED tests/test_pr1_review_corpus.py::test_shipped_tenant_names_belong_to_only_one_unit
+FAILED tests/test_pr1_review_corpus.py::test_shipped_shared_name_cases_file_with_agreeing_id[UNIT-0197]
+FAILED tests/test_pr1_review_corpus.py::test_shipped_shared_name_cases_file_with_agreeing_id[UNIT-0198]
+FAILED tests/test_pr1_review_compose.py::test_compose_publishes_every_port_on_loopback_only
+20 failed, 7 passed in 2.21s
+
+$ uv run pytest tests/test_pr1_review_gateway.py -k response_schema -q (before implementation)
+Exit: 1
+FAILED tests/test_pr1_review_gateway.py::test_response_schema_failures_are_parse_errors[sdk_schema]
+FAILED tests/test_pr1_review_gateway.py::test_response_schema_failures_are_parse_errors[parser]
+2 failed, 6 deselected in 1.10s
+
+$ uv run pytest tests/core/test_pr1_review_candidates.py tests/test_pr1_review_gateway.py tests/test_pr1_review_corpus.py tests/test_pr1_review_compose.py -q
+Exit: 0
+..............................                                           [100%]
+30 passed in 1.73s
+
+$ uv run python scripts/unique_tenants.py
+Only UNIT-0197 current tenant and UNIT-0198 former tenant changed.
+$ uv run docket corpus generate --seed 7
+Generated 170 documents: corpus/seed-7
+$ uv run docket corpus generate --seed 11
+Generated 170 documents: corpus/seed-11
+Kept 20 existing encrypted artifacts after comparing decrypted text with regeneration.
+
+$ docker compose up -d --wait
+Exit: 0
+$ ./verify.sh
+Exit: 0
+All checks passed!
+60 files already formatted
+0 errors, 0 warnings, 0 informations
+tests/core/test_storage.py ........................                      [ 61%]
+tests/test_corpus.py ......                                              [ 66%]
+============================= 249 passed in 24.13s =============================
+PASS docket/core/candidates.py: 25/26 branches = 96.15% (required 95%)
+PASS docket/core/scoring.py: 32/32 branches = 100.00% (required 95%)
+PASS docket/core/ledger.py: 16/16 branches = 100.00% (required 95%)
+PASS docket/core/storage.py: 20/20 branches = 100.00% (required 90%)
+detect-secrets: {}
+Skipped tests: 0; conftest rejects skipped tests.
+
+Runtime Docker port bindings:
+postgres: health=healthy; bindings={"5432/tcp": [{"HostIp": "127.0.0.1", "HostPort": "55432"}]}
+temporal: health=healthy; bindings={"7233/tcp": [{"HostIp": "127.0.0.1", "HostPort": "7233"}], "8233/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8233"}]}
+seaweedfs: health=healthy; bindings={"8333/tcp": [{"HostIp": "127.0.0.1", "HostPort": "9000"}]}
+
+Affected corpus documents:
+corpus/seed-11/doc-0035-clean.pdf: conflict=False; decision=file; score=0.9500000
+corpus/seed-11/doc-0045-exact_duplicate.pdf: conflict=False; decision=file; score=0.9500000
+corpus/seed-7/doc-0068-very_long.pdf: conflict=False; decision=file; score=0.9500000
+
+$ git -c core.whitespace=cr-at-eol diff --check
+Exit: 0; CSV retains its existing CRLF line endings. No git config was changed.
+Changed existing test files: none.
+No dependency, scoring policy or P3 change. No model call, review, grade, commit or push.

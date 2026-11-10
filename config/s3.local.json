@@ -1,0 +1,7 @@
+{
+  "identities": [{
+    "name": "docket-local",
+    "credentials": [{"accessKey": "docket-local", "secretKey": "docket-local-password", "comment": "Public local credentials; # pragma: allowlist secret"}],
+    "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+  }]
+}

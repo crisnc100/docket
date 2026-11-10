@@ -5,3 +5,14 @@ __pycache__/
 .venv/
 node_modules/
 .DS_Store
+
+.cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+/builds/v01/phase1*.jsonl
+/builds/v01/phase1*.err
+/builds/v01/phase1*.log
+builds/**/*.jsonl
+builds/**/*.log
+builds/**/*.err

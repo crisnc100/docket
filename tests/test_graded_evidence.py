@@ -26,7 +26,7 @@ from docket.evaluation import (
     summarize,
     write_report,
 )
-from docket.llm.exchange import PendingRequest
+from docket.llm.archive import load_archive
 from docket.llm.replay import Recording, ReplayStore
 from docket.settings import Settings
 from scripts.tune_threshold import select_threshold
@@ -106,8 +106,9 @@ def test_original_payloads_labels_and_requests_remain_unchanged(seed):
     requests = pending_requests(labels[:170], folder, Settings(_env_file=None))
     assert len(requests) == 200
     store = ReplayStore(Path("evals/recordings/calls.jsonl"))
+    archived = load_archive(Path("evals/recordings/exchange.jsonl.gz"))
     for key, request in requests.items():
-        saved = PendingRequest.model_validate_json(Path(f"evals/pending/{key}.json").read_text())
+        saved = archived[key].request()
         saved.verify_key()
         assert saved == request
         assert store.get(key).key == key

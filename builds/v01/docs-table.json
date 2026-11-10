@@ -55,7 +55,7 @@
        "at": "compose.yaml:40"
       },
       {
-       "claim": "verify.sh creates tables via alembic upgrade head",
+       "claim": "verify.sh creates tables via alembic upgrade head, after ruff and pyright",
        "at": "verify.sh:10"
       },
       {
@@ -295,7 +295,15 @@
        "at": "docket/core/candidates.py:142"
       },
       {
-       "claim": "conflict when evidence points to more than one record",
+       "claim": "record ids from text, subject or file name enter the conflict set",
+       "at": "docket/core/candidates.py:113"
+      },
+      {
+       "claim": "address and exact tenant matches enter the conflict set",
+       "at": "docket/core/candidates.py:131"
+      },
+      {
+       "claim": "conflict when the set holds more than one record",
        "at": "docket/core/candidates.py:150"
       }
      ]
@@ -536,6 +544,18 @@
       {
        "claim": "spike-models checks a different allowed id list per call",
        "at": "docket/llm/spike.py:39"
+      },
+      {
+       "claim": "spike needs Postgres for the daily cap",
+       "at": "docket/llm/spike.py:35"
+      },
+      {
+       "claim": "spike opens a database engine",
+       "at": "docket/llm/spike.py:28"
+      },
+      {
+       "claim": "migrations create the tables",
+       "at": "verify.sh:10"
       }
      ]
     },
@@ -553,6 +573,14 @@
       {
        "claim": "no key prints PENDING and makes no call",
        "at": "docket/cli.py:26"
+      },
+      {
+       "claim": "model and provider in the result are the configured values",
+       "at": "docket/llm/spike.py:60"
+      },
+      {
+       "claim": "provider copied from Settings",
+       "at": "docket/llm/spike.py:61"
       }
      ]
     }

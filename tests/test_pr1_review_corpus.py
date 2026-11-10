@@ -1,12 +1,12 @@
 import csv
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 import pytest
 
 from docket.config import load_records
 from docket.core.candidates import normalize_text, shortlist
 from docket.core.scoring import load_scoring_config, score_choice
-from docket.corpus import generate
+from docket.corpus import CASE_TYPES, generate
 from scripts.unique_tenants import unique_tenants
 
 
@@ -31,7 +31,9 @@ def test_corpus_selects_eligible_records_for_each_case(tmp_path, change):
     write_records(source, records)
     by_id = {record.record_id: record for record in load_records(source)}
     labels = generate(7, tmp_path / "corpus", source)
-    assert len(labels) == 170
+    assert len([label for label in labels if label.case_type != "graded_evidence"]) == 170
+    assert len(labels) == 180
+    assert Counter(label.case_type for label in labels) == dict.fromkeys(CASE_TYPES, 10)
     for label in labels:
         if label.case_type == "former_tenant":
             assert by_id[label.record_id].former_tenants

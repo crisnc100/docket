@@ -9,9 +9,18 @@ from docket.config import Record, Signal
 # Underscores are regex word characters but delimit record ids in attachment names.
 ID_PATTERN = re.compile(r"(?<![^\W_])UNIT-[0-9]{4}(?![^\W_])", re.IGNORECASE)
 UNIT_PATTERN = re.compile(
-    r"(?<!\w)(?:(?:apartment|apt|unit)[\s._-]+|#[\s._-]*)([a-z0-9]+(?:-[a-z0-9]+)*)"
+    r"(?<!\w)(?:(?:apartment|apt|unit|suite|ste)[\s._-]+|#[\s._-]*|"
+    r"(?P<street>street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln)"
+    r"[\s._-]+(?!#|(?:apartment|apt|unit|suite|ste)(?=[\s._-]|$))(?=\S*\d))"
+    r"(?P<value>\S+)(?:[ \t]+(?P<letter>[a-z])(?!\w))?"
 )
-ADDRESS_TOKEN_PATTERN = re.compile(r"(?<![\w-])\d[\w-]*|(?<=unit )[a-z0-9]+(?:-[a-z0-9]+)*")
+ADDRESS_TOKEN_PATTERN = re.compile(r"(?<=unit )\S+|(?<![\w-])\d[\w-]*")
+ADDRESS_SPAN_PATTERN = re.compile(
+    r"(?<!unit )(?<!\S)\d[\w-]*(?:\s+\w+){1,8}?\s+"
+    r"(?:(?:st|ave|rd|blvd|dr|ln|ct|court|pl|place|terrace|way)(?:\s+unit\s+\S+)?"
+    r"|unit\s+\S+)(?!\S)"
+)
+ADDRESS_LABEL_PATTERN = re.compile(r"\baddress\s*:\s*.*?(?=\s+[a-z]+\s*:|$)", re.IGNORECASE)
 FULL_SIGNAL_STRENGTH = 1.0
 
 
@@ -19,13 +28,39 @@ def normalize_text(text: str) -> str:
     return " ".join(re.sub(r"[^\w]+", " ", unicodedata.normalize("NFKC", text).casefold()).split())
 
 
+def unit_parts(value: str) -> tuple[str, str]:
+    value = value.rstrip(",;:!?")
+    tail = ""
+    if value.endswith(".pdf"):
+        value, tail = value[:-4], "pdf"
+        # Filename words follow the unit; one-letter suffixes and ranges belong to it.
+        word = re.search(r"-[a-z]{2,}(?=-|$)", value)
+        if word:
+            value, tail = value[: word.start()], value[word.start() :] + " " + tail
+    else:
+        value = value.rstrip(".")
+    return value, tail
+
+
 def normalize_address(text: str) -> str:
     text = unicodedata.normalize("NFKC", text).casefold()
     parts: list[str] = []
     end = 0
-    # Unit identifiers such as 1-2 must keep their hyphens when filenames are split.
     for match in UNIT_PATTERN.finditer(text):
-        parts.extend([normalize_text(text[end : match.start()]), "unit", match.group(1)])
+        value, tail = unit_parts(match.group("value"))
+        if not any(character.isdigit() for character in value) and len(value) != 1:
+            continue
+        if match.group("letter"):
+            value += "-" + match.group("letter")
+        parts.extend(
+            [
+                normalize_text(text[end : match.start()]),
+                match.group("street") or "",
+                "unit",
+                value,
+                normalize_text(tail),
+            ]
+        )
         end = match.end()
     parts.append(normalize_text(text[end:]))
     normalized = " ".join(" ".join(parts).split())
@@ -38,8 +73,17 @@ def normalize_address(text: str) -> str:
         "lane": "ln",
         "apartment": "unit",
         "apt": "unit",
+        "suite": "unit",
+        "ste": "unit",
     }
     return " ".join(replacements.get(word, word) for word in normalized.split())
+
+
+def independent_building_context(text: str) -> str:
+    return " ".join(
+        ADDRESS_SPAN_PATTERN.sub(" ", normalize_address(ADDRESS_LABEL_PATTERN.sub(" ", line)))
+        for line in text.splitlines()
+    )
 
 
 def contains_phrase(phrase: str, text: str) -> bool:
@@ -134,6 +178,7 @@ def shortlist(
     all_ids = explicit | filename_ids
     address_text = normalize_address("\n".join([text, subject, filename]))
     normalized_text = normalize_text("\n".join([text, subject, filename]))
+    building_text = independent_building_context("\n".join([text, subject, filename]))
     chunks = [
         normalize_text(
             re.sub(r"^(?:former tenant|tenant|resident|name)\s*:\s*", "", line, flags=re.IGNORECASE)
@@ -182,9 +227,18 @@ def shortlist(
         ):
             corroborated_ids.add(record.record_id)
         if any(signals.values()):
-            candidate = Candidate(
-                record.record_id, signals, former_name, signals[Signal.BUILDING] > 0
+            building_context = building_text
+            for alias in [record.address, *record.aliases]:
+                if alias.strip():
+                    building_context = re.sub(
+                        rf"(?<!\S){re.escape(normalize_address(alias))}(?!\S)",
+                        "",
+                        building_context,
+                    )
+            building_is_explicit = signals[Signal.BUILDING] > 0 and contains_phrase(
+                normalize_address(record.building), " ".join(building_context.split())
             )
+            candidate = Candidate(record.record_id, signals, former_name, building_is_explicit)
             candidates.append(candidate)
             graded[record.record_id] = replace(
                 candidate, signals=graded_signals, former_tenant_score=former

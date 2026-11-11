@@ -5,6 +5,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: astral-sh/setup-uv@v6
       - run: docker compose up -d --wait postgres temporal seaweedfs
       - run: ./verify.sh

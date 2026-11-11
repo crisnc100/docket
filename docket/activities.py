@@ -181,6 +181,11 @@ class Activities:
                 decision=result.decision,
                 reason=result.reason,
             )
+            suggestion_failure = (
+                {"suggestion_failure_reason": stage["suggestion_failure_reason"]}
+                if "suggestion_failure_reason" in stage
+                else {}
+            )
             await asyncio.to_thread(
                 self.event,
                 stage,
@@ -189,6 +194,7 @@ class Activities:
                     **{key: stage[key] for key in ["score", "tier", "decision", "reason"]},
                     "rules_top_record_id": result.record_id,
                     "suggested_record_id": stage["suggested_record_id"],
+                    **suggestion_failure,
                     "candidates": candidate_scores,
                 },
             )

@@ -37,15 +37,15 @@
     const headers = { Authorization: 'Bearer ' + token };
     try {
       const response = await fetch('/review', { headers, cache: 'no-store' });
-      if (!response.ok) throw new Error(response.status === 401 ? 'Invalid reviewer token.' : await response.text());
+      if (!response.ok) throw Object.assign(new Error(response.status === 401 ? 'Invalid reviewer token.' : await response.text()), { status: response.status });
       const styles = await Promise.all(assets.styles.map(async path => {
         const response = await fetch(path, { headers, cache: 'no-store' });
-        if (!response.ok) throw new Error('Unable to load the review page.');
+        if (!response.ok) throw Object.assign(new Error('Unable to load the review page.'), { status: response.status });
         return URL.createObjectURL(await response.blob());
       }));
       const scripts = await Promise.all(assets.scripts.map(async path => {
         const response = await fetch(path, { headers, cache: 'no-store' });
-        if (!response.ok) throw new Error('Unable to load the review page.');
+        if (!response.ok) throw Object.assign(new Error('Unable to load the review page.'), { status: response.status });
         return URL.createObjectURL(await response.blob());
       }));
       sessionStorage.setItem(key, token);
@@ -63,7 +63,7 @@
         await import(url);
       }
     } catch (error) {
-      sessionStorage.removeItem(key);
+      if (error?.status === 401) sessionStorage.removeItem(key);
       message.textContent = error instanceof Error ? error.message : 'Unable to unlock review.';
     } finally {
       button.disabled = false;

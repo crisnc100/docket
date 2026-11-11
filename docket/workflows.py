@@ -8,6 +8,21 @@ from temporalio.common import RetryPolicy
 from temporalio.exceptions import ActivityError, ApplicationError
 
 
+def activity_failure_reason(exc: ActivityError) -> str:
+    cause = exc.cause
+    return {
+        "ReplayMiss": "replay_miss",
+        "BudgetExceeded": "budget_exceeded",
+        "StorageConflict": "storage_conflict",
+        "ParseError": "parse_error",
+    }.get(
+        getattr(cause, "type", ""),
+        "non_retryable_error"
+        if isinstance(cause, ApplicationError) and cause.non_retryable
+        else "retries_exhausted",
+    )
+
+
 @dataclass
 class DocumentInput:
     document_id: str
@@ -100,7 +115,14 @@ class FileDocumentWorkflow:
                 self.valid_ids = stage["valid_ids"]
                 if stage["candidates"]:
                     stage = await self.step("classify", stage)
-                    stage = await self.step("choose", stage)
+                    try:
+                        stage = await self.step("choose", stage)
+                    except ActivityError as exc:
+                        if not workflow.patched("choose-suggestion-fallback-v1"):
+                            raise
+                        stage.update(
+                            chosen=None, suggestion_failure_reason=activity_failure_reason(exc)
+                        )
                 else:
                     stage.update(category="misc", chosen=None)
                 stage = await self.step("score", stage)
@@ -140,17 +162,7 @@ class FileDocumentWorkflow:
                 terminal, reason = "rejected", str(cause.details[0])
             else:
                 terminal = "failed"
-                reason = {
-                    "ReplayMiss": "replay_miss",
-                    "BudgetExceeded": "budget_exceeded",
-                    "StorageConflict": "storage_conflict",
-                    "ParseError": "parse_error",
-                }.get(
-                    getattr(cause, "type", ""),
-                    "non_retryable_error"
-                    if isinstance(cause, ApplicationError) and cause.non_retryable
-                    else "retries_exhausted",
-                )
+                reason = activity_failure_reason(exc)
         except asyncio.CancelledError:
             terminal, reason = "failed", "cancelled"
             raise

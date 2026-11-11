@@ -1,342 +1,182 @@
-# docket
+# Docket
 
-Docket files incoming documents to the record they belong to. A document arrives,
-Docket reads its text, works out which known record it is about, stores the file and
-logs every step. When the match is uncertain, the document goes to a person for
-review instead of being guessed.
+Incoming leases, invoices and notices need to reach the right property unit.
+Docket reads a PDF, matches it to known units, and files it when the evidence agrees.
+Uncertain matches wait for a person. Every step has a trace.
+A *record* is one property unit, such as `UNIT-0001`.
+The shipped data is synthetic: 200 units and two sets of 180 test documents.
 
-A *record* here is one property unit, such as `UNIT-0001` at "1010 Cedar Street Apt 1".
-The project ships with 200 synthetic units in `config/records.csv`, so no real
-personal data is involved.
+Rules decide automatic filing. A language model can suggest a record to a reviewer.
+It never decides which record is filed automatically.
+In the held-out test, its suggestions were less accurate than the rules.
 
-The matching code runs in a durable Temporal workflow. Temporal saves progress so a
-worker can resume after a crash.
+```mermaid
+flowchart TD
+    A[PDF upload or signed email webhook] --> B[Save raw bytes and deduplicate]
+    B --> C[Temporal workflow: save progress across crashes]
+    C --> D[Read PDF text]
+    D -->|Unreadable or unsupported| R[Rejected with a reason]
+    D --> E[Find up to five candidate records]
+    E --> F[Model: category and optional record suggestion]
+    E --> G[Rules: score matching evidence]
+    F --> G
+    G -->|Two signals, threshold met, no conflict| H[File to object storage]
+    G -->|Uncertain| I[Review page: PDF, rules and suggestion]
+    I -->|Approve a known record| H
+    I --> J[Dismiss or expire with a reason]
+    C -. Other errors .-> K[Failed with a reason]
+```
 
-## Try it
+A *signal* is evidence such as a matching address or tenant name.
+Two independent signals must agree before a document can file automatically.
+A failed record suggestion does not block the rules.
+Temporal runs the steps and saves progress so a worker can resume after a crash.
 
-You need [uv](https://docs.astral.sh/uv/). It installs Python 3.12 for you.
-Run every command from the repository root.
+## Quickstart
+
+Install [uv](https://docs.astral.sh/uv/), then run from this repository:
 
 ```sh
 uv sync
 uv run docket score corpus/seed-7/doc-0001-clean.pdf
 ```
 
-`docket score` reads one PDF, lists the records it could belong to and scores them.
-It makes no model call and needs no services. It prints JSON like this (trimmed):
+This prints candidate records, scores and a filing decision.
+It needs no model key or running services and writes no filing.
 
-```json
-{
-  "status": "scored",
-  "chosen_record_id": "UNIT-0083",
-  "score": "0.9500000",
-  "tier": "strong",
-  "conflict": false,
-  "would_auto_file": true,
-  "reason": "threshold_met"
-}
-```
-
-Try a few others from `corpus/seed-7/`:
-
-- `doc-0003-address_only.pdf`: one signal only, so it scores `medium` and goes to review.
-- `doc-0010-injection.pdf`: the text tells the reader to file it to another unit. The
-  two units conflict, so it goes to review.
-- `doc-0013-corrupt.pdf`: prints `"status": "rejected"` with a reason and exits with code 1.
-
-## How a document is matched
-
-1. **Extract.** Docket reads the PDF text with pypdf. A file that cannot be read is
-   rejected with a reason: `zero_byte`, `too_large`, `unsupported_type` (not a PDF),
-   `encrypted` or `corrupt`.
-2. **Shortlist.** Docket looks for evidence of each record and keeps up to five
-   candidates. Each piece of evidence is a *signal*:
-   - `explicit_id`: the record id (`UNIT-####`) in the text or subject.
-   - `filename_id`: the record id in the file name.
-   - `address`: the unit's address or one of its aliases. Spellings such as
-     "Street"/"St" and "Apt"/"Unit"/"#" count as the same.
-   - `tenant_name`: a current or former tenant's name. Close spellings count.
-   - `building`: the building code. It counts only when it appears apart from the
-     address text.
-
-   Docket raises a *conflict* when the evidence names more than one record. Only
-   three kinds of evidence count here: a record id (in the text, subject or file
-   name), a matching address, and an exact tenant name.
-
-   Document text is untrusted, so matching has one size budget per field: the body
-   up to 64,000 characters and 2,000 lines, the subject up to 1,000 characters and
-   the file name up to 255. A field over its budget is left out of matching and the
-   document goes to review with the reason `input_too_large`. Docket does not shorten
-   an over-budget field to fit, because the cut part could hold a contradicting address. Record
-   ids in every field still count toward a conflict.
-3. **Score.** Each signal has a weight in `config/scoring.json`. The weights are
-   untuned defaults. Name and address strengths vary with match quality. The score
-   is between 0 and 1 and falls in a tier: `none`, `medium` or `strong`.
-   - `strong` needs at least two different signals. One signal alone, even a record
-     id, never reaches `strong`.
-   - A conflict sets the score to 0 and sends the document to review.
-   - Only a `strong` match whose score reaches `auto_file_threshold` (0.5857142,
-     chosen on seed 7) may be filed without a person.
-
-Requiring two signals is the main defence against injected text. A document that
-just names a record id cannot file itself.
-
-## Workflow per document
-
-`POST /documents` takes a PDF upload. Docket saves the raw bytes under their SHA-256
-hash and starts one Temporal workflow for the document. Uploading the same bytes
-again returns the same document id. `uv run docket worker` runs the worker.
-`GET /documents/{id}` shows the status, the reason and every logged step.
-
-The workflow runs these steps:
-
-1. Extract the text, as above.
-2. Shortlist candidate records, as above.
-3. Ask the model for a category, then ask it to choose one shortlisted record or
-   `none`. An empty shortlist skips both calls and the category is `misc`.
-4. Score every candidate and take the rules' highest score for the tier and filing
-   decision. The model's record choice is a suggestion for the reviewer.
-5. File the document, or wait for a person. `POST /review/{id}/approve` with a
-   `record_id` files it; `POST /review/{id}/dismiss` with a `reason` closes it. An
-   unanswered review expires after `DOCKET_REVIEW_TIMEOUT_SECONDS` (one hour by
-   default).
-
-Every document ends with one final status and a reason: `filed`, `dismissed`,
-`needs_review_expired`, `rejected` or `failed`. In `observe` mode `would_file` and
-`would_review` replace the first three; `rejected` and `failed` still apply. `docket reconcile` starts workflows for
-uploads that never got one and marks abandoned documents `failed`.
-[ADR-002](docs/adr/002-review-workflow-patching.md) explains how to change the
-workflow while reviews are still waiting.
-
-## Inbound webhook
-
-`POST /inbound` takes email from a mail provider. Set `DOCKET_WEBHOOK_SECRET` to a
-secret shared with the sender. With no secret set, every webhook request fails
-with 401.
-
-Send JSON with `message_id`, `from`, and an `attachments` list; each attachment has
-`filename` and `content` (base64 bytes). Sign the exact body bytes:
-`HMAC-SHA256(secret, timestamp + "." + raw_body)`. Send the Unix timestamp, in
-whole seconds, in `X-Docket-Timestamp` and the hex digest prefixed with `sha256=` in
-`X-Docket-Signature`. A timestamp more than five minutes from the server's clock,
-in either direction, fails with 401. This stops an old request being sent again.
-
-Each attachment becomes one document. Requests are limited to 10 MiB, counted while
-the body is read, including JSON and base64 overhead. The webhook allows 60 requests
-per minute per directly connected IP, per API process (`DOCKET_WEBHOOK_RATE_LIMIT`);
-forwarded-IP headers are ignored. Sending the same message and attachment again
-returns the existing document id and records nothing new. The same file bytes
-from a different message also return the existing document. A NUL character in
-`message_id`, `from` or a file name fails with 422.
-
-## Review page
-
-When Docket is unsure of a match, the document waits for a person. The review page
-and the API behind it need a shared reviewer token:
+For the service and review page, also install Docker Compose:
 
 ```sh
-export DOCKET_REVIEW_TOKEN=<a long random string>
-docker compose up -d
+export DOCKET_REVIEW_TOKEN="$(openssl rand -hex 32)"
+docker compose up -d --build --wait
+uv run docket submit corpus/seed-11/doc-0075-decoy_near_miss_address.pdf
 ```
 
-Every route except `POST /inbound` and `GET /healthz` needs the header
-`Authorization: Bearer <token>`. With no token set, those routes answer 503, so the
-API never runs open.
+Open [the local review page](http://127.0.0.1:8010/) and enter the token.
+The sample waits for review. It uses saved model answers, with no network model call.
+The token stays in that browser tab's session storage.
+The page shows the PDF, why it needs review, candidate scores, the rules' top pick
+and the model's suggestion. Approve either, choose another candidate, or dismiss.
+`uv run docket status <document-id>` prints the trace.
 
-Open `http://127.0.0.1:8010/` and enter the token. The page keeps it in
-`sessionStorage` for that browser tab only. The token never goes in a URL: the
-page's scripts and the PDF are fetched with the header and shown from blob URLs.
+Upload with `POST /documents`, or send a signed email payload to `POST /inbound`.
+Both have a **10 MB limit (10 MiB, 10 × 1,024 × 1,024 bytes)** on the whole request,
+including upload or encoding overhead. Oversize requests return 413.
+Every route except the webhook and health check needs a reviewer Bearer token.
+The webhook uses a shared-secret signature and a timestamp within five minutes.
+See [operations](docs/operations.md) for headers, routes, settings and services.
 
-The queue lists waiting documents, oldest first. For each document the page shows:
+## Held-out results
 
-- the PDF, its sender and the reason it went to review;
-- every candidate record with its score, tier and signals;
-- two picks side by side: the rules' top candidate and the model's suggestion.
+Seed 7 chose the score threshold, 0.5857142. A seed fixes the generated test data.
+Seed 11 was *held out*: none of its results selected settings.
+The *rules-only baseline* takes the highest-scored candidate without a model.
+It uses the same threshold and two-signal rule as Docket.
 
-The reviewer approves either pick, picks another candidate, or dismisses the
-document with a reason. Approving files the document to that record. An id that is
-not a known record fails with 409. The model
-only suggests; the rules alone decide what files without a person. On seed 11 the
-model's suggestion was correct for 44 of 102 reviewed documents and the rules' top
-pick for 62 of 102, from simulated answers (see [Simulated evaluation](#simulated-evaluation)).
+**These are simulated model answers, not OpenRouter measurements.**
+Haiku supplied most answers; Opus supplied the requests Haiku refused.
+The [report](evals/reports/2026-11-11-seed-11.md) names the sources and counts.
+No real-provider quality, schema compliance or cost has been measured.
 
-The page uses plain API routes: `GET /review` lists the queue,
-`GET /documents/{id}/file` returns the PDF, and the approve and dismiss routes in
-[Workflow per document](#workflow-per-document) record the decision.
+At the default threshold, both systems file the same 38 of 180 documents.
+A *gold label* is the expected answer supplied with a test document.
+Precision is correct filings divided by all automatic filings.
+Recall is correct filings divided by the 39 documents labelled for filing.
 
-The CLI reads the same token from `DOCKET_REVIEW_TOKEN`.
-`uv run docket submit <pdf>` uploads a PDF and prints its document id.
-`uv run docket status <id>` prints its trace. Both accept `--api-url`.
+| Measure | Docket | Rules only |
+| --- | --- | --- |
+| Filing precision | 38/38, 100% [90.8–100] | 38/38, 100% [90.8–100] |
+| Filing recall | 38/39, 97.4% [86.8–99.5] | 38/39, 97.4% [86.8–99.5] |
+| Share filed automatically | 38/180, 21.1% [15.8–27.6] | 38/180, 21.1% [15.8–27.6] |
+| Share sent to review | 102/180, 56.7% [49.4–63.7] | 102/180, 56.7% [49.4–63.7] |
+| Category accuracy, among 140 not rejected | 124/140, 88.6% [82.2–92.8] | 132/140, 94.3% [89.1–97.1] |
+| Correct record on review items | 44/102, 43.1% [33.9–52.8] | 62/102, 60.8% [51.1–69.7] |
 
-## Storage and the ledger
+Brackets give 95% Wilson intervals: uncertainty ranges for the measured proportions.
+They do not establish accuracy on real incoming documents.
+There were zero wrong filings and zero filings to injected record ids.
+All 10 clean documents filed; all four held-out floors pass.
+The other 40 documents were rejected.
 
-The workflow uses storage and the ledger for each document.
+Only documents sent to review count in the suggestion comparison.
+Suggesting none is correct when gold names no record.
+Suggestions differ from the rules on 79 review documents and change no filing decision.
 
-- **Storage** (`docket/core/storage.py`) writes files to S3-compatible storage under
-  `<building>/<record_id>/<category>/<hash>.pdf`. Writing the same bytes to the same
-  key again does nothing, so retries never write twice. Different bytes under an
-  existing key raise `StorageConflict`. Key parts must match `[A-Za-z0-9_-]+`.
-- **Ledger** (`docket/core/ledger.py`) stores each document's status in Postgres and
-  logs every change as an event. An event with the same step for the same document
-  is written once. Status moves only along an allowed list, and a final status such
-  as `filed` or `rejected` never changes.
-- A document runs in one of two modes. In `act` mode it can be filed or wait for
-  review. In `observe` mode it only records what would have happened: `would_file`
-  or `would_review` replace filing and review, and `rejected` and `failed` still apply.
+The threshold curve below comes directly from the committed report.
+Each cell gives a percentage and its 95% Wilson interval.
+The auto-file rate is the share of all 180 documents selected for filing.
 
-## Model gateway
+| Threshold | Docket precision | Rules precision | Docket auto-file rate | Rules auto-file rate |
+| --- | --- | --- | --- | --- |
+| 0.5500000 | 100.0% [91.0–100.0] | 100.0% [91.0–100.0] | 21.7% [16.3–28.2] | 21.7% [16.3–28.2] |
+| 0.6142857 | 100.0% [90.8–100.0] | 100.0% [90.8–100.0] | 21.1% [15.8–27.6] | 21.1% [15.8–27.6] |
+| 0.6785714 | 100.0% [90.1–100.0] | 100.0% [90.1–100.0] | 19.4% [14.3–25.8] | 19.4% [14.3–25.8] |
+| 0.7428571 | 100.0% [90.1–100.0] | 100.0% [90.1–100.0] | 19.4% [14.3–25.8] | 19.4% [14.3–25.8] |
+| 0.8071429 | 100.0% [90.1–100.0] | 100.0% [90.1–100.0] | 19.4% [14.3–25.8] | 19.4% [14.3–25.8] |
+| 0.8714286 | 100.0% [89.3–100.0] | 100.0% [89.3–100.0] | 17.8% [12.9–24.0] | 17.8% [12.9–24.0] |
+| 0.9357143 | 100.0% [89.0–100.0] | 100.0% [89.0–100.0] | 17.2% [12.4–23.4] | 17.2% [12.4–23.4] |
+| 1.0000000 | — | — | 0.0% [0.0–2.1] | 0.0% [0.0–2.1] |
 
-`docket/llm/` calls a language model through OpenRouter. The model
-picks among the shortlisted records. Scoring refuses a pick that is not on the
-shortlist (`InvalidChoice`). Automatic filing uses the rules' top candidate;
-the model's record suggestion does not affect its score, tier or filing decision.
+At threshold 1.0 there are no filings, so precision is undefined.
+The eight thresholds produce six distinct precision/rate pairs.
+Raising the threshold loses filings here without a measured precision gain.
+The [JSON report](evals/reports/2026-11-11-seed-11.json) contains unrounded values,
+per-case results and each review suggestion.
+[Failure notes](docs/failures/README.md) show missed filings and wrong suggestions.
 
-- **Modes.** `live` calls the model. `record` calls it and saves the answer, and
-  accepts only the synthetic corpus. `replay` returns saved answers with no network
-  or key, so tests are repeatable. `export` writes each request that has no saved
-  answer to a file, and `import` checks supplied answers and saves them.
-- **Budget.** Before each call, Docket reserves the worst-case cost against a run cap
-  and a daily cap kept in Postgres. In live use each document has its own run cap
-  (`DOCKET_RUN_BUDGET_USD`, default $2.00); an evaluation run shares one. The daily
-  cap is shared by all calls and defaults to $1.50 (`DOCKET_DAILY_BUDGET_USD`).
-  After the call it charges the real cost.
-- **Bad output.** An answer that does not fit the schema raises `ParseError`, which
-  is not retried. This also covers truncated and filtered responses.
+## Crash and retry checks
 
-`docket spike-models` checks that the configured model keeps to a different list
-of allowed ids on each call. It makes real calls, so it needs an OpenRouter key. It
-also needs Postgres with the tables created, because the daily cap is kept there:
+Five fault tests stop real Compose processes and check recovery.
+A failpoint is a named place where a test deliberately exits a process.
+Each process-crash test checks exit code 137 and the fired-point log.
 
-```sh
-cp .env.example .env        # then set OPENROUTER_API_KEY in .env
-docker compose up -d
-uv run alembic upgrade head
-uv run docket spike-models
-```
+| Fault | Checked outcome |
+| --- | --- |
+| Worker exits after storage, before the database write | One filing object, one filing row and one filed event after restart |
+| Worker exits in choose | Same single-filing checks after restart |
+| API exits after the raw upload | Resubmission recovers one document and one filing |
+| API exits after the document row, before workflow start | Reconciliation starts the missing workflow; one filing |
+| Storage goes offline during worker recovery | A real connection error, then one filing after storage returns |
 
-See [docs/adr/001-model-enum-spike.md](docs/adr/001-model-enum-spike.md).
+The worker-crash cases also submit three requests concurrently and resubmit after filing
+under a different message id. They still produce one document and one filing.
+Steps may run again. Database uniqueness and repeat-safe storage writes prevent duplicate effects.
+The suite does not measure outages longer than the retry window or production failover.
+See [ADR 007](docs/adr/007-temporal-recovery.md) for the measured scope.
 
-## Test corpus
+## Limits
 
-`corpus/seed-7/` and `corpus/seed-11/` each hold 180 synthetic documents and a
-`labels.jsonl` file with the right answer for each one. The cases cover clean
-documents, single-signal documents, conflicts, near-miss addresses, injected
-instructions, graded name and address errors, exact duplicates, a very long
-document and broken files (no text, corrupt, encrypted, zero bytes, not a PDF).
+- Deduplication uses exact bytes. Near-duplicates with different bytes remain separate documents.
+- There is no optical character recognition (OCR), which reads text from page images.
+  Scans without a text layer go to review.
+- Answers are simulated and documents are synthetic. Neither demonstrates real-provider quality.
+- Conflicting evidence and single-signal matches go to review. This protects filing precision
+  at the cost of more human work.
+- A category-call failure still fails the document. Only the record suggestion is optional.
+- Matching has field-size budgets. Over-budget input goes to review rather than losing evidence
+  through silent truncation. [Operations](docs/operations.md#how-a-document-is-matched) gives the limits.
+- Local Compose uses a Temporal development server, one API process and one shared reviewer token.
+  This is not a measured production deployment or an individual-user permissions system.
 
-The same seed always gives the same text and labels:
+## Check and explore
 
-```sh
-uv run docket corpus generate --seed 7 --output /tmp/seed-7
-```
-
-## Simulated evaluation
-
-No OpenRouter key is available yet, so the model answers behind the reports are
-simulated. Docket exported each model request to a file, and Claude Haiku answered
-it in its place. Opus answered the few requests that Haiku's safety filter wrongly
-blocked. The operator reports that each answer came from a fresh call that saw only
-its own request. Every answer names the model that gave it and the model it stands
-in for, and every report says its results are simulated.
-
-`docket eval --seed N` runs a corpus in `observe` mode and compares Docket with a
-rules-only baseline, which takes the highest-scored candidate without a model.
-Seed 7 picked the filing threshold (`scripts/tune_threshold.py`). Seed 11 is held
-out and picked nothing.
-
-The held-out result ([seed-11 report](evals/reports/2026-11-11-seed-11.md)):
-
-- 0 wrong filings, and no filings to a record id injected into the text.
-- All 10 clean documents filed without a person.
-- Recall of 38/39 (97.4%), equal to the baseline. Recall is the share of documents
-  that should file and did file, to the right record.
-- The model's choose step changes no filing decision in v0.1. Docket and the
-  baseline file the same 38 documents. The choice changes only the record suggested
-  to the reviewer, on 79 documents that go to review either way.
-- Category accuracy is lower with the model: 124/140, against 132/140 for the
-  baseline.
-
-Among the 102 seed-11 documents sent to review, the model's suggestion was correct
-on 44 (43.1%) and the rules' top candidate on 62 (60.8%). When the labels name no
-record, suggesting none counts as correct. Only documents that went to review count.
-The [JSON report](evals/reports/2026-11-11-seed-11.json) lists each one, with 95%
-Wilson intervals (the range the true rate likely falls in). These numbers replay the
-existing simulated answers; no new model answers were made.
-
-`verify.sh` fails unless the newest seed-11 report is a measured pass that replay
-reproduces exactly (`scripts/reproduce_eval.py`). `docket eval` checks each place
-where Docket and the baseline disagree against the corpus labels and stores that in
-the report. `docket shadow-diff` saves that comparison as `<report>-shadow.json`. It
-reads the newest seed-11 report unless you pass `--report`.
-
-The evidence is one committed archive, `evals/recordings/exchange.jsonl.gz`. It
-holds every request and answer exactly as exchanged, with their SHA-256 hashes and
-provenance. Replay reads `evals/recordings/calls.jsonl`, and verify checks every
-saved answer there against the archive. The working folders `evals/pending/` and
-`evals/answers/` are not committed. See
-[evals/recordings/README.md](evals/recordings/README.md) for the archive format and
-answer counts, [docs/rerecord.md](docs/rerecord.md) to rerun the simulation or
-record with a real key, and
-[ADR-004](docs/adr/004-simulated-model-measurements.md) for why simulated answers
-were used.
-
-## Run the checks
-
-The checks need Node.js 22.12+ and Docker Compose as well as uv.
-The tests need Postgres, Temporal and S3 storage. `compose.yaml` runs Postgres, a
-Temporal dev server, SeaweedFS (S3-compatible storage), the API and the worker.
-Every port listens on 127.0.0.1 only.
+Checks also need Node.js 22.12+. Start Compose first:
 
 ```sh
-docker compose up -d
 ./verify.sh
+./verify.sh --fault
 ```
 
-| Service  | Address                                 |
-| -------- | --------------------------------------- |
-| Postgres | `127.0.0.1:55432`                       |
-| Temporal | `127.0.0.1:7233`, web UI on `127.0.0.1:8233` |
-| API      | `http://127.0.0.1:8010`                |
-| S3       | `http://127.0.0.1:9000`                 |
+Both enforce zero skipped tests, coverage floors, formatting, type checks, browser checks,
+Docker builds, the saved-answer archive and secret scanning.
+They also replay seed 11 and compare it with the saved results, without a model call.
 
-`verify.sh` runs ruff and pyright (strict on `docket/core`), checks the exchange
-archive, builds the Vite review page and Docker images, and creates the database
-tables. Then it runs pytest. That includes two Playwright browser tests against
-their own API and worker containers in replay mode: one approves a suggested record
-end to end, and one checks that a script-like file name and sender show as plain
-text. Chromium runs in a separate test image, not in the API or worker images.
-`verify.sh` fails if any test is skipped, or if branch coverage of a core module
-falls below its floor in `scripts/check_coverage.py`. Last, it reproduces the
-held-out report and runs detect-secrets, which also scans the archive's contents.
-CI runs `./verify.sh` and `./verify.sh --fault`.
-
-`./verify.sh --fault` also runs the fault suite in `tests/fault/`.
-`docket/failpoints.py` stops a process at a named point when `DOCKET_FAILPOINT`
-names it. The five tests crash the worker in the choose step and right after
-storage, crash the API after it saves the raw file and after it creates the
-document row, and stop storage while a restarted worker is running. Each test checks that the
-document is never filed twice and still reaches a final status.
-
-## Layout
-
-| Path                      | What it holds                                         |
-| ------------------------- | ----------------------------------------------------- |
-| `docket/core/`            | Extraction, shortlist, scoring, storage and ledger    |
-| `docket/llm/`             | Model gateway, replay store, exchange archive, budget |
-| `docket/workflows.py`     | The per-document Temporal workflow                    |
-| `docket/activities.py`    | The workflow's steps, run by `docket/worker.py`       |
-| `docket/api.py`           | Upload, webhook, status and review endpoints          |
-| `docket/webhook.py`       | Webhook signature check, size limit and rate limit    |
-| `docket/review_access.py` | Reviewer token check and the token entry page         |
-| `docket/evaluation.py`    | Evaluation runs and reports                           |
-| `docket/cli.py`           | The `docket` command                                  |
-| `web/`                    | The review page and its Playwright tests              |
-| `config/`                 | Records, categories and scoring weights               |
-| `migrations/`             | Alembic migrations for the Postgres tables            |
-| `corpus/`                 | Committed synthetic documents and labels              |
-| `evals/`                  | Reports, saved answers and the exchange archive       |
-| `docs/adr/`               | Decision records                                      |
-
-## License
+- [Product brief](docs/product-brief.md): users, scope and measures.
+- [Decision records](docs/adr/README.md): choices and measured limits.
+- [Build log](docs/build-log.md): dated decisions and what review caught.
+- [Operations](docs/operations.md): matching, API, storage, model budgets and local services.
+- [Replay instructions](docs/rerecord.md): reproduce the reports or record real-provider answers.
+- [Evidence archive](evals/recordings/README.md): original requests, answers and provenance.
+- [Build plan](builds/v01/plan.md): acceptance criteria and approved changes.
 
 Apache-2.0. See [LICENSE](LICENSE).

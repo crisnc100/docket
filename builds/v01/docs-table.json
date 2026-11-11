@@ -1,938 +1,441 @@
 {
  "rows": [
   {
-   "behavior": "Project scaffold, local services and verify.sh",
+   "behavior": "Workflow per document: upload, extract, shortlist, classify and choose, score, file or review, one final status",
    "files": [
-    "pyproject.toml",
-    "uv.lock",
-    ".python-version",
-    ".gitignore",
-    ".env.example",
-    "LICENSE",
-    "compose.yaml",
-    "config/s3.local.json",
-    "verify.sh",
-    ".github/workflows/verify.yml",
-    "scripts/check_coverage.py",
-    "docket/__init__.py",
+    "docket/api.py",
+    "docket/ingress.py",
+    "docket/workflows.py",
+    "docket/activities.py",
+    "docket/activities_schema.py",
+    "docket/worker.py",
+    "docket/runtime.py",
+    "docket/prompts.py",
     "docket/settings.py",
-    "tests/conftest.py",
-    "tests/test_scaffold.py",
-    "tests/test_temporal_environment.py",
-    "tests/test_pr1_review_compose.py",
-    "tests/core/test_coverage_gate.py"
+    "docket/llm/errors.py"
    ],
    "docs": [
     {
      "path": "README.md",
      "claims": [
       {
-       "claim": "uv installs Python 3.12; project requires 3.12",
-       "at": "pyproject.toml:5"
+       "claim": "POST /documents takes the upload and saves raw bytes under their SHA-256 hash",
+       "at": "docket/ingress.py:62"
       },
       {
-       "claim": "compose runs Postgres, Temporal dev server and SeaweedFS",
-       "at": "compose.yaml:2"
+       "claim": "Uploading the same bytes again returns the same document id",
+       "at": "docket/ingress.py:76"
       },
       {
-       "claim": "Temporal dev server service",
-       "at": "compose.yaml:26"
+       "claim": "A workflow starts only for a document that is not already final",
+       "at": "docket/ingress.py:121"
       },
       {
-       "claim": "SeaweedFS S3 service",
-       "at": "compose.yaml:34"
+       "claim": "GET /documents/{id} returns status, reason and logged steps",
+       "at": "docket/api.py:60"
       },
       {
-       "claim": "Postgres on 127.0.0.1:55432",
-       "at": "compose.yaml:8"
+       "claim": "An empty shortlist skips classify and choose and the category is misc",
+       "at": "docket/workflows.py:105"
       },
       {
-       "claim": "Temporal on 127.0.0.1:7233 and 8233",
-       "at": "compose.yaml:27"
+       "claim": "The model chooses only a provided record id or none",
+       "at": "docket/prompts.py:24"
       },
       {
-       "claim": "S3 on 127.0.0.1:9000",
-       "at": "compose.yaml:40"
+       "claim": "Approve with record_id files the document after review",
+       "at": "docket/workflows.py:134"
       },
       {
-       "claim": "verify.sh creates tables via alembic upgrade head, after ruff and pyright",
-       "at": "verify.sh:10"
+       "claim": "Review actions are posted to /review/{id}/{action}",
+       "at": "docket/api.py:79"
       },
       {
-       "claim": "verify.sh runs ruff",
-       "at": "verify.sh:7"
+       "claim": "Dismiss needs a non-empty reason",
+       "at": "docket/workflows.py:52"
       },
       {
-       "claim": "verify.sh runs pyright",
-       "at": "verify.sh:9"
+       "claim": "An unanswered review expires after DOCKET_REVIEW_TIMEOUT_SECONDS, default 3600",
+       "at": "docket/settings.py:24"
       },
       {
-       "claim": "pyright strict on docket/core",
-       "at": "pyproject.toml:37"
+       "claim": "docket reconcile starts missing workflows and marks abandoned documents failed (orphaned)",
+       "at": "docket/ingress.py:135"
       },
       {
-       "claim": "verify.sh runs pytest with branch coverage",
-       "at": "verify.sh:11"
-      },
-      {
-       "claim": "coverage floors per core module",
-       "at": "scripts/check_coverage.py:9"
-      },
-      {
-       "claim": "verify.sh runs detect-secrets",
-       "at": "verify.sh:13"
-      },
-      {
-       "claim": "any skipped test fails the run",
-       "at": "tests/conftest.py:7"
-      },
-      {
-       "claim": "spike needs OPENROUTER_API_KEY, read from env or .env",
-       "at": "docket/settings.py:6"
-      },
-      {
-       "claim": "daily cap defaults to $1.50 via DOCKET_DAILY_BUDGET_USD",
-       "at": "docket/settings.py:14"
-      },
-      {
-       "claim": "Apache-2.0 license",
-       "at": "pyproject.toml:6"
+       "claim": "docket worker runs the worker",
+       "at": "docket/cli.py:127"
       }
      ]
-    }
-   ]
-  },
-  {
-   "behavior": "Ledger schema and migrations",
-   "files": [
-    "alembic.ini",
-    "migrations/env.py",
-    "migrations/script.py.mako",
-    "migrations/versions/690f4793dd3f_create_document_and_budget_foundations.py",
-    "docket/db.py",
-    "tests/test_database.py"
-   ],
-   "docs": [
+    },
     {
-     "path": "README.md",
+     "path": "docs/adr/002-review-workflow-patching.md",
      "claims": [
       {
-       "claim": "act and observe modes on documents",
-       "at": "docket/db.py:28"
-      },
-      {
-       "claim": "event idem_key is unique",
-       "at": "docket/db.py:61"
-      },
-      {
-       "claim": "daily cap kept in Postgres budget_ledger",
-       "at": "docket/db.py:80"
-      },
-      {
-       "claim": "migrations/ holds Alembic migrations",
-       "at": "alembic.ini:2"
+       "claim": "The workflow records the review-contract-v1 patch before its first activity",
+       "at": "docket/workflows.py:94"
       }
      ]
-    }
-   ]
-  },
-  {
-   "behavior": "Records, categories and scoring config",
-   "files": [
-    "config/records.csv",
-    "config/categories.yaml",
-    "config/scoring.json",
-    "docket/config.py",
-    "scripts/unique_tenants.py",
-    "tests/test_config.py"
-   ],
-   "docs": [
+    },
     {
-     "path": "README.md",
+     "path": "docket/activities.py",
      "claims": [
       {
-       "claim": "records are UNIT-#### ids",
-       "at": "docket/config.py:28"
-      },
-      {
-       "claim": "UNIT-0001 is 1010 Cedar Street Apt 1",
-       "at": "config/records.csv:2"
-      },
-      {
-       "claim": "200 synthetic units (201 lines incl. header)",
-       "at": "config/records.csv:201"
-      },
-      {
-       "claim": "weights are untuned defaults",
-       "at": "config/scoring.json:3"
-      },
-      {
-       "claim": "signal weights live in config/scoring.json",
-       "at": "config/scoring.json:4"
+       "claim": "Blocking work runs in a thread so heartbeats keep flowing; the heartbeat timeout is 10 seconds",
+       "at": "docket/workflows.py:39"
       }
      ]
     }
    ]
   },
   {
-   "behavior": "Synthetic corpus and gold labels",
-   "files": [
-    "docket/corpus.py",
-    "tests/test_corpus.py",
-    "tests/test_pr1_review_corpus.py"
-   ],
-   "docs": [
-    {
-     "path": "README.md",
-     "claims": [
-      {
-       "claim": "case types cover clean, single-signal, conflict, decoy, injection, duplicate, very long and broken files",
-       "at": "docket/corpus.py:15"
-      },
-      {
-       "claim": "170 documents per seed (10 batches x 17 cases)",
-       "at": "docket/corpus.py:117"
-      },
-      {
-       "claim": "labels.jsonl holds the answers",
-       "at": "docket/corpus.py:228"
-      },
-      {
-       "claim": "same seed gives same text and labels",
-       "at": "tests/test_corpus.py:39"
-      },
-      {
-       "claim": "corpus generate --seed and --output options",
-       "at": "docket/cli.py:37"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "behavior": "Text extraction and typed rejections",
-   "files": [
-    "docket/core/extraction.py",
-    "tests/core/test_extraction.py"
-   ],
-   "docs": [
-    {
-     "path": "README.md",
-     "claims": [
-      {
-       "claim": "PDF text read with pypdf",
-       "at": "docket/core/extraction.py:66"
-      },
-      {
-       "claim": "zero_byte rejection",
-       "at": "docket/core/extraction.py:58"
-      },
-      {
-       "claim": "too_large rejection",
-       "at": "docket/core/extraction.py:60"
-      },
-      {
-       "claim": "unsupported_type for non-PDF",
-       "at": "docket/core/extraction.py:64"
-      },
-      {
-       "claim": "encrypted rejection",
-       "at": "docket/core/extraction.py:68"
-      },
-      {
-       "claim": "corrupt rejection",
-       "at": "docket/core/extraction.py:72"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "behavior": "Candidate shortlist and conflict flag",
+   "behavior": "Matching input budget, over-budget review with input_too_large, filename basename field, threaded batched shortlist",
    "files": [
     "docket/core/candidates.py",
-    "tests/core/test_candidates.py",
-    "tests/core/test_pr1_review_candidates.py"
+    "docket/core/scoring.py"
    ],
    "docs": [
     {
      "path": "README.md",
      "claims": [
       {
-       "claim": "keeps up to five candidates",
-       "at": "docket/core/candidates.py:94"
+       "claim": "Body budget is 64,000 characters and 2,000 lines; subject 1,000; file name 255",
+       "at": "docket/core/candidates.py:27"
       },
       {
-       "claim": "explicit_id from text or subject",
-       "at": "docket/core/candidates.py:100"
-      },
-      {
-       "claim": "filename_id from file name",
-       "at": "docket/core/candidates.py:101"
-      },
-      {
-       "claim": "address or alias match",
-       "at": "docket/core/candidates.py:115"
-      },
-      {
-       "claim": "Street/St and Apt/Unit equivalence",
+       "claim": "File name budget is 255 characters",
        "at": "docket/core/candidates.py:30"
       },
       {
-       "claim": "# treated as unit",
-       "at": "docket/core/candidates.py:12"
+       "claim": "An over-budget body is left out of matching",
+       "at": "docket/core/candidates.py:315"
       },
       {
-       "claim": "current or former tenant, fuzzy match",
-       "at": "docket/core/candidates.py:126"
+       "claim": "Over budget sends the document to review with reason input_too_large",
+       "at": "docket/core/scoring.py:131"
       },
       {
-       "claim": "close spellings count via fuzzy ratio cutoff",
-       "at": "docket/core/candidates.py:56"
+       "claim": "Record ids in every field still count toward a conflict",
+       "at": "docket/core/candidates.py:356"
       },
       {
-       "claim": "building counts only apart from matched address",
-       "at": "docket/core/candidates.py:142"
-      },
-      {
-       "claim": "record ids from text, subject or file name enter the conflict set",
-       "at": "docket/core/candidates.py:113"
-      },
-      {
-       "claim": "address and exact tenant matches enter the conflict set",
-       "at": "docket/core/candidates.py:131"
-      },
-      {
-       "claim": "conflict when the set holds more than one record",
-       "at": "docket/core/candidates.py:150"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "behavior": "Corroboration scoring and tiers",
-   "files": [
-    "docket/core/scoring.py",
-    "tests/core/test_scoring.py",
-    "tests/test_pr1_findings.py"
-   ],
-   "docs": [
-    {
-     "path": "README.md",
-     "claims": [
-      {
-       "claim": "tiers none, medium, strong",
-       "at": "docket/core/scoring.py:63"
-      },
-      {
-       "claim": "strong needs two independent signals; one is capped below strong",
-       "at": "docket/core/scoring.py:136"
-      },
-      {
-       "claim": "conflict sets score 0 and review",
-       "at": "docket/core/scoring.py:122"
-      },
-      {
-       "claim": "filing needs strong tier",
+       "claim": "A strong match files only when its score reaches auto_file_threshold",
        "at": "docket/core/scoring.py:144"
       },
       {
-       "claim": "building ignored unless explicit",
-       "at": "docket/core/scoring.py:96"
+       "claim": "auto_file_threshold is 0.5857142",
+       "at": "config/scoring.json:13"
+      }
+     ]
+    },
+    {
+     "path": "docket/core/candidates.py",
+     "claims": [
+      {
+       "claim": "Inside the budget, long tokens and lines are capped",
+       "at": "docket/core/candidates.py:315"
       },
       {
-       "claim": "pick not on shortlist raises InvalidChoice",
-       "at": "docket/core/scoring.py:120"
+       "claim": "Ids are still read from the full text and subject",
+       "at": "docket/core/candidates.py:311"
       }
      ]
     }
    ]
   },
   {
-   "behavior": "docket score command",
+   "behavior": "Fault-injection suite and failpoints",
    "files": [
-    "docket/cli.py"
+    "docket/failpoints.py",
+    ".github/workflows/verify.yml",
+    "verify.sh"
    ],
    "docs": [
     {
      "path": "README.md",
      "claims": [
       {
-       "claim": "score runs extraction, shortlist and scoring with no model call",
-       "at": "docket/cli.py:61"
+       "claim": "A failpoint stops the process when DOCKET_FAILPOINT names it",
+       "at": "docket/failpoints.py:5"
       },
       {
-       "claim": "prints chosen_record_id, score, tier, conflict, would_auto_file, reason",
-       "at": "docket/cli.py:113"
+       "claim": "Worker crash points are in the choose step and after storage",
+       "at": "docket/activities.py:131"
       },
       {
-       "claim": "rejected file prints status rejected and exits 1",
-       "at": "docket/cli.py:75"
+       "claim": "Worker crash after storage",
+       "at": "docket/activities.py:212"
       },
       {
-       "claim": "unsupported_type rejection exits 1",
-       "at": "docket/cli.py:87"
+       "claim": "API crash points after the raw file and after the document row",
+       "at": "docket/ingress.py:66"
       },
       {
-       "claim": "example output and corpus examples observed by running uv run docket score",
-       "at": "docket/cli.py:96"
+       "claim": "API crash after document insert",
+       "at": "docket/ingress.py:120"
+      },
+      {
+       "claim": "One test stops storage while a restarted worker runs",
+       "at": "tests/fault/test_faults.py:198"
+      },
+      {
+       "claim": "--fault includes tests/fault",
+       "at": "verify.sh:25"
+      },
+      {
+       "claim": "CI runs ./verify.sh and ./verify.sh --fault",
+       "at": ".github/workflows/verify.yml:11"
       }
      ]
     }
    ]
   },
   {
-   "behavior": "Idempotent S3 storage",
+   "behavior": "Model gateway export/import modes, provenance, live per-document budget",
    "files": [
-    "docket/core/storage.py",
-    "tests/core/test_storage.py"
-   ],
-   "docs": [
-    {
-     "path": "README.md",
-     "claims": [
-      {
-       "claim": "key is building/record_id/category/hash.pdf",
-       "at": "docket/core/storage.py:34"
-      },
-      {
-       "claim": "key parts must match [A-Za-z0-9_-]+",
-       "at": "docket/core/storage.py:32"
-      },
-      {
-       "claim": "same bytes again is a no-op",
-       "at": "docket/core/storage.py:120"
-      },
-      {
-       "claim": "different bytes raise StorageConflict",
-       "at": "docket/core/storage.py:119"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "behavior": "Ledger events and status whitelist",
-   "files": [
-    "docket/core/ledger.py",
-    "docket/core/__init__.py",
-    "tests/core/test_ledger.py"
-   ],
-   "docs": [
-    {
-     "path": "README.md",
-     "claims": [
-      {
-       "claim": "event written once per document and step",
-       "at": "docket/core/ledger.py:74"
-      },
-      {
-       "claim": "status moves only along an allowed list",
-       "at": "docket/core/ledger.py:92"
-      },
-      {
-       "claim": "final statuses have no allowed moves",
-       "at": "docket/core/ledger.py:38"
-      },
-      {
-       "claim": "observe mode cannot file or wait for review",
-       "at": "docket/core/ledger.py:98"
-      },
-      {
-       "claim": "act mode cannot use would_file/would_review",
-       "at": "docket/core/ledger.py:105"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "behavior": "Model gateway: modes, replay, budget, ParseError",
-   "files": [
-    "docket/llm/__init__.py",
     "docket/llm/gateway.py",
+    "docket/llm/exchange.py",
     "docket/llm/replay.py",
-    "docket/llm/budget.py",
-    "docket/llm/errors.py",
-    "tests/test_gateway.py",
-    "tests/test_pr1_review_gateway.py"
+    ".env.example"
    ],
    "docs": [
     {
      "path": "README.md",
      "claims": [
       {
-       "claim": "OpenRouter base URL",
-       "at": "docket/llm/gateway.py:40"
+       "claim": "The gateway has export and import modes",
+       "at": "docket/llm/gateway.py:28"
       },
       {
-       "claim": "live, record, replay modes",
-       "at": "docket/llm/gateway.py:22"
+       "claim": "Live documents get their own run budget; evaluation runs share one",
+       "at": "docket/runtime.py:51"
       },
       {
-       "claim": "record accepts only the synthetic corpus",
-       "at": "docket/llm/gateway.py:121"
+       "claim": "DOCKET_RUN_BUDGET_USD defaults to 2",
+       "at": "docket/settings.py:25"
       },
       {
-       "claim": "replay returns saved answers without a transport",
-       "at": "docket/llm/gateway.py:125"
-      },
-      {
-       "claim": "worst-case reservation before each call",
-       "at": "docket/llm/gateway.py:132"
-      },
-      {
-       "claim": "per-run cap",
-       "at": "docket/llm/budget.py:56"
-      },
-      {
-       "claim": "daily cap in Postgres",
-       "at": "docket/llm/budget.py:80"
-      },
-      {
-       "claim": "charges real cost after call",
-       "at": "docket/llm/gateway.py:164"
-      },
-      {
-       "claim": "ParseError is not retried",
-       "at": "docket/llm/errors.py:6"
+       "claim": "DOCKET_DAILY_BUDGET_USD defaults to 1.50",
+       "at": "docket/settings.py:14"
       }
      ]
     },
     {
-     "path": "docs/adr/001-model-enum-spike.md",
+     "path": "docs/rerecord.md",
      "claims": [
       {
-       "claim": "strict per-call json_schema",
-       "at": "docket/llm/gateway.py:65"
+       "claim": "Import validates all answers before saving any",
+       "at": "docket/llm/exchange.py:187"
       },
       {
-       "claim": "answer revalidated with Pydantic",
-       "at": "docket/llm/gateway.py:169"
+       "claim": "A saved answer is never overwritten",
+       "at": "docket/llm/replay.py:85"
+      }
+     ]
+    },
+    {
+     "path": "docs/adr/004-simulated-model-measurements.md",
+     "claims": [
+      {
+       "claim": "A request key binds activity, prompt version, model and input",
+       "at": "docket/llm/replay.py:30"
       },
       {
-       "claim": "raw JSON fallback uses the same schema",
-       "at": "docket/llm/gateway.py:168"
-      },
-      {
-       "claim": "SDK cut-off, filtered or invalid output raises ParseError",
-       "at": "docket/llm/gateway.py:138"
-      },
-      {
-       "claim": "no provider fallback",
-       "at": "docket/llm/gateway.py:51"
-      },
-      {
-       "claim": "local tests use a fake HTTP transport",
-       "at": "tests/test_gateway.py:273"
+       "claim": "Already-recorded keys are kept, not replaced",
+       "at": "docket/llm/exchange.py:159"
       }
      ]
     }
    ]
   },
   {
-   "behavior": "Model enum spike command",
+   "behavior": "Exchange archive, untracked working folders, pack and check, secret scan of the archive",
    "files": [
-    "docket/llm/spike.py",
-    "tests/test_spike.py"
+    "docket/llm/archive.py",
+    "scripts/pack_exchange.py",
+    "scripts/check_secrets.py",
+    ".gitignore"
    ],
    "docs": [
     {
      "path": "README.md",
      "claims": [
       {
-       "claim": "spike-models checks a different allowed id list per call",
-       "at": "docket/llm/spike.py:39"
+       "claim": "verify.sh checks the exchange archive against calls.jsonl",
+       "at": "verify.sh:17"
       },
       {
-       "claim": "spike needs Postgres for the daily cap",
-       "at": "docket/llm/spike.py:35"
+       "claim": "Every recording is checked against the archive",
+       "at": "docket/llm/archive.py:100"
       },
       {
-       "claim": "spike opens a database engine",
-       "at": "docket/llm/spike.py:28"
-      },
-      {
-       "claim": "migrations create the tables",
-       "at": "verify.sh:10"
+       "claim": "detect-secrets also scans the archive's contents",
+       "at": "scripts/check_secrets.py:56"
       }
      ]
     },
     {
-     "path": "docs/adr/001-model-enum-spike.md",
+     "path": "docs/rerecord.md",
      "claims": [
       {
-       "claim": "spike replaces the Result section with the measured result",
-       "at": "docket/llm/spike.py:81"
-      },
-      {
-       "claim": "spike writes the JSON result file",
-       "at": "docket/llm/spike.py:67"
-      },
-      {
-       "claim": "no key prints PENDING and makes no call",
-       "at": "docket/cli.py:26"
-      },
-      {
-       "claim": "model and provider in the result are the configured values",
-       "at": "docket/llm/spike.py:60"
-      },
-      {
-       "claim": "provider copied from Settings",
-       "at": "docket/llm/spike.py:61"
+       "claim": "Packing merges working pairs into the archive",
+       "at": "docket/llm/archive.py:61"
       }
      ]
     }
    ]
   },
   {
-   "behavior": "Generated synthetic test corpus (PDFs and gold labels)",
+   "behavior": "Evaluation, threshold tuning on seed 7, held-out replay gate, shadow diff",
    "files": [
-    "corpus/seed-11/doc-0001-clean.pdf",
-    "corpus/seed-11/doc-0002-UNIT-0200-id_in_filename_only.pdf",
-    "corpus/seed-11/doc-0003-address_only.pdf",
-    "corpus/seed-11/doc-0004-tenant_only.pdf",
-    "corpus/seed-11/doc-0005-former_tenant.pdf",
-    "corpus/seed-11/doc-0006-two_record_conflict.pdf",
-    "corpus/seed-11/doc-0007-decoy_near_miss_address.pdf",
-    "corpus/seed-11/doc-0008-building_level.pdf",
-    "corpus/seed-11/doc-0009-no_record.pdf",
-    "corpus/seed-11/doc-0010-injection.pdf",
-    "corpus/seed-11/doc-0011-exact_duplicate.pdf",
-    "corpus/seed-11/doc-0012-empty_text_layer.pdf",
-    "corpus/seed-11/doc-0013-corrupt.pdf",
-    "corpus/seed-11/doc-0014-encrypted.pdf",
-    "corpus/seed-11/doc-0015-zero_byte.pdf",
-    "corpus/seed-11/doc-0016-non_pdf.txt",
-    "corpus/seed-11/doc-0017-very_long.pdf",
-    "corpus/seed-11/doc-0018-clean.pdf",
-    "corpus/seed-11/doc-0019-UNIT-0049-id_in_filename_only.pdf",
-    "corpus/seed-11/doc-0020-address_only.pdf",
-    "corpus/seed-11/doc-0021-tenant_only.pdf",
-    "corpus/seed-11/doc-0022-former_tenant.pdf",
-    "corpus/seed-11/doc-0023-two_record_conflict.pdf",
-    "corpus/seed-11/doc-0024-decoy_near_miss_address.pdf",
-    "corpus/seed-11/doc-0025-building_level.pdf",
-    "corpus/seed-11/doc-0026-no_record.pdf",
-    "corpus/seed-11/doc-0027-injection.pdf",
-    "corpus/seed-11/doc-0028-exact_duplicate.pdf",
-    "corpus/seed-11/doc-0029-empty_text_layer.pdf",
-    "corpus/seed-11/doc-0030-corrupt.pdf",
-    "corpus/seed-11/doc-0031-encrypted.pdf",
-    "corpus/seed-11/doc-0032-zero_byte.pdf",
-    "corpus/seed-11/doc-0033-non_pdf.txt",
-    "corpus/seed-11/doc-0034-very_long.pdf",
-    "corpus/seed-11/doc-0035-clean.pdf",
-    "corpus/seed-11/doc-0036-UNIT-0103-id_in_filename_only.pdf",
-    "corpus/seed-11/doc-0037-address_only.pdf",
-    "corpus/seed-11/doc-0038-tenant_only.pdf",
-    "corpus/seed-11/doc-0039-former_tenant.pdf",
-    "corpus/seed-11/doc-0040-two_record_conflict.pdf",
-    "corpus/seed-11/doc-0041-decoy_near_miss_address.pdf",
-    "corpus/seed-11/doc-0042-building_level.pdf",
-    "corpus/seed-11/doc-0043-no_record.pdf",
-    "corpus/seed-11/doc-0044-injection.pdf",
-    "corpus/seed-11/doc-0045-exact_duplicate.pdf",
-    "corpus/seed-11/doc-0046-empty_text_layer.pdf",
-    "corpus/seed-11/doc-0047-corrupt.pdf",
-    "corpus/seed-11/doc-0048-encrypted.pdf",
-    "corpus/seed-11/doc-0049-zero_byte.pdf",
-    "corpus/seed-11/doc-0050-non_pdf.txt",
-    "corpus/seed-11/doc-0051-very_long.pdf",
-    "corpus/seed-11/doc-0052-clean.pdf",
-    "corpus/seed-11/doc-0053-UNIT-0016-id_in_filename_only.pdf",
-    "corpus/seed-11/doc-0054-address_only.pdf",
-    "corpus/seed-11/doc-0055-tenant_only.pdf",
-    "corpus/seed-11/doc-0056-former_tenant.pdf",
-    "corpus/seed-11/doc-0057-two_record_conflict.pdf",
-    "corpus/seed-11/doc-0058-decoy_near_miss_address.pdf",
-    "corpus/seed-11/doc-0059-building_level.pdf",
-    "corpus/seed-11/doc-0060-no_record.pdf",
-    "corpus/seed-11/doc-0061-injection.pdf",
-    "corpus/seed-11/doc-0062-exact_duplicate.pdf",
-    "corpus/seed-11/doc-0063-empty_text_layer.pdf",
-    "corpus/seed-11/doc-0064-corrupt.pdf",
-    "corpus/seed-11/doc-0065-encrypted.pdf",
-    "corpus/seed-11/doc-0066-zero_byte.pdf",
-    "corpus/seed-11/doc-0067-non_pdf.txt",
-    "corpus/seed-11/doc-0068-very_long.pdf",
-    "corpus/seed-11/doc-0069-clean.pdf",
-    "corpus/seed-11/doc-0070-UNIT-0114-id_in_filename_only.pdf",
-    "corpus/seed-11/doc-0071-address_only.pdf",
-    "corpus/seed-11/doc-0072-tenant_only.pdf",
-    "corpus/seed-11/doc-0073-former_tenant.pdf",
-    "corpus/seed-11/doc-0074-two_record_conflict.pdf",
-    "corpus/seed-11/doc-0075-decoy_near_miss_address.pdf",
-    "corpus/seed-11/doc-0076-building_level.pdf",
-    "corpus/seed-11/doc-0077-no_record.pdf",
-    "corpus/seed-11/doc-0078-injection.pdf",
-    "corpus/seed-11/doc-0079-exact_duplicate.pdf",
-    "corpus/seed-11/doc-0080-empty_text_layer.pdf",
-    "corpus/seed-11/doc-0081-corrupt.pdf",
-    "corpus/seed-11/doc-0082-encrypted.pdf",
-    "corpus/seed-11/doc-0083-zero_byte.pdf",
-    "corpus/seed-11/doc-0084-non_pdf.txt",
-    "corpus/seed-11/doc-0085-very_long.pdf",
-    "corpus/seed-11/doc-0086-clean.pdf",
-    "corpus/seed-11/doc-0087-UNIT-0049-id_in_filename_only.pdf",
-    "corpus/seed-11/doc-0088-address_only.pdf",
-    "corpus/seed-11/doc-0089-tenant_only.pdf",
-    "corpus/seed-11/doc-0090-former_tenant.pdf",
-    "corpus/seed-11/doc-0091-two_record_conflict.pdf",
-    "corpus/seed-11/doc-0092-decoy_near_miss_address.pdf",
-    "corpus/seed-11/doc-0093-building_level.pdf",
-    "corpus/seed-11/doc-0094-no_record.pdf",
-    "corpus/seed-11/doc-0095-injection.pdf",
-    "corpus/seed-11/doc-0096-exact_duplicate.pdf",
-    "corpus/seed-11/doc-0097-empty_text_layer.pdf",
-    "corpus/seed-11/doc-0098-corrupt.pdf",
-    "corpus/seed-11/doc-0099-encrypted.pdf",
-    "corpus/seed-11/doc-0100-zero_byte.pdf",
-    "corpus/seed-11/doc-0101-non_pdf.txt",
-    "corpus/seed-11/doc-0102-very_long.pdf",
-    "corpus/seed-11/doc-0103-clean.pdf",
-    "corpus/seed-11/doc-0104-UNIT-0168-id_in_filename_only.pdf",
-    "corpus/seed-11/doc-0105-address_only.pdf",
-    "corpus/seed-11/doc-0106-tenant_only.pdf",
-    "corpus/seed-11/doc-0107-former_tenant.pdf",
-    "corpus/seed-11/doc-0108-two_record_conflict.pdf",
-    "corpus/seed-11/doc-0109-decoy_near_miss_address.pdf",
-    "corpus/seed-11/doc-0110-building_level.pdf",
-    "corpus/seed-11/doc-0111-no_record.pdf",
-    "corpus/seed-11/doc-0112-injection.pdf",
-    "corpus/seed-11/doc-0113-exact_duplicate.pdf",
-    "corpus/seed-11/doc-0114-empty_text_layer.pdf",
-    "corpus/seed-11/doc-0115-corrupt.pdf",
-    "corpus/seed-11/doc-0116-encrypted.pdf",
-    "corpus/seed-11/doc-0117-zero_byte.pdf",
-    "corpus/seed-11/doc-0118-non_pdf.txt",
-    "corpus/seed-11/doc-0119-very_long.pdf",
-    "corpus/seed-11/doc-0120-clean.pdf",
-    "corpus/seed-11/doc-0121-UNIT-0005-id_in_filename_only.pdf",
-    "corpus/seed-11/doc-0122-address_only.pdf",
-    "corpus/seed-11/doc-0123-tenant_only.pdf",
-    "corpus/seed-11/doc-0124-former_tenant.pdf",
-    "corpus/seed-11/doc-0125-two_record_conflict.pdf",
-    "corpus/seed-11/doc-0126-decoy_near_miss_address.pdf",
-    "corpus/seed-11/doc-0127-building_level.pdf",
-    "corpus/seed-11/doc-0128-no_record.pdf",
-    "corpus/seed-11/doc-0129-injection.pdf",
-    "corpus/seed-11/doc-0130-exact_duplicate.pdf",
-    "corpus/seed-11/doc-0131-empty_text_layer.pdf",
-    "corpus/seed-11/doc-0132-corrupt.pdf",
-    "corpus/seed-11/doc-0133-encrypted.pdf",
-    "corpus/seed-11/doc-0134-zero_byte.pdf",
-    "corpus/seed-11/doc-0135-non_pdf.txt",
-    "corpus/seed-11/doc-0136-very_long.pdf",
-    "corpus/seed-11/doc-0137-clean.pdf",
-    "corpus/seed-11/doc-0138-UNIT-0147-id_in_filename_only.pdf",
-    "corpus/seed-11/doc-0139-address_only.pdf",
-    "corpus/seed-11/doc-0140-tenant_only.pdf",
-    "corpus/seed-11/doc-0141-former_tenant.pdf",
-    "corpus/seed-11/doc-0142-two_record_conflict.pdf",
-    "corpus/seed-11/doc-0143-decoy_near_miss_address.pdf",
-    "corpus/seed-11/doc-0144-building_level.pdf",
-    "corpus/seed-11/doc-0145-no_record.pdf",
-    "corpus/seed-11/doc-0146-injection.pdf",
-    "corpus/seed-11/doc-0147-exact_duplicate.pdf",
-    "corpus/seed-11/doc-0148-empty_text_layer.pdf",
-    "corpus/seed-11/doc-0149-corrupt.pdf",
-    "corpus/seed-11/doc-0150-encrypted.pdf",
-    "corpus/seed-11/doc-0151-zero_byte.pdf",
-    "corpus/seed-11/doc-0152-non_pdf.txt",
-    "corpus/seed-11/doc-0153-very_long.pdf",
-    "corpus/seed-11/doc-0154-clean.pdf",
-    "corpus/seed-11/doc-0155-UNIT-0059-id_in_filename_only.pdf",
-    "corpus/seed-11/doc-0156-address_only.pdf",
-    "corpus/seed-11/doc-0157-tenant_only.pdf",
-    "corpus/seed-11/doc-0158-former_tenant.pdf",
-    "corpus/seed-11/doc-0159-two_record_conflict.pdf",
-    "corpus/seed-11/doc-0160-decoy_near_miss_address.pdf",
-    "corpus/seed-11/doc-0161-building_level.pdf",
-    "corpus/seed-11/doc-0162-no_record.pdf",
-    "corpus/seed-11/doc-0163-injection.pdf",
-    "corpus/seed-11/doc-0164-exact_duplicate.pdf",
-    "corpus/seed-11/doc-0165-empty_text_layer.pdf",
-    "corpus/seed-11/doc-0166-corrupt.pdf",
-    "corpus/seed-11/doc-0167-encrypted.pdf",
-    "corpus/seed-11/doc-0168-zero_byte.pdf",
-    "corpus/seed-11/doc-0169-non_pdf.txt",
-    "corpus/seed-11/doc-0170-very_long.pdf",
+    "docket/evaluation.py",
+    "docket/cli.py",
+    "docket/corpus.py",
+    "scripts/tune_threshold.py",
+    "scripts/reproduce_eval.py",
+    "config/scoring.json"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "Four floors: zero wrong filings, clean rate at least 90%, no injected-id filing, recall at least baseline",
+       "at": "docket/evaluation.py:487"
+      },
+      {
+       "claim": "Threshold selection uses seed 7 and rules-only scores",
+       "at": "scripts/tune_threshold.py:45"
+      },
+      {
+       "claim": "verify.sh reproduces the newest seed-11 report",
+       "at": "scripts/reproduce_eval.py:22"
+      },
+      {
+       "claim": "shadow-diff defaults to the newest seed-11 report",
+       "at": "docket/cli.py:175"
+      },
+      {
+       "claim": "Corpus includes graded evidence documents",
+       "at": "docket/corpus.py:99"
+      },
+      {
+       "claim": "Seed-11 results: 0 wrong filings, 38/39 recall equal to baseline, 0 filing decision changes, 79 review proposal changes, category 124/140 vs 132/140",
+       "at": "evals/reports/2026-11-10-seed-11.md:41"
+      }
+     ]
+    },
+    {
+     "path": "docs/adr/004-simulated-model-measurements.md",
+     "claims": [
+      {
+       "claim": "Threshold 0.5857142 selected on seed 7",
+       "at": "evals/threshold-selection.json:308"
+      },
+      {
+       "claim": "Floors computed at the configured threshold",
+       "at": "docket/evaluation.py:487"
+      },
+      {
+       "claim": "Replay check compares metrics, results and provenance",
+       "at": "scripts/reproduce_eval.py:29"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Services in compose and Docker images",
+   "files": [
+    "compose.yaml",
+    "Dockerfile",
+    ".dockerignore"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "The API listens on 127.0.0.1:8010",
+       "at": "compose.yaml:71"
+      },
+      {
+       "claim": "verify.sh builds the Docker images",
+       "at": "verify.sh:18"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Workflow history capture",
+   "files": [
+    "scripts/record_workflow_history.py"
+   ],
+   "none": "docs/rerecord.md already documents the command; its claims were confirmed and are unchanged"
+  },
+  {
+   "behavior": "Docs edited in this pass",
+   "files": [
+    "README.md",
+    "docs/rerecord.md",
+    "docs/adr/002-review-workflow-patching.md",
+    "docs/adr/004-simulated-model-measurements.md"
+   ],
+   "none": "these are the docs themselves; their claims are recorded in the rows above"
+  },
+  {
+   "behavior": "Generated data: corpus PDFs and labels, reports, recordings, manifests, history, threshold selection, workflow histories",
+   "files": [
+    "corpus/history/original-digests-pre-core.json",
+    "corpus/original-digests.json",
+    "corpus/seed-11/doc-0171-graded_evidence.pdf",
+    "corpus/seed-11/doc-0172-graded_evidence.pdf",
+    "corpus/seed-11/doc-0173-graded_evidence.pdf",
+    "corpus/seed-11/doc-0174-graded_evidence.pdf",
+    "corpus/seed-11/doc-0175-graded_evidence.pdf",
+    "corpus/seed-11/doc-0176-graded_evidence.pdf",
+    "corpus/seed-11/doc-0177-graded_evidence.pdf",
+    "corpus/seed-11/doc-0178-graded_evidence.pdf",
+    "corpus/seed-11/doc-0179-graded_evidence.pdf",
+    "corpus/seed-11/doc-0180-graded_evidence.pdf",
     "corpus/seed-11/labels.jsonl",
-    "corpus/seed-7/doc-0001-clean.pdf",
-    "corpus/seed-7/doc-0002-UNIT-0102-id_in_filename_only.pdf",
-    "corpus/seed-7/doc-0003-address_only.pdf",
-    "corpus/seed-7/doc-0004-tenant_only.pdf",
-    "corpus/seed-7/doc-0005-former_tenant.pdf",
-    "corpus/seed-7/doc-0006-two_record_conflict.pdf",
-    "corpus/seed-7/doc-0007-decoy_near_miss_address.pdf",
-    "corpus/seed-7/doc-0008-building_level.pdf",
-    "corpus/seed-7/doc-0009-no_record.pdf",
-    "corpus/seed-7/doc-0010-injection.pdf",
-    "corpus/seed-7/doc-0011-exact_duplicate.pdf",
-    "corpus/seed-7/doc-0012-empty_text_layer.pdf",
-    "corpus/seed-7/doc-0013-corrupt.pdf",
-    "corpus/seed-7/doc-0014-encrypted.pdf",
-    "corpus/seed-7/doc-0015-zero_byte.pdf",
-    "corpus/seed-7/doc-0016-non_pdf.txt",
-    "corpus/seed-7/doc-0017-very_long.pdf",
-    "corpus/seed-7/doc-0018-clean.pdf",
-    "corpus/seed-7/doc-0019-UNIT-0035-id_in_filename_only.pdf",
-    "corpus/seed-7/doc-0020-address_only.pdf",
-    "corpus/seed-7/doc-0021-tenant_only.pdf",
-    "corpus/seed-7/doc-0022-former_tenant.pdf",
-    "corpus/seed-7/doc-0023-two_record_conflict.pdf",
-    "corpus/seed-7/doc-0024-decoy_near_miss_address.pdf",
-    "corpus/seed-7/doc-0025-building_level.pdf",
-    "corpus/seed-7/doc-0026-no_record.pdf",
-    "corpus/seed-7/doc-0027-injection.pdf",
-    "corpus/seed-7/doc-0028-exact_duplicate.pdf",
-    "corpus/seed-7/doc-0029-empty_text_layer.pdf",
-    "corpus/seed-7/doc-0030-corrupt.pdf",
-    "corpus/seed-7/doc-0031-encrypted.pdf",
-    "corpus/seed-7/doc-0032-zero_byte.pdf",
-    "corpus/seed-7/doc-0033-non_pdf.txt",
-    "corpus/seed-7/doc-0034-very_long.pdf",
-    "corpus/seed-7/doc-0035-clean.pdf",
-    "corpus/seed-7/doc-0036-UNIT-0077-id_in_filename_only.pdf",
-    "corpus/seed-7/doc-0037-address_only.pdf",
-    "corpus/seed-7/doc-0038-tenant_only.pdf",
-    "corpus/seed-7/doc-0039-former_tenant.pdf",
-    "corpus/seed-7/doc-0040-two_record_conflict.pdf",
-    "corpus/seed-7/doc-0041-decoy_near_miss_address.pdf",
-    "corpus/seed-7/doc-0042-building_level.pdf",
-    "corpus/seed-7/doc-0043-no_record.pdf",
-    "corpus/seed-7/doc-0044-injection.pdf",
-    "corpus/seed-7/doc-0045-exact_duplicate.pdf",
-    "corpus/seed-7/doc-0046-empty_text_layer.pdf",
-    "corpus/seed-7/doc-0047-corrupt.pdf",
-    "corpus/seed-7/doc-0048-encrypted.pdf",
-    "corpus/seed-7/doc-0049-zero_byte.pdf",
-    "corpus/seed-7/doc-0050-non_pdf.txt",
-    "corpus/seed-7/doc-0051-very_long.pdf",
-    "corpus/seed-7/doc-0052-clean.pdf",
-    "corpus/seed-7/doc-0053-UNIT-0153-id_in_filename_only.pdf",
-    "corpus/seed-7/doc-0054-address_only.pdf",
-    "corpus/seed-7/doc-0055-tenant_only.pdf",
-    "corpus/seed-7/doc-0056-former_tenant.pdf",
-    "corpus/seed-7/doc-0057-two_record_conflict.pdf",
-    "corpus/seed-7/doc-0058-decoy_near_miss_address.pdf",
-    "corpus/seed-7/doc-0059-building_level.pdf",
-    "corpus/seed-7/doc-0060-no_record.pdf",
-    "corpus/seed-7/doc-0061-injection.pdf",
-    "corpus/seed-7/doc-0062-exact_duplicate.pdf",
-    "corpus/seed-7/doc-0063-empty_text_layer.pdf",
-    "corpus/seed-7/doc-0064-corrupt.pdf",
-    "corpus/seed-7/doc-0065-encrypted.pdf",
-    "corpus/seed-7/doc-0066-zero_byte.pdf",
-    "corpus/seed-7/doc-0067-non_pdf.txt",
-    "corpus/seed-7/doc-0068-very_long.pdf",
-    "corpus/seed-7/doc-0069-clean.pdf",
-    "corpus/seed-7/doc-0070-UNIT-0064-id_in_filename_only.pdf",
-    "corpus/seed-7/doc-0071-address_only.pdf",
-    "corpus/seed-7/doc-0072-tenant_only.pdf",
-    "corpus/seed-7/doc-0073-former_tenant.pdf",
-    "corpus/seed-7/doc-0074-two_record_conflict.pdf",
-    "corpus/seed-7/doc-0075-decoy_near_miss_address.pdf",
-    "corpus/seed-7/doc-0076-building_level.pdf",
-    "corpus/seed-7/doc-0077-no_record.pdf",
-    "corpus/seed-7/doc-0078-injection.pdf",
-    "corpus/seed-7/doc-0079-exact_duplicate.pdf",
-    "corpus/seed-7/doc-0080-empty_text_layer.pdf",
-    "corpus/seed-7/doc-0081-corrupt.pdf",
-    "corpus/seed-7/doc-0082-encrypted.pdf",
-    "corpus/seed-7/doc-0083-zero_byte.pdf",
-    "corpus/seed-7/doc-0084-non_pdf.txt",
-    "corpus/seed-7/doc-0085-very_long.pdf",
-    "corpus/seed-7/doc-0086-clean.pdf",
-    "corpus/seed-7/doc-0087-UNIT-0108-id_in_filename_only.pdf",
-    "corpus/seed-7/doc-0088-address_only.pdf",
-    "corpus/seed-7/doc-0089-tenant_only.pdf",
-    "corpus/seed-7/doc-0090-former_tenant.pdf",
-    "corpus/seed-7/doc-0091-two_record_conflict.pdf",
-    "corpus/seed-7/doc-0092-decoy_near_miss_address.pdf",
-    "corpus/seed-7/doc-0093-building_level.pdf",
-    "corpus/seed-7/doc-0094-no_record.pdf",
-    "corpus/seed-7/doc-0095-injection.pdf",
-    "corpus/seed-7/doc-0096-exact_duplicate.pdf",
-    "corpus/seed-7/doc-0097-empty_text_layer.pdf",
-    "corpus/seed-7/doc-0098-corrupt.pdf",
-    "corpus/seed-7/doc-0099-encrypted.pdf",
-    "corpus/seed-7/doc-0100-zero_byte.pdf",
-    "corpus/seed-7/doc-0101-non_pdf.txt",
-    "corpus/seed-7/doc-0102-very_long.pdf",
-    "corpus/seed-7/doc-0103-clean.pdf",
-    "corpus/seed-7/doc-0104-UNIT-0001-id_in_filename_only.pdf",
-    "corpus/seed-7/doc-0105-address_only.pdf",
-    "corpus/seed-7/doc-0106-tenant_only.pdf",
-    "corpus/seed-7/doc-0107-former_tenant.pdf",
-    "corpus/seed-7/doc-0108-two_record_conflict.pdf",
-    "corpus/seed-7/doc-0109-decoy_near_miss_address.pdf",
-    "corpus/seed-7/doc-0110-building_level.pdf",
-    "corpus/seed-7/doc-0111-no_record.pdf",
-    "corpus/seed-7/doc-0112-injection.pdf",
-    "corpus/seed-7/doc-0113-exact_duplicate.pdf",
-    "corpus/seed-7/doc-0114-empty_text_layer.pdf",
-    "corpus/seed-7/doc-0115-corrupt.pdf",
-    "corpus/seed-7/doc-0116-encrypted.pdf",
-    "corpus/seed-7/doc-0117-zero_byte.pdf",
-    "corpus/seed-7/doc-0118-non_pdf.txt",
-    "corpus/seed-7/doc-0119-very_long.pdf",
-    "corpus/seed-7/doc-0120-clean.pdf",
-    "corpus/seed-7/doc-0121-UNIT-0042-id_in_filename_only.pdf",
-    "corpus/seed-7/doc-0122-address_only.pdf",
-    "corpus/seed-7/doc-0123-tenant_only.pdf",
-    "corpus/seed-7/doc-0124-former_tenant.pdf",
-    "corpus/seed-7/doc-0125-two_record_conflict.pdf",
-    "corpus/seed-7/doc-0126-decoy_near_miss_address.pdf",
-    "corpus/seed-7/doc-0127-building_level.pdf",
-    "corpus/seed-7/doc-0128-no_record.pdf",
-    "corpus/seed-7/doc-0129-injection.pdf",
-    "corpus/seed-7/doc-0130-exact_duplicate.pdf",
-    "corpus/seed-7/doc-0131-empty_text_layer.pdf",
-    "corpus/seed-7/doc-0132-corrupt.pdf",
-    "corpus/seed-7/doc-0133-encrypted.pdf",
-    "corpus/seed-7/doc-0134-zero_byte.pdf",
-    "corpus/seed-7/doc-0135-non_pdf.txt",
-    "corpus/seed-7/doc-0136-very_long.pdf",
-    "corpus/seed-7/doc-0137-clean.pdf",
-    "corpus/seed-7/doc-0138-UNIT-0190-id_in_filename_only.pdf",
-    "corpus/seed-7/doc-0139-address_only.pdf",
-    "corpus/seed-7/doc-0140-tenant_only.pdf",
-    "corpus/seed-7/doc-0141-former_tenant.pdf",
-    "corpus/seed-7/doc-0142-two_record_conflict.pdf",
-    "corpus/seed-7/doc-0143-decoy_near_miss_address.pdf",
-    "corpus/seed-7/doc-0144-building_level.pdf",
-    "corpus/seed-7/doc-0145-no_record.pdf",
-    "corpus/seed-7/doc-0146-injection.pdf",
-    "corpus/seed-7/doc-0147-exact_duplicate.pdf",
-    "corpus/seed-7/doc-0148-empty_text_layer.pdf",
-    "corpus/seed-7/doc-0149-corrupt.pdf",
-    "corpus/seed-7/doc-0150-encrypted.pdf",
-    "corpus/seed-7/doc-0151-zero_byte.pdf",
-    "corpus/seed-7/doc-0152-non_pdf.txt",
-    "corpus/seed-7/doc-0153-very_long.pdf",
-    "corpus/seed-7/doc-0154-clean.pdf",
-    "corpus/seed-7/doc-0155-UNIT-0165-id_in_filename_only.pdf",
-    "corpus/seed-7/doc-0156-address_only.pdf",
-    "corpus/seed-7/doc-0157-tenant_only.pdf",
-    "corpus/seed-7/doc-0158-former_tenant.pdf",
-    "corpus/seed-7/doc-0159-two_record_conflict.pdf",
-    "corpus/seed-7/doc-0160-decoy_near_miss_address.pdf",
-    "corpus/seed-7/doc-0161-building_level.pdf",
-    "corpus/seed-7/doc-0162-no_record.pdf",
-    "corpus/seed-7/doc-0163-injection.pdf",
-    "corpus/seed-7/doc-0164-exact_duplicate.pdf",
-    "corpus/seed-7/doc-0165-empty_text_layer.pdf",
-    "corpus/seed-7/doc-0166-corrupt.pdf",
-    "corpus/seed-7/doc-0167-encrypted.pdf",
-    "corpus/seed-7/doc-0168-zero_byte.pdf",
-    "corpus/seed-7/doc-0169-non_pdf.txt",
-    "corpus/seed-7/doc-0170-very_long.pdf",
-    "corpus/seed-7/labels.jsonl"
+    "corpus/seed-7/doc-0171-graded_evidence.pdf",
+    "corpus/seed-7/doc-0172-graded_evidence.pdf",
+    "corpus/seed-7/doc-0173-graded_evidence.pdf",
+    "corpus/seed-7/doc-0174-graded_evidence.pdf",
+    "corpus/seed-7/doc-0175-graded_evidence.pdf",
+    "corpus/seed-7/doc-0176-graded_evidence.pdf",
+    "corpus/seed-7/doc-0177-graded_evidence.pdf",
+    "corpus/seed-7/doc-0178-graded_evidence.pdf",
+    "corpus/seed-7/doc-0179-graded_evidence.pdf",
+    "corpus/seed-7/doc-0180-graded_evidence.pdf",
+    "corpus/seed-7/labels.jsonl",
+    "evals/history/threshold-selection-pre-core.json",
+    "evals/manifests/graded-seed-11.json",
+    "evals/manifests/graded-seed-7.json",
+    "evals/manifests/seed-11.json",
+    "evals/manifests/seed-7.json",
+    "evals/recordings/calls.jsonl",
+    "evals/recordings/exchange.jsonl.gz",
+    "evals/recordings/manifest.json",
+    "evals/reports/2026-11-09-seed-11-shadow.json",
+    "evals/reports/2026-11-09-seed-11.json",
+    "evals/reports/2026-11-09-seed-11.md",
+    "evals/reports/2026-11-09-seed-7-shadow.json",
+    "evals/reports/2026-11-09-seed-7.json",
+    "evals/reports/2026-11-09-seed-7.md",
+    "evals/reports/2026-11-10-seed-11-shadow.json",
+    "evals/reports/2026-11-10-seed-11.json",
+    "evals/reports/2026-11-10-seed-11.md",
+    "evals/reports/2026-11-10-seed-7-shadow.json",
+    "evals/reports/2026-11-10-seed-7.json",
+    "evals/reports/2026-11-10-seed-7.md",
+    "evals/threshold-selection.json",
+    "tests/workflow/history.yaml",
+    "tests/workflow/review-history.yaml"
    ],
-   "none": "Generated test fixtures; the README's corpus section and docket/corpus.py describe how they are made."
+   "none": "generated data checked by verify.sh"
   }
  ]
 }

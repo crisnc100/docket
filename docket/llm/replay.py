@@ -36,8 +36,9 @@ class Recording(BaseModel):
     model_config = ConfigDict(extra="forbid")
     key: str = Field(pattern=r"^[a-f0-9]{64}$")
     output: dict[str, Any]
-    cost_usd: str
+    cost_usd: str | None
     source: str = Field(pattern=r"^synthetic_corpus$")
+    provenance: dict[str, str] | None = None
 
 
 class ReplayStore:
@@ -67,6 +68,11 @@ class ReplayStore:
         if key not in entries:
             raise ReplayMiss(f"No recording for {key}")
         return entries[key]
+
+    def entries(self) -> list[Recording]:
+        with self.path.open() as file:
+            fcntl.flock(file, fcntl.LOCK_SH)
+            return list(self._read(file).values())
 
     def append(self, entry: Recording) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

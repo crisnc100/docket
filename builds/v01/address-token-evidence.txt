@@ -1,0 +1,99 @@
+Address token slice: command evidence
+Change base: f497aaf; branch: v01
+
+$ uv run pytest tests/core/test_address_unit_tokens.py -q (before implementation)
+20 failed, 3 passed in 0.13s
+
+$ uv run pytest tests/core/test_address_unit_tokens.py tests/core/test_conflict_address_regressions.py -q
+39 passed in 0.18s
+
+Direct committed-source/worktree comparison:
+f1 before: conflict=False; conflict_ids=(); raw_score=0.6500000; score=0.6500000; tier=strong; decision=file; reason=threshold_met
+f2 before: address_strength=0.9523809523809522; score=0.5857142; tier=strong; decision=file; reason=threshold_met
+f1 after: conflict=True; conflict_ids=('UNIT-0001', 'UNIT-0002'); raw_score=0.6500000; score=0; tier=none; decision=review; reason=conflicting_records
+f2 after: address_strength=0.0; score=0.3000000; tier=medium; decision=review; reason=insufficient_corroboration
+
+Replay preflight:
+{
+  "7": {
+    "count": 220,
+    "added": [],
+    "removed": [],
+    "changed": []
+  },
+  "11": {
+    "count": 220,
+    "added": [],
+    "removed": [],
+    "changed": []
+  }
+}
+
+Input and report integrity:
+Input integrity: 1254 files; added=[]; removed=[]; modified=[]
+Seed 7: report changes=[]; status=PASS; floors={"clean_auto_file_rate_90pct": true, "injection_to_injected_id_zero": true, "recall_at_least_baseline": true, "wrong_file_count_zero": true}
+Seed 11: report changes=[]; status=PASS; floors={"clean_auto_file_rate_90pct": true, "injection_to_injected_id_zero": true, "recall_at_least_baseline": true, "wrong_file_count_zero": true}
+
+$ uv run docket eval --seed 7 --mode replay --budget 0
+PASS: evals/reports/2026-11-09-seed-7.json
+Exit: 0
+$ uv run docket shadow-diff --report evals/reports/2026-11-09-seed-7.json
+COMPLETE: evals/reports/2026-11-09-seed-7-shadow.json
+Exit: 0
+
+$ uv run docket eval --seed 11 --mode replay --budget 0
+PASS: evals/reports/2026-11-09-seed-11.json
+Exit: 0
+$ uv run docket shadow-diff --report evals/reports/2026-11-09-seed-11.json
+COMPLETE: evals/reports/2026-11-09-seed-11-shadow.json
+Exit: 0
+
+$ ./verify.sh
+Exit: 0
+All checks passed!
+112 files already formatted
+0 errors, 0 warnings, 0 informations
+ Image docket-v01-api Built 
+ Image docket-v01-migrate Built 
+ Image docket-v01-worker Built 
+======================= 352 passed in 104.56s (0:01:44) ========================
+PASS docket/core/candidates.py: 38/38 branches = 100.00% (required 95%)
+PASS docket/core/scoring.py: 32/32 branches = 100.00% (required 95%)
+PASS docket/core/ledger.py: 16/16 branches = 100.00% (required 95%)
+PASS docket/core/storage.py: 20/20 branches = 100.00% (required 90%)
+Replay report reproduced: PASS; seed=11; no model calls
+detect-secrets: {}
+Verified public request SHA-256 digests: 440; all other findings remain blocking
+Skipped tests: 0; the suite rejects skips.
+
+$ ./verify.sh --fault
+Exit: 0
+All checks passed!
+112 files already formatted
+0 errors, 0 warnings, 0 informations
+ Image docket-v01-migrate Built 
+ Image docket-v01-worker Built 
+ Image docket-v01-api Built 
+tests/fault/test_faults.py .....                                         [ 52%]
+======================= 357 passed in 214.45s (0:03:34) ========================
+PASS docket/core/candidates.py: 38/38 branches = 100.00% (required 95%)
+PASS docket/core/scoring.py: 32/32 branches = 100.00% (required 95%)
+PASS docket/core/ledger.py: 16/16 branches = 100.00% (required 95%)
+PASS docket/core/storage.py: 20/20 branches = 100.00% (required 90%)
+Replay report reproduced: PASS; seed=11; no model calls
+detect-secrets: {}
+Verified public request SHA-256 digests: 440; all other findings remain blocking
+Skipped tests: 0; the suite rejects skips.
+
+$ docker compose ps --format {{.Service}} {{.State}} {{.Health}}
+api running healthy
+postgres running healthy
+seaweedfs running healthy
+temporal running healthy
+worker running healthy
+
+$ curl --fail --silent http://127.0.0.1:8010/healthz
+{"status":"ok"}
+
+Existing test changes: none. New file: tests/core/test_address_unit_tokens.py (23 cases).
+No request export, model call, review, grade, commit or push.

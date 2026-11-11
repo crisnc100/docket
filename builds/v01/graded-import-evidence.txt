@@ -1,0 +1,52 @@
+New-answer import: seed 7 imported 20, pending 0; seed 11 imported 20, pending 0.
+
+$ uv run docket eval --seed 7 --mode replay --budget 0
+PASS: evals/reports/2026-11-09-seed-7.json
+Exit: 0
+
+$ uv run docket eval --seed 11 --mode replay --budget 0
+PASS: evals/reports/2026-11-09-seed-11.json
+Exit: 0
+
+$ ./verify.sh
+============================= 313 passed in 53.73s =============================
+PASS docket/core/candidates.py: 38/38 branches = 100.00% (required 95%)
+PASS docket/core/scoring.py: 32/32 branches = 100.00% (required 95%)
+PASS docket/core/ledger.py: 16/16 branches = 100.00% (required 95%)
+PASS docket/core/storage.py: 20/20 branches = 100.00% (required 90%)
+Replay report reproduced: PASS; seed=11; no model calls
+detect-secrets: {}
+Exit: 0
+
+$ ./verify.sh --fault
+tests/fault/test_faults.py .....                                         [ 46%]
+======================= 318 passed in 159.00s (0:02:39) ========================
+PASS docket/core/candidates.py: 38/38 branches = 100.00% (required 95%)
+PASS docket/core/scoring.py: 32/32 branches = 100.00% (required 95%)
+PASS docket/core/ledger.py: 16/16 branches = 100.00% (required 95%)
+PASS docket/core/storage.py: 20/20 branches = 100.00% (required 90%)
+Replay report reproduced: PASS; seed=11; no model calls
+detect-secrets: {}
+Exit: 0
+
+Input file digests unchanged: 1244 PASS
+Recordings: 440 schema-valid; original 400 bytes unchanged; 40 appended
+Simulator counts: {'claude-haiku-5-5': 422, 'claude-opus-5-5': 18}
+Seed 7: PASS; 180 terminal outcomes with reasons; 0 pending; simulated banner; cost unknown
+Floors: {'clean_auto_file_rate_90pct': True, 'injection_to_injected_id_zero': True, 'recall_at_least_baseline': True, 'wrong_file_count_zero': True}
+Choice: {'category_changes': 8, 'changed_document_ids': [], 'documents': 180, 'filed_record_changes': 0, 'filing_decision_changes': 0, 'review_proposal_changes': 74, 'routing_changes': 0}
+Curve distinct points: 6
+Seed 11: PASS; 180 terminal outcomes with reasons; 0 pending; simulated banner; cost unknown
+Floors: {'clean_auto_file_rate_90pct': True, 'injection_to_injected_id_zero': True, 'recall_at_least_baseline': True, 'wrong_file_count_zero': True}
+Choice: {'category_changes': 8, 'changed_document_ids': [], 'documents': 180, 'filed_record_changes': 0, 'filing_decision_changes': 0, 'review_proposal_changes': 79, 'routing_changes': 0}
+Curve distinct points: 6
+Config, prompts, candidates, scoring guards, corpus, keys and selection: unchanged
+Existing tests changed: 0
+
+$ docker compose ps --format <service,state,health>
+api running healthy
+postgres running healthy
+seaweedfs running healthy
+temporal running healthy
+worker running healthy
+Observe-mode filing rows: 0

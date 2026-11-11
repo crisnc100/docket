@@ -1,0 +1,367 @@
+{
+  "curve": [
+    {
+      "auto_file_count": 38,
+      "auto_file_precision": 1.0,
+      "auto_file_rate": 0.2111111111111111,
+      "auto_file_rate_wilson_95": [
+        0.15784799003901068,
+        0.2764471865379213
+      ],
+      "auto_file_recall": 0.9743589743589743,
+      "category_accuracy": 0.9428571428571428,
+      "category_accuracy_wilson_95": [
+        0.8912967078209393,
+        0.9707635147090092
+      ],
+      "category_denominator": 140,
+      "correct_file_count": 38,
+      "documents": 180,
+      "outcomes": {
+        "rejected": 40,
+        "would_file": 38,
+        "would_review": 102
+      },
+      "precision_wilson_95": [
+        0.908190131774416,
+        1.0
+      ],
+      "recall_wilson_95": [
+        0.8681900983014993,
+        0.99545929689901
+      ],
+      "review_rate": 0.5666666666666667,
+      "review_rate_wilson_95": [
+        0.4936290513862009,
+        0.6369182155575839
+      ],
+      "threshold": "0.5500000",
+      "wrong_file_count": 0
+    },
+    {
+      "auto_file_count": 37,
+      "auto_file_precision": 1.0,
+      "auto_file_rate": 0.20555555555555555,
+      "auto_file_rate_wilson_95": [
+        0.1529702227235919,
+        0.27044601494135795
+      ],
+      "auto_file_recall": 0.9487179487179487,
+      "category_accuracy": 0.9428571428571428,
+      "category_accuracy_wilson_95": [
+        0.8912967078209393,
+        0.9707635147090092
+      ],
+      "category_denominator": 140,
+      "correct_file_count": 37,
+      "documents": 180,
+      "outcomes": {
+        "rejected": 40,
+        "would_file": 38,
+        "would_review": 102
+      },
+      "precision_wilson_95": [
+        0.9059421741627975,
+        1.0
+      ],
+      "recall_wilson_95": [
+        0.8311435995238639,
+        0.9858220445847259
+      ],
+      "review_rate": 0.5722222222222222,
+      "review_rate_wilson_95": [
+        0.4991787756967406,
+        0.6422474301590264
+      ],
+      "threshold": "0.6142857",
+      "wrong_file_count": 0
+    },
+    {
+      "auto_file_count": 34,
+      "auto_file_precision": 1.0,
+      "auto_file_rate": 0.18888888888888888,
+      "auto_file_rate_wilson_95": [
+        0.13843659520258492,
+        0.25234282572641864
+      ],
+      "auto_file_recall": 0.8717948717948718,
+      "category_accuracy": 0.9428571428571428,
+      "category_accuracy_wilson_95": [
+        0.8912967078209393,
+        0.9707635147090092
+      ],
+      "category_denominator": 140,
+      "correct_file_count": 34,
+      "documents": 180,
+      "outcomes": {
+        "rejected": 40,
+        "would_file": 38,
+        "would_review": 102
+      },
+      "precision_wilson_95": [
+        0.8984854458466761,
+        1.0
+      ],
+      "recall_wilson_95": [
+        0.7329425662025455,
+        0.9439718246302862
+      ],
+      "review_rate": 0.5888888888888889,
+      "review_rate_wilson_95": [
+        0.515882202785973,
+        0.6581808198057403
+      ],
+      "threshold": "0.6785714",
+      "wrong_file_count": 0
+    },
+    {
+      "auto_file_count": 34,
+      "auto_file_precision": 1.0,
+      "auto_file_rate": 0.18888888888888888,
+      "auto_file_rate_wilson_95": [
+        0.13843659520258492,
+        0.25234282572641864
+      ],
+      "auto_file_recall": 0.8717948717948718,
+      "category_accuracy": 0.9428571428571428,
+      "category_accuracy_wilson_95": [
+        0.8912967078209393,
+        0.9707635147090092
+      ],
+      "category_denominator": 140,
+      "correct_file_count": 34,
+      "documents": 180,
+      "outcomes": {
+        "rejected": 40,
+        "would_file": 38,
+        "would_review": 102
+      },
+      "precision_wilson_95": [
+        0.8984854458466761,
+        1.0
+      ],
+      "recall_wilson_95": [
+        0.7329425662025455,
+        0.9439718246302862
+      ],
+      "review_rate": 0.5888888888888889,
+      "review_rate_wilson_95": [
+        0.515882202785973,
+        0.6581808198057403
+      ],
+      "threshold": "0.7428571",
+      "wrong_file_count": 0
+    },
+    {
+      "auto_file_count": 34,
+      "auto_file_precision": 1.0,
+      "auto_file_rate": 0.18888888888888888,
+      "auto_file_rate_wilson_95": [
+        0.13843659520258492,
+        0.25234282572641864
+      ],
+      "auto_file_recall": 0.8717948717948718,
+      "category_accuracy": 0.9428571428571428,
+      "category_accuracy_wilson_95": [
+        0.8912967078209393,
+        0.9707635147090092
+      ],
+      "category_denominator": 140,
+      "correct_file_count": 34,
+      "documents": 180,
+      "outcomes": {
+        "rejected": 40,
+        "would_file": 38,
+        "would_review": 102
+      },
+      "precision_wilson_95": [
+        0.8984854458466761,
+        1.0
+      ],
+      "recall_wilson_95": [
+        0.7329425662025455,
+        0.9439718246302862
+      ],
+      "review_rate": 0.5888888888888889,
+      "review_rate_wilson_95": [
+        0.515882202785973,
+        0.6581808198057403
+      ],
+      "threshold": "0.8071429",
+      "wrong_file_count": 0
+    },
+    {
+      "auto_file_count": 31,
+      "auto_file_precision": 1.0,
+      "auto_file_rate": 0.17222222222222222,
+      "auto_file_rate_wilson_95": [
+        0.12406395536443111,
+        0.23407864882862628
+      ],
+      "auto_file_recall": 0.7948717948717948,
+      "category_accuracy": 0.9428571428571428,
+      "category_accuracy_wilson_95": [
+        0.8912967078209393,
+        0.9707635147090092
+      ],
+      "category_denominator": 140,
+      "correct_file_count": 31,
+      "documents": 180,
+      "outcomes": {
+        "rejected": 40,
+        "would_file": 38,
+        "would_review": 102
+      },
+      "precision_wilson_95": [
+        0.889744604539564,
+        1.0
+      ],
+      "recall_wilson_95": [
+        0.644660319864177,
+        0.8922028176928961
+      ],
+      "review_rate": 0.6055555555555555,
+      "review_rate_wilson_95": [
+        0.5326680819105162,
+        0.6740317574171432
+      ],
+      "threshold": "0.8714286",
+      "wrong_file_count": 0
+    },
+    {
+      "auto_file_count": 30,
+      "auto_file_precision": 1.0,
+      "auto_file_rate": 0.16666666666666666,
+      "auto_file_rate_wilson_95": [
+        0.11931179926281874,
+        0.22795186601825654
+      ],
+      "auto_file_recall": 0.7692307692307693,
+      "category_accuracy": 0.9428571428571428,
+      "category_accuracy_wilson_95": [
+        0.8912967078209393,
+        0.9707635147090092
+      ],
+      "category_denominator": 140,
+      "correct_file_count": 30,
+      "documents": 180,
+      "outcomes": {
+        "rejected": 40,
+        "would_file": 38,
+        "would_review": 102
+      },
+      "precision_wilson_95": [
+        0.8864866068260312,
+        1.0
+      ],
+      "recall_wilson_95": [
+        0.6166374277165825,
+        0.8735419587485715
+      ],
+      "review_rate": 0.6111111111111112,
+      "review_rate_wilson_95": [
+        0.5382819727491671,
+        0.6792968054904746
+      ],
+      "threshold": "0.9357143",
+      "wrong_file_count": 0
+    },
+    {
+      "auto_file_count": 0,
+      "auto_file_precision": null,
+      "auto_file_rate": 0.0,
+      "auto_file_rate_wilson_95": [
+        0.0,
+        0.02089549792161305
+      ],
+      "auto_file_recall": 0.0,
+      "category_accuracy": 0.9428571428571428,
+      "category_accuracy_wilson_95": [
+        0.8912967078209393,
+        0.9707635147090092
+      ],
+      "category_denominator": 140,
+      "correct_file_count": 0,
+      "documents": 180,
+      "outcomes": {
+        "rejected": 40,
+        "would_file": 38,
+        "would_review": 102
+      },
+      "precision_wilson_95": null,
+      "recall_wilson_95": [
+        0.0,
+        0.08966685370757144
+      ],
+      "review_rate": 0.7777777777777778,
+      "review_rate_wilson_95": [
+        0.7115975049125901,
+        0.8323494406865138
+      ],
+      "threshold": "1.0000000",
+      "wrong_file_count": 0
+    }
+  ],
+  "rule_sha256": "f28fcc50e6fda9b1363b862715e3985eef024d2a0401b2f1b2d29354aad6cda4", "rule_digest_note": "public rule digest # pragma: allowlist secret",
+  "seed": 7,
+  "selected_threshold": "0.5857142",
+  "selection_rule": "Zero wrong filings; clean rate >= 90%; most correct filings; largest threshold on ties.",
+  "source": "rules-only; model answers pending",
+  "trials": [
+    {
+      "clean_auto_file_rate": 1.0,
+      "correct_file_count": 38,
+      "threshold": "0.55",
+      "wrong_file_count": 0
+    },
+    {
+      "clean_auto_file_rate": 1.0,
+      "correct_file_count": 38,
+      "threshold": "0.5857142",
+      "wrong_file_count": 0
+    },
+    {
+      "clean_auto_file_rate": 1.0,
+      "correct_file_count": 37,
+      "threshold": "0.6291666",
+      "wrong_file_count": 0
+    },
+    {
+      "clean_auto_file_rate": 1.0,
+      "correct_file_count": 36,
+      "threshold": "0.6333333",
+      "wrong_file_count": 0
+    },
+    {
+      "clean_auto_file_rate": 1.0,
+      "correct_file_count": 34,
+      "threshold": "0.8157692",
+      "wrong_file_count": 0
+    },
+    {
+      "clean_auto_file_rate": 1.0,
+      "correct_file_count": 33,
+      "threshold": "0.8500000",
+      "wrong_file_count": 0
+    },
+    {
+      "clean_auto_file_rate": 1.0,
+      "correct_file_count": 31,
+      "threshold": "0.9357142",
+      "wrong_file_count": 0
+    },
+    {
+      "clean_auto_file_rate": 1.0,
+      "correct_file_count": 30,
+      "threshold": "0.9500000",
+      "wrong_file_count": 0
+    },
+    {
+      "clean_auto_file_rate": 0.0,
+      "correct_file_count": 0,
+      "threshold": "1",
+      "wrong_file_count": 0
+    }
+  ],
+  "weights_tiers_and_fuzzy_cutoffs": "untuned defaults"
+}

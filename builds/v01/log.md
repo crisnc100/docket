@@ -301,6 +301,293 @@ at .9500000/strong with would_auto_file=true. No code changed after this green r
 Finding-by-finding file:line and test evidence is in
 builds/v01/pr1-fix-checkpoint.md. Changes stay in the worktree for the operator;
 no commit attempt, push, PR, P3 implementation or model call occurred.
+
+## P3 partial checkpoint — evaluation policy unresolved
+
+Step 0 restores the bypass-validation conflict regression as a new sibling;
+minimum-valid-threshold coverage remains. The separate commit paths and 219-test
+verification are recorded in step0-done.md. No commit was attempted.
+
+P3 uses the same storage-key workflow input for ingress and recovery. The received
+event persists its non-secret workflow context so reconcile can start an ingress
+interrupted after the DB insert. Shortlisting precedes model activities: an empty
+shortlist bypasses both paid calls. Review signals preserve the requested workflow
+interface; an update endpoint supplies an atomic acceptance/rejection result for
+HTTP 409s. Observe routes finalize immediately without non-raw storage effects.
+No webhook, frontend or P4-only command is included.
+
+Time-skipping tests use scripted activities. Integration tests use actual core,
+Postgres and SeaweedFS with explicit scripted model fixtures; none of these
+responses are recorded as model measurements. A genuine captured Temporal history
+is stored as YAML with unchanged protobuf JSON values, allowing field-specific
+annotations of inspected synthetic base64 payloads and the worker checksum. No
+secret scanner exclusion or check was weakened.
+
+Implementation stopped at a scope conflict: the new uncommitted decision at
+plan.md:177 asks for export/import and Claude simulation, while the task specifies
+no-key evaluation PENDING and forbids other models. The operator was asked which
+policy applies. Fault-process tests, complete eval gates, reports and deployment
+checks remain unfinished. See p3-checkpoint.md for measured checks and open work.
+
+At this stop, ./verify.sh exits 0: 242 passed in 30.29s, zero skips, all required
+module branches 100%, pyright 0 errors, ruff clean, detect-secrets {}. This is
+verification of the current partial implementation, not P3 exit acceptance.
+
+## P3 — implemented, awaiting operator simulation
+
+The operator resolved the earlier evaluation choice: implement export/import and
+never invoke a model; the operator supplies all simulation answers. Gateway
+export serializes the same prompt/schema helpers used by actual activities,
+including the per-call shortlist enum. Import validates request digests, answer
+schema and target provenance before replay admission. Conflicting replay rows
+remain immutable. Simulated cost is null and completed simulated reports begin
+with an explicit simulator/target banner. No operational answer was authored.
+
+The importer uses only the JSON Schema subset emitted by product models and
+fails closed on unsupported constraints. No dependency or lockfile changed.
+Shortlisting precedes both model activities so empty shortlists produce no calls
+or exports. Scoring numbers remain untuned defaults; seed-7 tuning and held-out
+quality checks require operator answers. No model quality number was invented.
+
+The real process-fault suite confirmed exit 137 and the exact fired log for all
+five tests. API crashes cover both ingress gaps; received context supports
+reconciliation. Worker restarts recover both after S3-before-ledger and during
+choose. Three concurrent HTTP submits plus a terminal resubmit preserve one row,
+one filing object, one filing row and one filed event, while retaining four
+sources. Stopping actual SeaweedFS produces EndpointConnectionError; retry after
+recovery still gives one filing. Test-only model fixtures do not populate the
+provider archive or contribute evaluation numbers.
+
+Captured actual Temporal test histories cover happy filing and an opened review
+approved by update. Replayer passes on both. ADR-002 describes patch guards and
+retaining old command branches, and labels a future deploy prediction unmeasured.
+ADR-004 and docs/rerecord.md describe operator simulation versus real-provider
+measurements. Minimal HTTP endpoints exist solely for P3 dedup/review/fault checks;
+P4 webhook, UI, preview and remaining commands are absent.
+
+MacOS Bash requires a nonempty pytest argument array under set -u, so each verify
+mode explicitly collects tests. Normal mode excludes only the new process-fault
+directory; fault mode includes it and all ordinary tests. No existing test file
+changed against 942ba4c, and no assertion, zero-skip rule or branch floor was
+weakened. Generic non-retryable activity failures get the correct reason rather
+than a misleading exhaustion reason; tests prove a single attempt/finalization.
+
+The raw secret scanner still scans all files with its existing exclusions. Known
+synthetic history payloads/checksums and public request-key lines have narrow
+annotations. Future JSONL digest findings are recognized only when they equal a
+verified exported request hash. A real-scanner integration test proves a different
+secret on that same row still blocks verification. No whole-row or whole-archive
+exception was added.
+
+Final ./verify.sh: 274 passed in 48.30s, zero skips. Final ./verify.sh --fault:
+279 passed in 172.05s, zero skips. Ruff/format pass, pyright 0 errors, and required
+core branch coverage is 100% (candidates 20/20, scoring 32/32, ledger 16/16,
+storage 20/20). The explicitly pending held-out replay report reproduces with no
+model calls; detect-secrets {}. Docker builds all three app images. Final compose
+up --wait exits 0: Postgres, Temporal, SeaweedFS, API and worker healthy; actual
+boto3 head_bucket and API /healthz return HTTP 200.
+
+Final export commands for seeds 7 and 11 exit 0. Each seed has 200 unique pending
+files: 100 classify and 100 choose. There are 400 total, with no overlap, zero
+operator answers and no replay JSONL archive. Both 170-document reports contain
+eight-point rules-only curves and 17 case types; model metrics, floors and actual
+shadow disagreements remain PENDING-SIMULATION. See p3-checkpoint.md for each exit
+check, command evidence, deliberate choices and the operator callback. No commit,
+push, PR, model invocation, review or grade was attempted.
+
+## P3 simulation results
+
+The operator supplied all 400 answers.
+All passed their saved response schemas and were imported.
+Saved provenance confirms 382 Haiku answers and 18 Opus answers.
+Each seed has 191 Haiku answers and 9 Opus answers.
+All unique saved answers were used.
+The operator reports false safety blocks on 18 synthetic filler text requests.
+Those requests were rerun on Opus. The archive keeps each model identity.
+The operator says each call saw only its own prompt, messages and schema.
+It saw no expected labels, code or other answers.
+The implementer did not make a model call or edit an answer.
+
+Both seed imports and both replay evaluations exit 0.
+Seed 7 passes all filing floors with 29 correct filings.
+Seed 11 passes all filing floors with 28 correct filings.
+Seed 11 has zero wrong files, 90% clean filing and zero filings to injected IDs.
+Recall is 93.33%, equal to the rules-only baseline.
+Category accuracy is 87.69%, versus 93.85% for the baseline.
+The difference comes from no_record cases assigned misc without a model call.
+No score threshold, label or answer changed to obtain these results.
+
+Every seed has 170 terminal results with a reason.
+Observe mode has zero filing rows and no non-raw objects in the default bucket.
+The shadow reports classify 82 differences on seed 7 and 87 on seed 11.
+Both sides route those documents to review as expected.
+Their proposed records and categories can still differ.
+
+Reports start with the simulated banner.
+They show the supplied mix, the used mix and the operator's fallback reason.
+Counts come from saved answers. Provider cost stays null.
+The replay gate checks each document, metrics, curve and model provenance.
+New tests check the counts, context source, banner and unknown cost.
+No existing test changed in this round.
+
+Final verify: 276 passed in 51.06s.
+Final verify --fault: 281 passed in 165.34s.
+Both have zero skips and 100% required branch coverage.
+Ruff, pyright, Docker builds and secret checks pass.
+Both commands reproduce seed 11 with no model calls.
+All five compose services report healthy after the fault run.
+The real-provider checks remain deferred under the approved simulation decision.
+All P3 checks pass under that decision. Nothing was committed or pushed.
+See p3-checkpoint.md for the curve, each exit check and command output.
+
+## Graded corpus and scores
+
+The shared generation rule is in graded-corpus-rule.md.
+It is saved before any new held-out evaluation.
+The operator owns its commit. No commit was attempted.
+Each seed has ten appended graded_evidence documents and 180 documents total.
+A separate random stream preserves the original generator sequence.
+The original 340 payloads and label prefixes match saved content hashes.
+Regeneration produces new encryption bytes for poison PDFs.
+The worktree keeps their original bytes.
+
+A signal strength measures evidence quality from zero to one.
+Names use the larger of direct and word-sorted RapidFuzz similarity.
+Addresses use normalized RapidFuzz similarity with exact numeric components.
+A missing or different unit number gives no fuzzy address support.
+Exact names, normalized exact addresses and exact ids retain strength one.
+Grading follows candidate selection to preserve request keys.
+Candidate admission, order, conflicts and the strong-tier gate are unchanged.
+Weights, tier thresholds and fuzzy cutoffs remain untuned defaults.
+
+The threshold script reads only seed 7 and makes no model call.
+It chooses 0.5857142 using the rule saved before selection.
+That rule maximizes correct filings with zero wrong filings and a 90% clean floor.
+It breaks ties with the largest threshold.
+The seed-7 rules-only curve has six distinct points across eight thresholds.
+Precision stays one whenever there is a filing. Higher thresholds only lose coverage here.
+This sample shows no measured precision gain from raising the threshold.
+
+The original 400 request keys, request files, answers and recordings are unchanged.
+Only 40 requests were exported: 20 per seed, ten for each model activity.
+The graded-seed manifests list only those new keys.
+No answer or recording was written for them.
+The reports describe the pending 180-document runs.
+They do not reuse measurements from the older 170-document runs.
+Those earlier reports remain in the accepted base commit.
+Scoring waits for the new answers. Seed 11 has not selected any settings.
+
+Response labels describe the sources actually used.
+Zero responses gives no model calls. Provider plus simulated responses gives mixed.
+Two simulators still give simulated, with each simulator named in provenance.
+Reports and shadow reports preserve these labels. Unknown model cost stays null.
+The model-choice comparison and new held-out floors await the operator's answers.
+
+Verification passes: 302 tests normally and 307 with the real fault suite.
+Both runs have zero skips and 100% required branch coverage.
+The replay check reproduces the saved pending state, not a new measured report.
+See graded-export-checkpoint.md for command evidence and each existing-test edit.
+
+## Graded corpus measurements
+
+The operator committed the shared rule as 85669b2 before the held-out measurement.
+The scoring config remains unchanged at threshold 0.5857142.
+The operator supplied 40 more independent Haiku answers.
+All pass schema and provenance checks. The import adds 20 recordings per seed.
+The original 400 recording bytes are unchanged.
+The saved mix is 422 Haiku answers and 18 Opus answers.
+
+Both replay evaluations pass. Seed 7 files 38 of 180 documents.
+Seed 11 files 36 of 180, with zero wrong filings and 90% clean filing.
+Its recall is 36/39, equal to the rules-only baseline.
+No injection document is filed to its injected id.
+Each seed's eight-point curve has six distinct precision/rate points.
+Raising the threshold loses filings here, with no measured precision gain.
+The held-out graded score 0.5842105 remains below the selected threshold.
+That result did not change any setting.
+
+The model's choose step changes no filing/review decision or filed record on either seed.
+Review proposals differ on 74 documents in seed 7 and 79 in seed 11.
+They still go to review. No filing gain from model choice is measured.
+Category accuracy is 124/140 on both seeds, versus the baseline's 132/140.
+Eight empty-shortlist no_record documents per seed receive misc without a model call.
+The reports and README state these limits.
+Both shadow reports classify every disagreement as both_correct against gold.
+
+A new table tests the unchanged shipped config with two independent signals.
+A score of 0.55 is strong but must go to review below 0.5857142.
+A score of 0.60 must file. No existing test changed.
+New report tests keep filing, review-proposal and category differences separate.
+The replay check includes the choice comparison.
+
+Verification passes: 313 tests normally and 318 with the real fault suite.
+Both have zero skips and 100% required branch coverage.
+Both reproduce the measured seed-11 report. All compose services are healthy.
+No model call, commit or push was made by the implementer.
+See graded-import-checkpoint.md and graded-import-evidence.txt for the evidence.
+
+## PR2 conflict and address identity checks
+
+Full-strength name and address matches are checked across all records before selection.
+Full strength is 1.0, including names with reversed word order.
+An explicit id and a different record's full match force review.
+Matches outside the selected candidates still contribute to the conflict flag.
+Selection priority and scoring thresholds remain unchanged.
+Address lines are normalized once per document for the shared record scan.
+
+House and unit identifiers retain letters and hyphens.
+Unit 1A does not match unit 1. Unit 1-2 matches neither unit 1 nor unit 12.
+The abbreviation rules for Street/St and Apt/# remain.
+The supplied two-tenant example has raw score 0.65 but must go to review.
+The conflict flag caps its score at zero.
+The wrong-unit examples supply no address support and remain ID-only review cases.
+
+New tests use the shipped records and scoring config.
+Before the code change, nine conflict cases and four address cases failed.
+Three abbreviation controls passed. All sixteen pass with the change.
+The explicit-id conflict cases also require raw scores above the filing threshold.
+No existing test changed.
+
+All 440 replay requests are unchanged. No export or new answer was needed.
+Both replay evaluations pass with the same per-document results and metrics.
+No seed-11 floor changed: zero wrong filings, 90% clean filing,
+zero filings to injected ids and recall 36/39, equal to the baseline.
+The threshold stays at 0.5857142. No setting was selected using seed 11.
+All corpus, config, request, answer and recording files remain unchanged.
+No model call or commit was made by the implementer.
+
+Verification for the conflict and address checks passes with 329 tests normally
+and 334 tests with faults. Both have zero skips and 100% required branch coverage.
+Both reproduce the measured seed-11 report. All five compose services are healthy.
+See x1-x2-checkpoint.md and x1-x2-evidence.txt for failing-first and replay evidence.
+
+## Address words and unit identifiers
+
+Apt, Apartment, Unit and # identify a unit.
+The whole unit identifier keeps letters and internal hyphens.
+Other hyphens separate address words, including those in filenames.
+The fuzzy address guard compares letter-leading units as well as numeric ones.
+A1 and B1 supply no address support for each other.
+Unit 1-2 remains distinct from unit 1 and unit 12.
+The conflict rule, two-signal rule and filing thresholds remain unchanged.
+
+The new regression file has 23 cases. Before the implementation change,
+20 failed and three controls passed. All 23 pass with the change.
+No existing test changed. Direct checks against f497aaf reproduce both findings.
+Both supplied triggers go to review with the worktree code.
+
+Both seed evaluations pass with all 440 requests unchanged.
+Every report field, both shadow reports and all saved inputs remain unchanged.
+Seed 11 still has zero wrong filings, 90% clean filing, no filings to injected ids,
+and recall 36/39, equal to the baseline.
+The reports remain simulated measurements. No external model was called.
+
+Verification passes with 352 tests normally and 357 tests with faults.
+Both have zero skips, 100% required branch coverage and a reproduced held-out report.
+All five compose services are healthy. Secret checks pass.
+No dependency, commit or review was added by the implementer.
+See address-token-checkpoint.md and address-token-evidence.txt for command evidence.
+
 ## PR1 review fixes on core
 
 Unit identifiers retain letters and internal hyphens.
@@ -330,3 +617,37 @@ Candidate branch coverage is 96.15%; scoring, ledger and storage are 100%.
 Both corpus determinism tests and secret checks pass.
 No model call, review, grade or commit was run by the implementer.
 See pr1-review-fix-checkpoint.md and pr1-review-fix-evidence.txt for evidence.
+## Replay after the accepted tenant corrections
+
+The operator supplied four replacement answers: three Haiku and one Opus.
+All pass request-schema and provenance validation.
+The original 440 recording bytes remain unchanged; four entries were appended.
+The archive has 425 Haiku and 19 Opus answers, including four old document versions.
+Current seed requests use 423 Haiku and 17 Opus answers.
+Report banners name the counts for each seed and separate them from the archive.
+The extra Opus answer follows a false Haiku safety block reported by the operator.
+
+Only three accepted core PDF hashes changed in the original payload guard.
+Their bytes were checked against core. The prior hash map is preserved in corpus/history/.
+Seed-7 trial counts were revalidated after the tenant correction.
+The original selection is preserved in evals/history/. The threshold stays at 0.5857142.
+No scoring config changed and no setting was selected using seed 11.
+The existing payload and trial-table assertions remain intact.
+New tests check the three permitted data changes and the unchanged threshold.
+
+Both seed evaluations pass. Seed 7 files 39 documents; seed 11 files 38.
+The held-out floors pass: zero wrong filings, 100% clean filing,
+zero filings to injected ids and recall 38/39, equal to the baseline.
+Choose changes no filing decision or filed record on either seed.
+Review proposals still differ on 74 and 79 documents.
+Category accuracy remains 124/140 versus the baseline's 132/140.
+Both curves have eight points and six distinct precision/rate pairs.
+The regenerated reports and shadow diffs remain labelled simulated.
+
+The incoming PR1 port test expected only the three backing services and four bindings.
+Its expectations include the P3 API and fifth binding. Its all-port loopback assertion is unchanged.
+This is the only existing test file changed and needs the operator's separate test-only commit.
+Normal verification passes with 412 tests; fault verification passes with 417 tests.
+Both have zero skips, required coverage, reproduced replay results and clean secret checks.
+All five services are healthy. No model call, review, grade, commit or push was run.
+See reimport-four-checkpoint.md and reimport-four-evidence.txt for evidence.

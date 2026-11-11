@@ -10,6 +10,9 @@ node_modules/
 .pytest_cache/
 .ruff_cache/
 .coverage
+# Simulation working folders; evals/recordings/exchange.jsonl.gz keeps their contents.
+/evals/pending/
+/evals/answers/
 /builds/v01/phase1*.jsonl
 /builds/v01/phase1*.err
 /builds/v01/phase1*.log

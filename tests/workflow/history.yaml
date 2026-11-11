@@ -1,0 +1,578 @@
+events:
+- eventId: '1'
+  eventTime: '2026-11-09T21:36:28.045Z'
+  eventType: EVENT_TYPE_WORKFLOW_EXECUTION_STARTED
+  workflowExecutionStartedEventAttributes:
+    workflowType:
+      name: FileDocumentWorkflow
+    taskQueue:
+      name: history
+    input:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJidWRnZXQiOiIyLjAwIiwiZG9jdW1lbnRfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJmaWxlbmFtZSI6ImhhcHB5IiwibW9kZSI6ImFjdCIsIm1vZGVsIjoib3BlbmFpL2dwdC00by1taW5pIiwibW9kZWxfbW9kZSI6InJlcGxheSIsInJhd19rZXkiOiJyYXcvc3ludGhldGljLWhpc3RvcnkiLCJyZXZpZXdfdGltZW91dF9zZWNvbmRzIjozNjAwLCJydW5faWQiOiJsaXZlIiwic291cmNlIjoiaHR0cCJ9 # pragma: allowlist secret
+    workflowExecutionTimeout: 315360000s
+    workflowRunTimeout: 315360000s
+    workflowTaskTimeout: 10s
+    originalExecutionRunId: 499fe036-046d-4de6-8766-3bb2e68dd471
+    identity: 70558@cortega-MacBook-Pro
+    firstExecutionRunId: 499fe036-046d-4de6-8766-3bb2e68dd471
+    attempt: 1
+    firstWorkflowTaskBackoff: 0s
+    priority: {}
+- eventId: '2'
+  eventTime: '2026-11-09T21:36:28.045Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_SCHEDULED
+  workflowTaskScheduledEventAttributes:
+    taskQueue:
+      name: history
+    startToCloseTimeout: 10s
+    attempt: 1
+- eventId: '3'
+  eventTime: '2026-11-09T21:36:28.046Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_STARTED
+  workflowTaskStartedEventAttributes:
+    scheduledEventId: '2'
+    identity: 70558@cortega-MacBook-Pro
+    historySizeBytes: '506'
+- eventId: '4'
+  eventTime: '2026-11-09T21:36:28.063Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_COMPLETED
+  workflowTaskCompletedEventAttributes:
+    scheduledEventId: '2'
+    identity: 70558@cortega-MacBook-Pro
+    binaryChecksum: 1b51880c9cb1a9c0a770f6023d362205 # pragma: allowlist secret
+    sdkMetadata:
+      coreUsedFlags:
+      - 3
+      - 2
+      - 1
+      - 4
+      sdkName: temporal-python
+      sdkVersion: 1.35.0
+    meteringMetadata: {}
+- eventId: '5'
+  eventTime: '2026-11-09T21:36:28.063Z'
+  eventType: EVENT_TYPE_MARKER_RECORDED
+  markerRecordedEventAttributes:
+    markerName: core_patch
+    details:
+      patch-data:
+        payloads:
+        - metadata:
+            encoding: anNvbi9wbGFpbg==
+          data: eyJpZCI6InJldmlldy1jb250cmFjdC12MSIsImRlcHJlY2F0ZWQiOmZhbHNlfQ== # pragma: allowlist secret
+    workflowTaskCompletedEventId: '3'
+- eventId: '6'
+  eventTime: '2026-11-09T21:36:28.063Z'
+  eventType: EVENT_TYPE_UPSERT_WORKFLOW_SEARCH_ATTRIBUTES
+  upsertWorkflowSearchAttributesEventAttributes:
+    workflowTaskCompletedEventId: '3'
+    searchAttributes:
+      indexedFields:
+        TemporalChangeVersion:
+          metadata:
+            encoding: anNvbi9wbGFpbg==
+            type: S2V5d29yZExpc3Q=
+          data: WyJyZXZpZXctY29udHJhY3QtdjEiXQ== # pragma: allowlist secret
+- eventId: '7'
+  eventTime: '2026-11-09T21:36:28.063Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_SCHEDULED
+  activityTaskScheduledEventAttributes:
+    activityId: '1'
+    activityType:
+      name: extract
+    taskQueue:
+      name: history
+      kind: TASK_QUEUE_KIND_NORMAL
+    header: {}
+    input:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJyZXF1ZXN0Ijp7ImJ1ZGdldCI6IjIuMDAiLCJkb2N1bWVudF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImZpbGVuYW1lIjoiaGFwcHkiLCJtb2RlIjoiYWN0IiwibW9kZWwiOiJvcGVuYWkvZ3B0LTRvLW1pbmkiLCJtb2RlbF9tb2RlIjoicmVwbGF5IiwicmF3X2tleSI6InJhdy9zeW50aGV0aWMtaGlzdG9yeSIsInJldmlld190aW1lb3V0X3NlY29uZHMiOjM2MDAuMCwicnVuX2lkIjoibGl2ZSIsInNvdXJjZSI6Imh0dHAifX0= # pragma: allowlist secret
+    scheduleToCloseTimeout: 315360000s
+    scheduleToStartTimeout: 315360000s
+    startToCloseTimeout: 30s
+    heartbeatTimeout: 10s
+    workflowTaskCompletedEventId: '3'
+    retryPolicy:
+      initialInterval: 1s
+      backoffCoefficient: 2.0
+      maximumInterval: 100s
+      maximumAttempts: 5
+    priority: {}
+- eventId: '8'
+  eventTime: '2026-11-09T21:36:28.063Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_STARTED
+  activityTaskStartedEventAttributes:
+    scheduledEventId: '7'
+    identity: 70558@cortega-MacBook-Pro
+    attempt: 1
+- eventId: '9'
+  eventTime: '2026-11-09T21:36:28.065Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_COMPLETED
+  activityTaskCompletedEventAttributes:
+    result:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJsbG1fdGV4dCI6IlN5bnRoZXRpYyB3b3JrZmxvdyB0ZXN0IGlucHV0IiwicmVxdWVzdCI6eyJidWRnZXQiOiIyLjAwIiwiZG9jdW1lbnRfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJmaWxlbmFtZSI6ImhhcHB5IiwibW9kZSI6ImFjdCIsIm1vZGVsIjoib3BlbmFpL2dwdC00by1taW5pIiwibW9kZWxfbW9kZSI6InJlcGxheSIsInJhd19rZXkiOiJyYXcvc3ludGhldGljLWhpc3RvcnkiLCJyZXZpZXdfdGltZW91dF9zZWNvbmRzIjozNjAwLjAsInJ1bl9pZCI6ImxpdmUiLCJzb3VyY2UiOiJodHRwIn0sInRleHQiOiJTeW50aGV0aWMgd29ya2Zsb3cgdGVzdCBpbnB1dCJ9 # pragma: allowlist secret
+    scheduledEventId: '7'
+    startedEventId: '8'
+    identity: 70558@cortega-MacBook-Pro
+- eventId: '10'
+  eventTime: '2026-11-09T21:36:28.065Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_SCHEDULED
+  workflowTaskScheduledEventAttributes:
+    taskQueue:
+      name: history
+    startToCloseTimeout: 10s
+    attempt: 1
+- eventId: '11'
+  eventTime: '2026-11-09T21:36:28.065Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_STARTED
+  workflowTaskStartedEventAttributes:
+    scheduledEventId: '10'
+    identity: 70558@cortega-MacBook-Pro
+    historySizeBytes: '1829'
+- eventId: '12'
+  eventTime: '2026-11-09T21:36:28.066Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_COMPLETED
+  workflowTaskCompletedEventAttributes:
+    scheduledEventId: '10'
+    identity: 70558@cortega-MacBook-Pro
+    binaryChecksum: 1b51880c9cb1a9c0a770f6023d362205 # pragma: allowlist secret
+    sdkMetadata: {}
+    meteringMetadata: {}
+- eventId: '13'
+  eventTime: '2026-11-09T21:36:28.066Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_SCHEDULED
+  activityTaskScheduledEventAttributes:
+    activityId: '2'
+    activityType:
+      name: shortlist
+    taskQueue:
+      name: history
+      kind: TASK_QUEUE_KIND_NORMAL
+    header: {}
+    input:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJsbG1fdGV4dCI6IlN5bnRoZXRpYyB3b3JrZmxvdyB0ZXN0IGlucHV0IiwicmVxdWVzdCI6eyJidWRnZXQiOiIyLjAwIiwiZG9jdW1lbnRfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJmaWxlbmFtZSI6ImhhcHB5IiwibW9kZSI6ImFjdCIsIm1vZGVsIjoib3BlbmFpL2dwdC00by1taW5pIiwibW9kZWxfbW9kZSI6InJlcGxheSIsInJhd19rZXkiOiJyYXcvc3ludGhldGljLWhpc3RvcnkiLCJyZXZpZXdfdGltZW91dF9zZWNvbmRzIjozNjAwLjAsInJ1bl9pZCI6ImxpdmUiLCJzb3VyY2UiOiJodHRwIn0sInRleHQiOiJTeW50aGV0aWMgd29ya2Zsb3cgdGVzdCBpbnB1dCJ9 # pragma: allowlist secret
+    scheduleToCloseTimeout: 315360000s
+    scheduleToStartTimeout: 315360000s
+    startToCloseTimeout: 30s
+    heartbeatTimeout: 10s
+    workflowTaskCompletedEventId: '11'
+    retryPolicy:
+      initialInterval: 1s
+      backoffCoefficient: 2.0
+      maximumInterval: 100s
+      maximumAttempts: 5
+    priority: {}
+- eventId: '14'
+  eventTime: '2026-11-09T21:36:28.067Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_STARTED
+  activityTaskStartedEventAttributes:
+    scheduledEventId: '13'
+    identity: 70558@cortega-MacBook-Pro
+    attempt: 1
+- eventId: '15'
+  eventTime: '2026-11-09T21:36:28.067Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_COMPLETED
+  activityTaskCompletedEventAttributes:
+    result:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJjYW5kaWRhdGVzIjpbIlVOSVQtMDAwMSJdLCJsbG1fdGV4dCI6IlN5bnRoZXRpYyB3b3JrZmxvdyB0ZXN0IGlucHV0IiwicmVxdWVzdCI6eyJidWRnZXQiOiIyLjAwIiwiZG9jdW1lbnRfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJmaWxlbmFtZSI6ImhhcHB5IiwibW9kZSI6ImFjdCIsIm1vZGVsIjoib3BlbmFpL2dwdC00by1taW5pIiwibW9kZWxfbW9kZSI6InJlcGxheSIsInJhd19rZXkiOiJyYXcvc3ludGhldGljLWhpc3RvcnkiLCJyZXZpZXdfdGltZW91dF9zZWNvbmRzIjozNjAwLjAsInJ1bl9pZCI6ImxpdmUiLCJzb3VyY2UiOiJodHRwIn0sInRleHQiOiJTeW50aGV0aWMgd29ya2Zsb3cgdGVzdCBpbnB1dCIsInZhbGlkX2lkcyI6WyJVTklULTAwMDEiLCJVTklULTAwMDIiXX0= # pragma: allowlist secret
+    scheduledEventId: '13'
+    startedEventId: '14'
+    identity: 70558@cortega-MacBook-Pro
+- eventId: '16'
+  eventTime: '2026-11-09T21:36:28.067Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_SCHEDULED
+  workflowTaskScheduledEventAttributes:
+    taskQueue:
+      name: history
+    startToCloseTimeout: 10s
+    attempt: 1
+- eventId: '17'
+  eventTime: '2026-11-09T21:36:28.067Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_STARTED
+  workflowTaskStartedEventAttributes:
+    scheduledEventId: '16'
+    identity: 70558@cortega-MacBook-Pro
+    historySizeBytes: '3026'
+- eventId: '18'
+  eventTime: '2026-11-09T21:36:28.068Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_COMPLETED
+  workflowTaskCompletedEventAttributes:
+    scheduledEventId: '16'
+    identity: 70558@cortega-MacBook-Pro
+    binaryChecksum: 1b51880c9cb1a9c0a770f6023d362205 # pragma: allowlist secret
+    sdkMetadata: {}
+    meteringMetadata: {}
+- eventId: '19'
+  eventTime: '2026-11-09T21:36:28.068Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_SCHEDULED
+  activityTaskScheduledEventAttributes:
+    activityId: '3'
+    activityType:
+      name: classify
+    taskQueue:
+      name: history
+      kind: TASK_QUEUE_KIND_NORMAL
+    header: {}
+    input:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJjYW5kaWRhdGVzIjpbIlVOSVQtMDAwMSJdLCJsbG1fdGV4dCI6IlN5bnRoZXRpYyB3b3JrZmxvdyB0ZXN0IGlucHV0IiwicmVxdWVzdCI6eyJidWRnZXQiOiIyLjAwIiwiZG9jdW1lbnRfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJmaWxlbmFtZSI6ImhhcHB5IiwibW9kZSI6ImFjdCIsIm1vZGVsIjoib3BlbmFpL2dwdC00by1taW5pIiwibW9kZWxfbW9kZSI6InJlcGxheSIsInJhd19rZXkiOiJyYXcvc3ludGhldGljLWhpc3RvcnkiLCJyZXZpZXdfdGltZW91dF9zZWNvbmRzIjozNjAwLjAsInJ1bl9pZCI6ImxpdmUiLCJzb3VyY2UiOiJodHRwIn0sInRleHQiOiJTeW50aGV0aWMgd29ya2Zsb3cgdGVzdCBpbnB1dCIsInZhbGlkX2lkcyI6WyJVTklULTAwMDEiLCJVTklULTAwMDIiXX0= # pragma: allowlist secret
+    scheduleToCloseTimeout: 315360000s
+    scheduleToStartTimeout: 315360000s
+    startToCloseTimeout: 30s
+    heartbeatTimeout: 10s
+    workflowTaskCompletedEventId: '17'
+    retryPolicy:
+      initialInterval: 1s
+      backoffCoefficient: 2.0
+      maximumInterval: 100s
+      maximumAttempts: 5
+    priority: {}
+- eventId: '20'
+  eventTime: '2026-11-09T21:36:28.068Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_STARTED
+  activityTaskStartedEventAttributes:
+    scheduledEventId: '19'
+    identity: 70558@cortega-MacBook-Pro
+    attempt: 1
+- eventId: '21'
+  eventTime: '2026-11-09T21:36:28.068Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_COMPLETED
+  activityTaskCompletedEventAttributes:
+    result:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJjYW5kaWRhdGVzIjpbIlVOSVQtMDAwMSJdLCJjYXRlZ29yeSI6ImxlYXNlIiwibGxtX3RleHQiOiJTeW50aGV0aWMgd29ya2Zsb3cgdGVzdCBpbnB1dCIsInJlcXVlc3QiOnsiYnVkZ2V0IjoiMi4wMCIsImRvY3VtZW50X2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwiZmlsZW5hbWUiOiJoYXBweSIsIm1vZGUiOiJhY3QiLCJtb2RlbCI6Im9wZW5haS9ncHQtNG8tbWluaSIsIm1vZGVsX21vZGUiOiJyZXBsYXkiLCJyYXdfa2V5IjoicmF3L3N5bnRoZXRpYy1oaXN0b3J5IiwicmV2aWV3X3RpbWVvdXRfc2Vjb25kcyI6MzYwMC4wLCJydW5faWQiOiJsaXZlIiwic291cmNlIjoiaHR0cCJ9LCJ0ZXh0IjoiU3ludGhldGljIHdvcmtmbG93IHRlc3QgaW5wdXQiLCJ2YWxpZF9pZHMiOlsiVU5JVC0wMDAxIiwiVU5JVC0wMDAyIl19 # pragma: allowlist secret
+    scheduledEventId: '19'
+    startedEventId: '20'
+    identity: 70558@cortega-MacBook-Pro
+- eventId: '22'
+  eventTime: '2026-11-09T21:36:28.068Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_SCHEDULED
+  workflowTaskScheduledEventAttributes:
+    taskQueue:
+      name: history
+    startToCloseTimeout: 10s
+    attempt: 1
+- eventId: '23'
+  eventTime: '2026-11-09T21:36:28.068Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_STARTED
+  workflowTaskStartedEventAttributes:
+    scheduledEventId: '22'
+    identity: 70558@cortega-MacBook-Pro
+    historySizeBytes: '4306'
+- eventId: '24'
+  eventTime: '2026-11-09T21:36:28.069Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_COMPLETED
+  workflowTaskCompletedEventAttributes:
+    scheduledEventId: '22'
+    identity: 70558@cortega-MacBook-Pro
+    binaryChecksum: 1b51880c9cb1a9c0a770f6023d362205 # pragma: allowlist secret
+    sdkMetadata: {}
+    meteringMetadata: {}
+- eventId: '25'
+  eventTime: '2026-11-09T21:36:28.069Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_SCHEDULED
+  activityTaskScheduledEventAttributes:
+    activityId: '4'
+    activityType:
+      name: choose
+    taskQueue:
+      name: history
+      kind: TASK_QUEUE_KIND_NORMAL
+    header: {}
+    input:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJjYW5kaWRhdGVzIjpbIlVOSVQtMDAwMSJdLCJjYXRlZ29yeSI6ImxlYXNlIiwibGxtX3RleHQiOiJTeW50aGV0aWMgd29ya2Zsb3cgdGVzdCBpbnB1dCIsInJlcXVlc3QiOnsiYnVkZ2V0IjoiMi4wMCIsImRvY3VtZW50X2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwiZmlsZW5hbWUiOiJoYXBweSIsIm1vZGUiOiJhY3QiLCJtb2RlbCI6Im9wZW5haS9ncHQtNG8tbWluaSIsIm1vZGVsX21vZGUiOiJyZXBsYXkiLCJyYXdfa2V5IjoicmF3L3N5bnRoZXRpYy1oaXN0b3J5IiwicmV2aWV3X3RpbWVvdXRfc2Vjb25kcyI6MzYwMC4wLCJydW5faWQiOiJsaXZlIiwic291cmNlIjoiaHR0cCJ9LCJ0ZXh0IjoiU3ludGhldGljIHdvcmtmbG93IHRlc3QgaW5wdXQiLCJ2YWxpZF9pZHMiOlsiVU5JVC0wMDAxIiwiVU5JVC0wMDAyIl19 # pragma: allowlist secret
+    scheduleToCloseTimeout: 315360000s
+    scheduleToStartTimeout: 315360000s
+    startToCloseTimeout: 30s
+    heartbeatTimeout: 10s
+    workflowTaskCompletedEventId: '23'
+    retryPolicy:
+      initialInterval: 1s
+      backoffCoefficient: 2.0
+      maximumInterval: 100s
+      maximumAttempts: 5
+    priority: {}
+- eventId: '26'
+  eventTime: '2026-11-09T21:36:28.069Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_STARTED
+  activityTaskStartedEventAttributes:
+    scheduledEventId: '25'
+    identity: 70558@cortega-MacBook-Pro
+    attempt: 1
+- eventId: '27'
+  eventTime: '2026-11-09T21:36:28.069Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_COMPLETED
+  activityTaskCompletedEventAttributes:
+    result:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJjYW5kaWRhdGVzIjpbIlVOSVQtMDAwMSJdLCJjYXRlZ29yeSI6ImxlYXNlIiwiY2hvc2VuIjoiVU5JVC0wMDAxIiwibGxtX3RleHQiOiJTeW50aGV0aWMgd29ya2Zsb3cgdGVzdCBpbnB1dCIsInJlcXVlc3QiOnsiYnVkZ2V0IjoiMi4wMCIsImRvY3VtZW50X2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwiZmlsZW5hbWUiOiJoYXBweSIsIm1vZGUiOiJhY3QiLCJtb2RlbCI6Im9wZW5haS9ncHQtNG8tbWluaSIsIm1vZGVsX21vZGUiOiJyZXBsYXkiLCJyYXdfa2V5IjoicmF3L3N5bnRoZXRpYy1oaXN0b3J5IiwicmV2aWV3X3RpbWVvdXRfc2Vjb25kcyI6MzYwMC4wLCJydW5faWQiOiJsaXZlIiwic291cmNlIjoiaHR0cCJ9LCJ0ZXh0IjoiU3ludGhldGljIHdvcmtmbG93IHRlc3QgaW5wdXQiLCJ2YWxpZF9pZHMiOlsiVU5JVC0wMDAxIiwiVU5JVC0wMDAyIl19 # pragma: allowlist secret
+    scheduledEventId: '25'
+    startedEventId: '26'
+    identity: 70558@cortega-MacBook-Pro
+- eventId: '28'
+  eventTime: '2026-11-09T21:36:28.069Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_SCHEDULED
+  workflowTaskScheduledEventAttributes:
+    taskQueue:
+      name: history
+    startToCloseTimeout: 10s
+    attempt: 1
+- eventId: '29'
+  eventTime: '2026-11-09T21:36:28.069Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_STARTED
+  workflowTaskStartedEventAttributes:
+    scheduledEventId: '28'
+    identity: 70558@cortega-MacBook-Pro
+    historySizeBytes: '5624'
+- eventId: '30'
+  eventTime: '2026-11-09T21:36:28.070Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_COMPLETED
+  workflowTaskCompletedEventAttributes:
+    scheduledEventId: '28'
+    identity: 70558@cortega-MacBook-Pro
+    binaryChecksum: 1b51880c9cb1a9c0a770f6023d362205 # pragma: allowlist secret
+    sdkMetadata: {}
+    meteringMetadata: {}
+- eventId: '31'
+  eventTime: '2026-11-09T21:36:28.070Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_SCHEDULED
+  activityTaskScheduledEventAttributes:
+    activityId: '5'
+    activityType:
+      name: score
+    taskQueue:
+      name: history
+      kind: TASK_QUEUE_KIND_NORMAL
+    header: {}
+    input:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJjYW5kaWRhdGVzIjpbIlVOSVQtMDAwMSJdLCJjYXRlZ29yeSI6ImxlYXNlIiwiY2hvc2VuIjoiVU5JVC0wMDAxIiwibGxtX3RleHQiOiJTeW50aGV0aWMgd29ya2Zsb3cgdGVzdCBpbnB1dCIsInJlcXVlc3QiOnsiYnVkZ2V0IjoiMi4wMCIsImRvY3VtZW50X2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwiZmlsZW5hbWUiOiJoYXBweSIsIm1vZGUiOiJhY3QiLCJtb2RlbCI6Im9wZW5haS9ncHQtNG8tbWluaSIsIm1vZGVsX21vZGUiOiJyZXBsYXkiLCJyYXdfa2V5IjoicmF3L3N5bnRoZXRpYy1oaXN0b3J5IiwicmV2aWV3X3RpbWVvdXRfc2Vjb25kcyI6MzYwMC4wLCJydW5faWQiOiJsaXZlIiwic291cmNlIjoiaHR0cCJ9LCJ0ZXh0IjoiU3ludGhldGljIHdvcmtmbG93IHRlc3QgaW5wdXQiLCJ2YWxpZF9pZHMiOlsiVU5JVC0wMDAxIiwiVU5JVC0wMDAyIl19 # pragma: allowlist secret
+    scheduleToCloseTimeout: 315360000s
+    scheduleToStartTimeout: 315360000s
+    startToCloseTimeout: 30s
+    heartbeatTimeout: 10s
+    workflowTaskCompletedEventId: '29'
+    retryPolicy:
+      initialInterval: 1s
+      backoffCoefficient: 2.0
+      maximumInterval: 100s
+      maximumAttempts: 5
+    priority: {}
+- eventId: '32'
+  eventTime: '2026-11-09T21:36:28.070Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_STARTED
+  activityTaskStartedEventAttributes:
+    scheduledEventId: '31'
+    identity: 70558@cortega-MacBook-Pro
+    attempt: 1
+- eventId: '33'
+  eventTime: '2026-11-09T21:36:28.070Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_COMPLETED
+  activityTaskCompletedEventAttributes:
+    result:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJjYW5kaWRhdGVzIjpbIlVOSVQtMDAwMSJdLCJjYXRlZ29yeSI6ImxlYXNlIiwiY2hvc2VuIjoiVU5JVC0wMDAxIiwiZGVjaXNpb24iOiJmaWxlIiwibGxtX3RleHQiOiJTeW50aGV0aWMgd29ya2Zsb3cgdGVzdCBpbnB1dCIsInJlYXNvbiI6InRocmVzaG9sZF9tZXQiLCJyZXF1ZXN0Ijp7ImJ1ZGdldCI6IjIuMDAiLCJkb2N1bWVudF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImZpbGVuYW1lIjoiaGFwcHkiLCJtb2RlIjoiYWN0IiwibW9kZWwiOiJvcGVuYWkvZ3B0LTRvLW1pbmkiLCJtb2RlbF9tb2RlIjoicmVwbGF5IiwicmF3X2tleSI6InJhdy9zeW50aGV0aWMtaGlzdG9yeSIsInJldmlld190aW1lb3V0X3NlY29uZHMiOjM2MDAuMCwicnVuX2lkIjoibGl2ZSIsInNvdXJjZSI6Imh0dHAifSwic2NvcmUiOiIuOTUiLCJ0ZXh0IjoiU3ludGhldGljIHdvcmtmbG93IHRlc3QgaW5wdXQiLCJ0aWVyIjoic3Ryb25nIiwidmFsaWRfaWRzIjpbIlVOSVQtMDAwMSIsIlVOSVQtMDAwMiJdfQ== # pragma: allowlist secret
+    scheduledEventId: '31'
+    startedEventId: '32'
+    identity: 70558@cortega-MacBook-Pro
+- eventId: '34'
+  eventTime: '2026-11-09T21:36:28.070Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_SCHEDULED
+  workflowTaskScheduledEventAttributes:
+    taskQueue:
+      name: history
+    startToCloseTimeout: 10s
+    attempt: 1
+- eventId: '35'
+  eventTime: '2026-11-09T21:36:28.070Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_STARTED
+  workflowTaskStartedEventAttributes:
+    scheduledEventId: '34'
+    identity: 70558@cortega-MacBook-Pro
+    historySizeBytes: '7035'
+- eventId: '36'
+  eventTime: '2026-11-09T21:36:28.071Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_COMPLETED
+  workflowTaskCompletedEventAttributes:
+    scheduledEventId: '34'
+    identity: 70558@cortega-MacBook-Pro
+    binaryChecksum: 1b51880c9cb1a9c0a770f6023d362205 # pragma: allowlist secret
+    sdkMetadata: {}
+    meteringMetadata: {}
+- eventId: '37'
+  eventTime: '2026-11-09T21:36:28.071Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_SCHEDULED
+  activityTaskScheduledEventAttributes:
+    activityId: '6'
+    activityType:
+      name: file
+    taskQueue:
+      name: history
+      kind: TASK_QUEUE_KIND_NORMAL
+    header: {}
+    input:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJjYW5kaWRhdGVzIjpbIlVOSVQtMDAwMSJdLCJjYXRlZ29yeSI6ImxlYXNlIiwiY2hvc2VuIjoiVU5JVC0wMDAxIiwiZGVjaXNpb24iOiJmaWxlIiwibGxtX3RleHQiOiJTeW50aGV0aWMgd29ya2Zsb3cgdGVzdCBpbnB1dCIsInJlYXNvbiI6InRocmVzaG9sZF9tZXQiLCJyZXF1ZXN0Ijp7ImJ1ZGdldCI6IjIuMDAiLCJkb2N1bWVudF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImZpbGVuYW1lIjoiaGFwcHkiLCJtb2RlIjoiYWN0IiwibW9kZWwiOiJvcGVuYWkvZ3B0LTRvLW1pbmkiLCJtb2RlbF9tb2RlIjoicmVwbGF5IiwicmF3X2tleSI6InJhdy9zeW50aGV0aWMtaGlzdG9yeSIsInJldmlld190aW1lb3V0X3NlY29uZHMiOjM2MDAuMCwicnVuX2lkIjoibGl2ZSIsInNvdXJjZSI6Imh0dHAifSwic2NvcmUiOiIuOTUiLCJ0ZXh0IjoiU3ludGhldGljIHdvcmtmbG93IHRlc3QgaW5wdXQiLCJ0aWVyIjoic3Ryb25nIiwidmFsaWRfaWRzIjpbIlVOSVQtMDAwMSIsIlVOSVQtMDAwMiJdfQ== # pragma: allowlist secret
+    scheduleToCloseTimeout: 315360000s
+    scheduleToStartTimeout: 315360000s
+    startToCloseTimeout: 30s
+    heartbeatTimeout: 10s
+    workflowTaskCompletedEventId: '35'
+    retryPolicy:
+      initialInterval: 1s
+      backoffCoefficient: 2.0
+      maximumInterval: 100s
+      maximumAttempts: 5
+    priority: {}
+- eventId: '38'
+  eventTime: '2026-11-09T21:36:28.071Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_STARTED
+  activityTaskStartedEventAttributes:
+    scheduledEventId: '37'
+    identity: 70558@cortega-MacBook-Pro
+    attempt: 1
+- eventId: '39'
+  eventTime: '2026-11-09T21:36:28.071Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_COMPLETED
+  activityTaskCompletedEventAttributes:
+    result:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJjYW5kaWRhdGVzIjpbIlVOSVQtMDAwMSJdLCJjYXRlZ29yeSI6ImxlYXNlIiwiY2hvc2VuIjoiVU5JVC0wMDAxIiwiZGVjaXNpb24iOiJmaWxlIiwibGxtX3RleHQiOiJTeW50aGV0aWMgd29ya2Zsb3cgdGVzdCBpbnB1dCIsInJlYXNvbiI6InRocmVzaG9sZF9tZXQiLCJyZXF1ZXN0Ijp7ImJ1ZGdldCI6IjIuMDAiLCJkb2N1bWVudF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImZpbGVuYW1lIjoiaGFwcHkiLCJtb2RlIjoiYWN0IiwibW9kZWwiOiJvcGVuYWkvZ3B0LTRvLW1pbmkiLCJtb2RlbF9tb2RlIjoicmVwbGF5IiwicmF3X2tleSI6InJhdy9zeW50aGV0aWMtaGlzdG9yeSIsInJldmlld190aW1lb3V0X3NlY29uZHMiOjM2MDAuMCwicnVuX2lkIjoibGl2ZSIsInNvdXJjZSI6Imh0dHAifSwic2NvcmUiOiIuOTUiLCJ0ZXh0IjoiU3ludGhldGljIHdvcmtmbG93IHRlc3QgaW5wdXQiLCJ0aWVyIjoic3Ryb25nIiwidmFsaWRfaWRzIjpbIlVOSVQtMDAwMSIsIlVOSVQtMDAwMiJdfQ== # pragma: allowlist secret
+    scheduledEventId: '37'
+    startedEventId: '38'
+    identity: 70558@cortega-MacBook-Pro
+- eventId: '40'
+  eventTime: '2026-11-09T21:36:28.071Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_SCHEDULED
+  workflowTaskScheduledEventAttributes:
+    taskQueue:
+      name: history
+    startToCloseTimeout: 10s
+    attempt: 1
+- eventId: '41'
+  eventTime: '2026-11-09T21:36:28.071Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_STARTED
+  workflowTaskStartedEventAttributes:
+    scheduledEventId: '40'
+    identity: 70558@cortega-MacBook-Pro
+    historySizeBytes: '8518'
+- eventId: '42'
+  eventTime: '2026-11-09T21:36:28.072Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_COMPLETED
+  workflowTaskCompletedEventAttributes:
+    scheduledEventId: '40'
+    identity: 70558@cortega-MacBook-Pro
+    binaryChecksum: 1b51880c9cb1a9c0a770f6023d362205 # pragma: allowlist secret
+    sdkMetadata: {}
+    meteringMetadata: {}
+- eventId: '43'
+  eventTime: '2026-11-09T21:36:28.072Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_SCHEDULED
+  activityTaskScheduledEventAttributes:
+    activityId: '7'
+    activityType:
+      name: finalize
+    taskQueue:
+      name: history
+      kind: TASK_QUEUE_KIND_NORMAL
+    header: {}
+    input:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJjYW5kaWRhdGVzIjpbIlVOSVQtMDAwMSJdLCJjYXRlZ29yeSI6ImxlYXNlIiwiY2hvc2VuIjoiVU5JVC0wMDAxIiwiZGVjaXNpb24iOiJmaWxlIiwibGxtX3RleHQiOiJTeW50aGV0aWMgd29ya2Zsb3cgdGVzdCBpbnB1dCIsInJlYXNvbiI6InRocmVzaG9sZF9tZXQiLCJyZXF1ZXN0Ijp7ImJ1ZGdldCI6IjIuMDAiLCJkb2N1bWVudF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImZpbGVuYW1lIjoiaGFwcHkiLCJtb2RlIjoiYWN0IiwibW9kZWwiOiJvcGVuYWkvZ3B0LTRvLW1pbmkiLCJtb2RlbF9tb2RlIjoicmVwbGF5IiwicmF3X2tleSI6InJhdy9zeW50aGV0aWMtaGlzdG9yeSIsInJldmlld190aW1lb3V0X3NlY29uZHMiOjM2MDAuMCwicnVuX2lkIjoibGl2ZSIsInNvdXJjZSI6Imh0dHAifSwic2NvcmUiOiIuOTUiLCJ0ZXJtaW5hbCI6ImZpbGVkIiwidGV4dCI6IlN5bnRoZXRpYyB3b3JrZmxvdyB0ZXN0IGlucHV0IiwidGllciI6InN0cm9uZyIsInZhbGlkX2lkcyI6WyJVTklULTAwMDEiLCJVTklULTAwMDIiXX0= # pragma: allowlist secret
+    scheduleToCloseTimeout: 315360000s
+    scheduleToStartTimeout: 315360000s
+    startToCloseTimeout: 30s
+    heartbeatTimeout: 10s
+    workflowTaskCompletedEventId: '41'
+    retryPolicy:
+      initialInterval: 1s
+      backoffCoefficient: 2.0
+      maximumInterval: 100s
+      maximumAttempts: 5
+    priority: {}
+- eventId: '44'
+  eventTime: '2026-11-09T21:36:28.072Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_STARTED
+  activityTaskStartedEventAttributes:
+    scheduledEventId: '43'
+    identity: 70558@cortega-MacBook-Pro
+    attempt: 1
+- eventId: '45'
+  eventTime: '2026-11-09T21:36:28.073Z'
+  eventType: EVENT_TYPE_ACTIVITY_TASK_COMPLETED
+  activityTaskCompletedEventAttributes:
+    result:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJjYW5kaWRhdGVzIjpbIlVOSVQtMDAwMSJdLCJjYXRlZ29yeSI6ImxlYXNlIiwiY2hvc2VuIjoiVU5JVC0wMDAxIiwiZGVjaXNpb24iOiJmaWxlIiwibGxtX3RleHQiOiJTeW50aGV0aWMgd29ya2Zsb3cgdGVzdCBpbnB1dCIsInJlYXNvbiI6InRocmVzaG9sZF9tZXQiLCJyZXF1ZXN0Ijp7ImJ1ZGdldCI6IjIuMDAiLCJkb2N1bWVudF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsImZpbGVuYW1lIjoiaGFwcHkiLCJtb2RlIjoiYWN0IiwibW9kZWwiOiJvcGVuYWkvZ3B0LTRvLW1pbmkiLCJtb2RlbF9tb2RlIjoicmVwbGF5IiwicmF3X2tleSI6InJhdy9zeW50aGV0aWMtaGlzdG9yeSIsInJldmlld190aW1lb3V0X3NlY29uZHMiOjM2MDAuMCwicnVuX2lkIjoibGl2ZSIsInNvdXJjZSI6Imh0dHAifSwic2NvcmUiOiIuOTUiLCJ0ZXJtaW5hbCI6ImZpbGVkIiwidGV4dCI6IlN5bnRoZXRpYyB3b3JrZmxvdyB0ZXN0IGlucHV0IiwidGllciI6InN0cm9uZyIsInZhbGlkX2lkcyI6WyJVTklULTAwMDEiLCJVTklULTAwMDIiXX0= # pragma: allowlist secret
+    scheduledEventId: '43'
+    startedEventId: '44'
+    identity: 70558@cortega-MacBook-Pro
+- eventId: '46'
+  eventTime: '2026-11-09T21:36:28.073Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_SCHEDULED
+  workflowTaskScheduledEventAttributes:
+    taskQueue:
+      name: history
+    startToCloseTimeout: 10s
+    attempt: 1
+- eventId: '47'
+  eventTime: '2026-11-09T21:36:28.073Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_STARTED
+  workflowTaskStartedEventAttributes:
+    scheduledEventId: '46'
+    identity: 70558@cortega-MacBook-Pro
+    historySizeBytes: '10043'
+- eventId: '48'
+  eventTime: '2026-11-09T21:36:28.073Z'
+  eventType: EVENT_TYPE_WORKFLOW_TASK_COMPLETED
+  workflowTaskCompletedEventAttributes:
+    scheduledEventId: '46'
+    identity: 70558@cortega-MacBook-Pro
+    binaryChecksum: 1b51880c9cb1a9c0a770f6023d362205 # pragma: allowlist secret
+    sdkMetadata: {}
+    meteringMetadata: {}
+- eventId: '49'
+  eventTime: '2026-11-09T21:36:28.073Z'
+  eventType: EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED
+  workflowExecutionCompletedEventAttributes:
+    result:
+      payloads:
+      - metadata:
+          encoding: anNvbi9wbGFpbg==
+        data: eyJjYXRlZ29yeSI6ImxlYXNlIiwiZG9jdW1lbnRfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJyZWFzb24iOiJ0aHJlc2hvbGRfbWV0IiwicmVjb3JkX2lkIjoiVU5JVC0wMDAxIiwic2NvcmUiOiIuOTUiLCJzdGF0dXMiOiJmaWxlZCIsInRpZXIiOiJzdHJvbmcifQ== # pragma: allowlist secret
+    workflowTaskCompletedEventId: '47'

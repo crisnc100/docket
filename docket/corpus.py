@@ -1,6 +1,7 @@
 import io
 import json
 import random
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -30,6 +31,7 @@ CASE_TYPES = (
     "zero_byte",
     "non_pdf",
     "very_long",
+    "graded_evidence",
 )
 ENCRYPTION_PASSWORD = "corpus-only"  # pragma: allowlist secret
 
@@ -88,6 +90,59 @@ def identifying_lines(record: Record) -> list[str]:
     ]
 
 
+def change_letter(value: str) -> str:
+    return re.sub(
+        r"[A-Za-z]", lambda match: "x" if match[0].lower() == "z" else "z", value, count=1
+    )
+
+
+def graded_documents(seed: int, output: Path, records: list[Record]) -> list[Label]:
+    rng = random.Random(seed)
+    labels = []
+    for profile in range(10):
+        record = rng.choice(records)
+        if profile == 7 and not record.former_tenants:
+            record = rng.choice([item for item in records if item.former_tenants])
+        address = record.address
+        name = record.current_tenants[0]
+        if profile in {0, 8}:
+            address = address.replace("Street", "St").replace("Apt ", "#")
+        elif profile in {1, 2, 5}:
+            address = change_letter(address)
+        elif profile in {4, 9}:
+            address = re.sub(r"\s+Apt\s+\d+$", "", address)
+        if profile in {2, 6, 9}:
+            name = change_letter(name)
+        elif profile == 7:
+            name = change_letter(record.former_tenants[0])
+        elif profile in {3, 8}:
+            name = " ".join(reversed(name.split()))
+        category = list(Category)[profile % len(Category)]
+        document_id = f"doc-{171 + profile:04d}"
+        filename = f"{document_id}-graded_evidence.pdf"
+        lines = [f"{category.value.title()} document", f"Record: {record.record_id}"]
+        if profile not in {6, 7}:
+            lines.append(f"Address: {address}")
+        if profile not in {4, 5}:
+            lines.append(f"{'Former tenant' if profile == 7 else 'Tenant'}: {name}")
+        if profile in {0, 1, 6, 7, 9}:
+            lines.append(f"Building: {record.building}")
+        lines.append("Synthetic property-management fixture.")
+        (output / filename).write_bytes(pdf(lines))
+        labels.append(
+            Label(
+                document_id=document_id,
+                filename=filename,
+                subject=f"Synthetic {category.value} document",
+                record_id=record.record_id,
+                category=category,
+                expected="review" if profile == 4 else "filed",
+                case_type="graded_evidence",
+            )
+        )
+    return labels
+
+
 def generate(
     seed: int, output: Path, records_path: Path = Path("config/records.csv")
 ) -> list[Label]:
@@ -117,7 +172,7 @@ def generate(
     for batch in range(10):
         clean_label: Label | None = None
         clean_payload = b""
-        for case_type in CASE_TYPES:
+        for case_type in CASE_TYPES[:-1]:
             record = rng.choice(records)
             if case_type == "former_tenant" and not record.former_tenants:
                 record = rng.choice(former_records)
@@ -225,6 +280,7 @@ def generate(
             labels.append(label)
             if case_type == "clean":
                 clean_label, clean_payload = label, payload
+    labels.extend(graded_documents(seed, output, records))
     (output / "labels.jsonl").write_text(
         "".join(
             json.dumps(label.model_dump(mode="json"), sort_keys=True) + "\n" for label in labels

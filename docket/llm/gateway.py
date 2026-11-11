@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 from langchain_core.exceptions import OutputParserException
@@ -14,7 +15,8 @@ from openai import (
 from pydantic import BaseModel, ValidationError
 
 from docket.llm.budget import Budget, PriceCeiling
-from docket.llm.errors import ParseError, RecordRefused, UsageError
+from docket.llm.errors import ExportPending, ParseError, RecordRefused, UsageError
+from docket.llm.exchange import Exchange, PendingRequest
 from docket.llm.replay import Recording, ReplayStore, canonical, replay_key
 from docket.settings import Settings
 
@@ -23,6 +25,8 @@ class Mode(StrEnum):
     RECORD = "record"
     REPLAY = "replay"
     LIVE = "live"
+    EXPORT = "export"
+    IMPORT = "import"
 
 
 class OpenRouterTransport:
@@ -60,11 +64,14 @@ class OpenRouterTransport:
             },
         )
 
-    async def __call__(self, prompt: str, schema: type[BaseModel]) -> dict[str, Any]:
+    async def __call__(
+        self, prompt: str, schema: type[BaseModel], *, system_prompt: str = ""
+    ) -> dict[str, Any]:
         chain = self.client.with_structured_output(
             schema.model_json_schema(), method="json_schema", strict=True, include_raw=True
         )
-        return await chain.ainvoke(prompt)
+        messages = [("system", system_prompt), ("human", prompt)] if system_prompt else prompt
+        return await chain.ainvoke(messages)
 
 
 def usage_cost(usage: Any) -> Decimal:
@@ -97,6 +104,7 @@ class Gateway:
         prices: PriceCeiling | None = None,
         max_output_tokens: int = 256,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        exchange: Exchange | None = None,
     ):
         self.mode = Mode(mode)
         self.model = model
@@ -107,6 +115,9 @@ class Gateway:
         self.max_output_tokens = max_output_tokens
         self.sleep = sleep
         self.call_count = 0
+        self.exchange = exchange or Exchange(Path("evals/pending"), Path("evals/answers"))
+        self.used_recordings: dict[str, Recording] = {}
+        self.actual_cost_usd = Decimal(0)
 
     async def call[T: BaseModel](
         self,
@@ -117,14 +128,36 @@ class Gateway:
         prompt: str,
         schema: type[T],
         source: str,
+        system_prompt: str = "",
     ) -> T:
-        if self.mode == Mode.RECORD and source != "synthetic_corpus":
+        if self.mode in {Mode.RECORD, Mode.EXPORT, Mode.IMPORT} and source != "synthetic_corpus":
             raise RecordRefused("Record mode accepts only the synthetic corpus")
         request = {"inputs": inputs, "prompt": prompt, "schema": schema.model_json_schema()}
+        if system_prompt:
+            request["system_prompt"] = system_prompt
         key = replay_key(activity, prompt_version, self.model, request)
-        if self.mode == Mode.REPLAY:
+        if self.mode == Mode.EXPORT:
+            self.exchange.export(
+                PendingRequest(
+                    key=key,
+                    activity=activity,
+                    prompt_version=prompt_version,
+                    target_model=self.model,
+                    system_prompt=system_prompt,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_schema=schema.model_json_schema(),
+                    inputs=inputs,
+                    source=source,
+                )
+            )
+            raise ExportPending(f"Request exported: {key}")
+        if self.mode == Mode.IMPORT:
+            self.exchange.import_answers([key], self.store)
+        if self.mode in {Mode.REPLAY, Mode.IMPORT}:
             try:
-                return schema.model_validate(self.store.get(key).output)
+                entry = self.store.get(key)
+                self.used_recordings[key] = entry
+                return schema.model_validate(entry.output)
             except ValidationError as exc:
                 raise ParseError("Replay output does not match the per-call schema") from exc
         if self.budget is None or self.transport is None:
@@ -134,7 +167,11 @@ class Gateway:
             day = self.budget.reserve(worst)
             self.call_count += 1
             try:
-                result = await self.transport(prompt, schema)
+                result = (
+                    await self.transport(prompt, schema, system_prompt=system_prompt)
+                    if system_prompt
+                    else await self.transport(prompt, schema)
+                )
             except (
                 LengthFinishReasonError,
                 ContentFilterFinishReasonError,
@@ -149,6 +186,7 @@ class Gateway:
                     except UsageError:
                         pass
                     else:
+                        self.actual_cost_usd += cost
                         self.budget.settle(day, worst, cost)
                 raise ParseError("Model output does not match the per-call schema") from exc
             except Exception as exc:
@@ -161,6 +199,7 @@ class Gateway:
                 raise
             raw = result.get("raw")
             cost = response_cost(raw)
+            self.actual_cost_usd += cost
             self.budget.settle(day, worst, cost)
             try:
                 parsed = result.get("parsed")
@@ -169,14 +208,15 @@ class Gateway:
                 output = schema.model_validate(parsed)
             except (ValidationError, ValueError, TypeError, AttributeError) as exc:
                 raise ParseError("Model output does not match the per-call schema") from exc
-            if self.mode == Mode.RECORD:
-                self.store.append(
-                    Recording(
-                        key=key,
-                        output=output.model_dump(mode="json"),
-                        cost_usd=str(cost),
-                        source=source,
-                    )
+            if source == "synthetic_corpus":
+                entry = Recording(
+                    key=key,
+                    output=output.model_dump(mode="json"),
+                    cost_usd=str(cost),
+                    source=source,
                 )
+                self.used_recordings[key] = entry
+                if self.mode == Mode.RECORD:
+                    self.store.append(entry)
             return output
         raise AssertionError("Unreachable retry state")

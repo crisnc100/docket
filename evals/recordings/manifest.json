@@ -1,0 +1,31 @@
+{
+  "archive": "calls.jsonl",
+  "exchange_archive": "exchange.jsonl.gz",
+  "exchange_verification": "uv run python scripts/pack_exchange.py --check",
+  "context_source": "Operator report; counts checked against imported answer provenance",
+  "fallback_reason": "Haiku falsely blocked 19 synthetic requests with its safety filter: 18 in the original batch and one after the accepted tenant corrections. The operator supplied Opus answers for those requests. Each answer names its simulator.",
+  "graded_extension": {
+    "context_source": "Operator report; provenance checked against imported answers",
+    "method": "The operator supplied 40 answers from fresh independent calls.",
+    "requests": 40,
+    "simulator_counts": {
+      "claude-haiku-5-5": 40
+    }
+  },
+  "method": "Each answer came from a fresh headless call. It saw only the request system prompt, messages and schema. It saw no expected labels, code or other answers.",
+  "provider_measurement": false,
+  "requests": 444,
+  "simulator_counts": {
+    "claude-haiku-5-5": 425,
+    "claude-opus-5-5": 19
+  },
+  "status": "IMPORTED",
+  "tenant_corrections": {
+    "context_source": "Operator report; counts checked against imported answer provenance",
+    "requests": 4,
+    "simulator_counts": {
+      "claude-haiku-5-5": 3,
+      "claude-opus-5-5": 1
+    }
+  }
+}

@@ -113,22 +113,22 @@ def score_choice(
             frozenset(),
             shortlist.conflict,
             "review",
-            "no_candidate_chosen",
+            "input_too_large" if shortlist.over_budget else "no_candidate_chosen",
         )
     candidate = next((item for item in shortlist.candidates if item.record_id == record_id), None)
     if candidate is None:
         raise InvalidChoice("Chosen record must be in the shortlist")
     raw_score, independent = weighted_evidence(candidate, config)
-    if shortlist.conflict:
+    if shortlist.conflict or shortlist.over_budget:
         return ScoreResult(
             record_id,
             Decimal(0),
             raw_score,
             Tier.NONE,
             independent,
-            True,
+            shortlist.conflict,
             "review",
-            "conflicting_records",
+            "input_too_large" if shortlist.over_budget else "conflicting_records",
         )
     value = raw_score
     # Cap the number too, so a caller that only checks the threshold cannot treat one signal

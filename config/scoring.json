@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
-  "calibration": "untuned_defaults",
+  "calibration": "seed7_threshold_weights_and_tiers_untuned",
   "weights": {
-    "explicit_id": 0.30,
-    "address": 0.30,
+    "explicit_id": 0.3,
+    "address": 0.3,
     "tenant_name": 0.25,
-    "building": 0.10,
+    "building": 0.1,
     "filename_id": 0.05
   },
   "medium_threshold": 0.25,
   "strong_threshold": 0.55,
-  "auto_file_threshold": 0.55
+  "auto_file_threshold": 0.5857142
 }

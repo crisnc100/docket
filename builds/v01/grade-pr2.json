@@ -1,0 +1,118 @@
+{
+  "family": "fable",
+  "model": "claude-fable-5-1",
+  "criteria": [
+    {
+      "id": "D4",
+      "criterion": "choose output schema restricted to shortlist ids + none; no injection document auto-filed to its injected id (tests and held-out eval); explicit id alone never strong; empty shortlist makes zero model calls.",
+      "verdict": "PASS",
+      "evidence": "docket/activities_schema.py:19-26 builds a per-call Enum of [*ids, 'none'] with extra='forbid'; docket/prompts.py:28 passes it as the choose schema; tests/workflow/test_integration.py:211-219 proves an id outside the call's enum fails validation. Injection: tests/workflow/test_integration.py:94-135 has the scripted model pick the injected id UNIT-0100 and asserts would_review with zero filed rows; held-out seed 11 report evals/reports/2026-11-09-seed-11.md:664-692 shows injection 10/10 would_review, floors.injection_to_injected_id_zero=true (computed at docket/evaluation.py:406-410 against Label.injected_record_id, docket/corpus.py:47). Explicit-id-alone: docket/activities.py:178-183 refuses automatic filing unless tier=='strong'; the PR1 scoring tests and the seed-11 id_in_filename_only case (0 filings, report line 635-663) hold. Empty shortlist: docket/workflows.py:101-105 skips classify and choose when candidates is empty; docket/activities.py:120-122 returns before the gateway; tests/workflow/test_integration.py:133-134 asserts model.calls == [] and tests/workflow/test_workflow.py:63-64 asserts neither activity ran."
+    },
+    {
+      "id": "D5",
+      "criterion": "every document across the held-out eval, including poison cases, ends terminal with a non-empty reason; reconcile converts orphans (test).",
+      "verdict": "PASS",
+      "evidence": "docket/workflows.py:157-160 runs finalize in a shielded finally with terminal+reason always set (default 'failed'/'non_retryable_error', line 92); docket/core/ledger.py:94-95 rejects empty reasons at the transition. docket/evaluation.py:246-247 raises if any eval outcome lacks a reason; seed-11 outcomes are rejected 40 + would_file 28 + would_review 102 = 170 = all labels (evals/reports/2026-11-09-seed-11.md:359-364), and the corrupt/encrypted/non_pdf/zero_byte case types each show 10 rejected. tests/workflow/test_integration.py:223-250 runs real seed-11 poison files through the real activities and asserts rejected with the expected reason and no model call. Reconcile: docket/ingress.py:158-169 marks non-terminal rows with no running workflow failed/orphaned; tests/workflow/test_integration.py:190-208 asserts both seeded orphans become failed/orphaned, and lines 275-279 assert a live review workflow is left running. Test-pass claims rest on the recorded verify output in builds/v01/p3-checkpoint.md:132-155 (276 passed), not a run in this session."
+    },
+    {
+      "id": "D6",
+      "criterion": "dedup through HTTP: 3 concurrent submits, resubmit after terminal, different message_id -> one document and <=1 filing.",
+      "verdict": "PASS",
+      "evidence": "docket/ingress.py:61-123: raw/<sha256> put_if_absent, then INSERT ... ON CONFLICT (mode, run_id, content_hash) DO NOTHING, then start_workflow with REJECT_DUPLICATE + USE_EXISTING (lines 28-37), skipped when the row is terminal (line 121); each submit adds a document_sources row (89-93). docket/activities.py:212-230 inserts filed_documents with ON CONFLICT DO NOTHING on (mode, run_id, content_hash). tests/workflow/test_integration.py:49-91 posts 3 concurrent /documents with message_ids 0,1,2, asserts one id, waits for filed, resubmits with message_id 'after-terminal' and asserts same id, 1 document, 1 filed_documents row, 4 sources, 1 'filed' event, exactly 1 non-raw object. The same shape is repeated against real compose processes in tests/fault/test_faults.py:137-161."
+    },
+    {
+      "id": "D7",
+      "criterion": "fault suite kills the worker at real failpoints (after storage write before ledger write; during choose), asserts the failpoint fired, and asserts exactly one object, one filed_documents row, one filed event after restart; API-crash ingress cases covered.",
+      "verdict": "PASS",
+      "evidence": "docket/failpoints.py:4-7 prints 'DOCKET_FAILPOINT fired <point>' then os._exit(137) only when the env var matches. Real placements: docket/activities.py:203 fire('file.after_storage') sits between put_if_absent (193) and the filed_documents/event/transition transaction (204-239); docket/activities.py:123 fire('choose.during') inside the choose activity; docket/ingress.py:66 and :120 after the raw write and after the documents insert. tests/fault/test_faults.py:88-97 asserts the fired log line and container ExitCode 137; lines 121-134 (finished) assert status filed, Document count == FiledDocument count == 1, exactly one 'filed' and one 'file' event, and exactly one non-raw object among 2 keys. Worker crash+restart cases at 137-161 (both points); API crash cases at 164-186 cover resubmit-after-crash giving one document and reconcile(0) starting the workflow for the post-insert crash (started == 1). Recorded run: builds/v01/p3-fault-evidence.txt shows all four points fired with exit=137 and 5 passed; builds/v01/p3-checkpoint.md:144-155 shows ./verify.sh --fault 281 passed. Not re-run in this session."
+    },
+    {
+      "id": "D8",
+      "criterion": "review approve/dismiss/timeout/double approve(409)/approve after expiry(409)/unknown record id all tested.",
+      "verdict": "PASS",
+      "evidence": "Approve: tests/workflow/test_workflow.py:69-97 (signal approve -> filed, one file call) and tests/workflow/test_integration.py:177-182 (HTTP approve 200 -> filed). Dismiss: test_workflow.py:74,96 (dismiss -> dismissed, no file). Timeout: test_workflow.py:32 (review -> needs_review_expired/review_timeout) via docket/workflows.py:120-125. Double approve 409: tests/workflow/test_integration.py:280-292 fires two concurrent HTTP approves and asserts sorted codes == [200, 409] with one filing and one filed event; the API maps WorkflowUpdateFailedError to 409 at docket/api.py:95-96 and the workflow rejects a second action at workflows.py:46-48,72-77. Approve after expiry 409: tests/workflow/test_integration.py:295-319 (status needs_review_expired then approve -> 409 via api.py:85-86). Unknown record id: test_integration.py:172-176 (UNIT-9999 -> 409) and test_workflow.py:118-126 (update raises WorkflowUpdateFailedError, signal with unknown id leaves review open); validation at workflows.py:49-51 against valid_ids from the records table (activities.py:95)."
+    },
+    {
+      "id": "D9",
+      "criterion": "observe mode writes no objects outside raw/ and no act filings; review ends would_review without waiting.",
+      "verdict": "PASS",
+      "evidence": "docket/workflows.py:108-114: in observe mode a file decision ends would_file without calling the file activity and a review decision ends would_review immediately, never entering wait_condition. Defence in depth: docket/activities.py:176-177 raises if file runs outside act mode; docket/core/ledger.py:98-104 forbids observe documents transitioning to filed/needs_review. tests/workflow/test_integration.py:102-134 runs real activities in observe mode and asserts every bucket key starts with raw/ and FiledDocument count == 0; tests/workflow/test_workflow.py:61-62 asserts 'file' never runs in observe. The seed-11 eval ran entirely in observe mode (evaluation.py:238) and builds/v01/p3-simulation-evidence.txt:15-16 records 'Observe filing rows: 0' and 'Default bucket non-raw objects: 0'."
+    },
+    {
+      "id": "D10",
+      "criterion": "held-out (seed 11) floors met: wrong-file 0, clean auto-file >= 90%, injection-to-injected-id 0, recall >= rules-only baseline; report has >=8-point curve, baseline comparison, per-case-type table, category accuracy, intervals, simulated banner with simulator provenance; replay eval reproduces in verify.sh.",
+      "verdict": "PASS",
+      "evidence": "evals/reports/2026-11-09-seed-11.json:7760 status PASS; .md:920-925 floors all true; wrong_file_count 0 (line 881), clean auto_file_rate 0.9 = 9/10 (line 427, exactly at the floor, no margin), injection 0 filings (664-692), docket recall 0.9333 vs baseline 0.9333 (lines 891 and 48; equal, so the >= floor holds with zero margin). Curve: 8 points at thresholds 0.55..1.0 (md:929-940; evaluation.py:144-150). Baseline comparison side by side (md:883-919 and the curve table). Per-case-type table with 17 case types (md:942-963). Category accuracy 0.8769 with Wilson interval (md:48-53); all metrics carry *_wilson_95 (evaluation.py:97-104). Banner is the first line and names both simulators and the target (md:1-2; evaluation.py:468-475), with per-simulator counts and provenance (md:8-23). Reproduction: verify.sh:28 runs scripts/reproduce_eval.py, which re-evaluates seed 11 in replay mode and fails if status, metrics, per-document results, floors, shadow, provenance or simulation differ (lines 15-34); recorded output 'Replay report reproduced: PASS; seed=11; no model calls' in builds/v01/p3-checkpoint.md:140,152. Measurements are simulated by decision and labelled as such; floors are met at the boundary on two of four."
+    },
+    {
+      "id": "D11",
+      "criterion": "shadow-diff report classifies every disagreement against gold.",
+      "verdict": "PASS",
+      "evidence": "docket/evaluation.py:174-217 compares (status, record_id, category) per document and, for each disagreement, maps both outcomes to a decision and checks it against label.expected plus correct_file for filings, assigning one of both_correct / docket_only_correct / baseline_only_correct / both_wrong and attaching the gold label; 'failed' maps to a non-matching decision (line 192), guarded by tests/test_evaluation.py:126-132. evals/reports/2026-11-09-seed-11-shadow.json contains 87 disagreements and 87 'classification' fields (grep count 87), matching the 87 differences claimed in builds/v01/p3-checkpoint.md:108. The CLI (docket/cli.py:169-191) carries the simulated banner and provenance into the shadow file and skips its own outputs; tests/test_evaluation.py:59-72,135-153 cover the three non-trivial classes and the CLI."
+    },
+    {
+      "id": "SIM",
+      "criterion": "export/import validates each imported answer against its request schema and records provenance per answer; reports never present simulated answers as live measurements.",
+      "verdict": "PASS",
+      "evidence": "docket/llm/exchange.py:151-185: import re-verifies the pending request digest (verify_key, 158), requires provenance.standing_in_for == request.target_model (170-171), runs validate_schema(answer.output, request.response_schema) (172) with a fail-closed JSON Schema subset (58-125), and only appends to the replay store after the whole batch validates (182-184); each Recording carries provenance (173-180, replay.py:41). Tests: tests/test_exchange.py:76-91 rejects out-of-enum, missing, null, wrong-type and extra-field answers; 94-108 rejects wrong provenance and tampered requests; 132-147 admits nothing when one answer in a batch is invalid; 122-129 rejects unknown categories on import rather than normalising. Archive: evals/recordings/calls.jsonl has 400 entries, 400 with provenance and none with provenance null or a numeric cost. Reports: evaluation.py:380-403 sets measurement='simulated' when any used recording carries provenance, puts the banner first (468-475) and sets model_cost_usd null; seed-11 json lines 4762-4768 show measurement 'simulated', model_cost_usd null, live_run_cost_usd '0'; tests/test_evaluation.py:75-94 and tests/test_simulation_report.py:8-59 pin the banner-first and null-cost behaviour. docs/adr/004 and docs/rerecord.md:95-110 state the deferral and forbid mixing archives."
+    },
+    {
+      "id": "WF",
+      "criterion": "workflow determinism replay test against recorded histories exists and passes; bounded retries with non-retryable error classes per plan; workflow input carries a storage key, never document bytes.",
+      "verdict": "PASS",
+      "evidence": "Replay test: tests/workflow/test_workflow.py:181-189 loads tests/workflow/history.yaml (49 events) and review-history.yaml (65 events, includes an update-driven approval) and runs temporalio Replayer, asserting replay_failure is None; histories are captured from a real test server by scripts/record_workflow_history.py:25-53. Pass status is from the recorded verify output (builds/v01/p3-checkpoint.md:135, 276 passed), not a run in this session. Bounded retries: docket/workflows.py:40-42 RetryPolicy initial 1s, backoff 2, maximum_attempts=5; tests/workflow/test_workflow.py:65-66 asserts exactly 5 attempts for a retryable failure. Non-retryable classes: docket/llm/errors.py:4-6 makes ParseError, ReplayMiss, BudgetExceeded (and the other gateway errors) ApplicationError subclasses with non_retryable=True; docket/activities.py:66-69 maps encrypted/corrupt extraction to a non-retryable DocumentRejected; 199-202 maps StorageConflict non-retryably; workflows.py:137-153 maps those types to replay_miss / budget_exceeded / storage_conflict / parse_error / rejected reasons. tests/workflow/test_errors.py:26-51 asserts a single attempt and correct reason for BudgetExceeded, ParseError and other non-retryable types; tests/workflow/test_integration.py:137-149 drives a real ReplayMiss to failed/replay_miss. Input: docket/workflows.py:11-22 DocumentInput carries raw_key (a storage key) and metadata only; activities fetch bytes via runtime.read (activities.py:65, 195); ingress.py:95-107 builds it from the raw key."
+    }
+  ],
+  "findings": [
+    {
+      "likelihood": 3,
+      "impact": 3,
+      "protected": false,
+      "trigger": "Temporal is unreachable or returns any RPC error (other than a rejected update) while a client calls POST /review/{id}/approve|dismiss.",
+      "issue": "Every RPCError is collapsed into HTTP 409 'Duplicate, late or invalid review action', so an infrastructure outage is reported to reviewers as a user-caused conflict and the UI/CLI cannot distinguish 'already decided' from 'service down'. Only WorkflowUpdateFailedError (and NOT_FOUND) should map to 409; other RPC failures should surface as 5xx.",
+      "file": "docket/api.py",
+      "line": "95-96",
+      "evidence": "except (WorkflowUpdateFailedError, RPCError) as exc: raise HTTPException(409, ...) with no status-code check on the RPCError."
+    },
+    {
+      "likelihood": 3,
+      "impact": 3,
+      "protected": false,
+      "trigger": "SeaweedFS takes longer than the activity retry window to pass its healthcheck after `docker compose up -d --wait seaweedfs` in the S3-outage fault test.",
+      "issue": "The 'transient S3 error, retried' guarantee is bounded by RetryPolicy(maximum_attempts=5, backoff 1/2/4/8s), roughly 15-26s including the 2s connect timeout. If the outage outlasts that, the file activity exhausts retries and the document ends failed/retries_exhausted; the fault test then fails (or passes by timing). The test passed in this build but is timing-dependent and the plan does not define the window a 'transient' outage must fit in.",
+      "file": "tests/fault/test_faults.py",
+      "line": "189-205",
+      "evidence": "docket/workflows.py:40-42 sets maximum_attempts=5 with exponential backoff; docket/runtime.py:27-30 sets connect_timeout=2 and boto retries 0; the test waits for 'EndpointConnectionError' then restarts SeaweedFS with no assertion on how long that took relative to the retry budget."
+    },
+    {
+      "likelihood": 2,
+      "impact": 4,
+      "protected": false,
+      "trigger": "A replay or live eval run in which no used recording carries provenance (for example, every document is rejected or has an empty shortlist, so zero model recordings are consumed).",
+      "issue": "The report's measurement label is derived solely from used recordings: 'simulated' if any has provenance, otherwise 'openrouter'. A run that made zero model calls would be labelled an OpenRouter measurement with model_cost_usd '0', and a mixed archive with even one provenance-bearing entry would be labelled simulated as a whole. The label should come from the requested mode plus an explicit check that the archive is uniformly simulated or uniformly recorded.",
+      "file": "docket/evaluation.py",
+      "line": "380-403",
+      "evidence": "report['measurement'] = 'simulated' if provenances else 'openrouter'; provenances is built only from gateway.used_recordings, and model_cost_usd falls through to a summed cost string when provenances is empty."
+    },
+    {
+      "likelihood": 8,
+      "impact": 3,
+      "protected": false,
+      "trigger": "Reading the held-out threshold curve to choose or defend the auto-file threshold.",
+      "issue": "The 8-point curve is flat: every strong-tier filing in seed 11 scores exactly 0.95, so thresholds 0.55 through 0.9357 produce identical precision, recall and auto-file rate, and only the 1.0 endpoint changes. The curve therefore carries no information about the precision/auto-file trade-off the plan asked it to show, and Docket's curve is byte-identical to the rules-only baseline's. This is a property of the discrete scoring config rather than a code defect, but it means D10's curve requirement is met in form only.",
+      "file": "evals/reports/2026-11-09-seed-11.md",
+      "line": "929-940",
+      "evidence": "Curve rows 0.55..0.9357 all show precision 1.0 and auto-file rate 0.1647 for both Docket and baseline; builds/v01/p3-checkpoint.md:84 states 'All 28 selected filings score 0.95'."
+    },
+    {
+      "likelihood": 5,
+      "impact": 2,
+      "protected": false,
+      "trigger": "Running the fault suite's 'kill during choose' case.",
+      "issue": "The choose.during failpoint fires before the gateway call, so the crash it simulates is 'before choose', never 'after the model answered but before the choose event was written'. The latter is the interesting at-least-once window for the choose activity (a second model call on retry, a duplicated choose event). Exactly-once still holds because the event append is idempotent, but that path is not exercised by the suite.",
+      "file": "docket/activities.py",
+      "line": "123-131",
+      "evidence": "fire('choose.during') at line 123 precedes self.runtime.gateway(...).call at 125-128 and the event write at 131; no failpoint exists between the call and the event."
+    }
+  ]
+}

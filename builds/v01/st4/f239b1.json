@@ -1,1 +1,1 @@
-{"f1":{"status":"filed","reason":"LOW test-tightness note; the behaviour is covered by the non-zero case"},"f2":{"status":"filed","reason":"LOW: the extra recordings/cost assertion is inert; the suggestion behaviour itself is asserted elsewhere in the test"}}
+{}

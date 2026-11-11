@@ -14,6 +14,7 @@ The later decision, approved on 2026-11-11, makes that choice a reviewer suggest
 Rules select the automatic filing record, score and tier.
 The review page shows the model suggestion beside the rules' top candidate.
 A choose failure records no suggestion and its reason, then continues with the rules.
+Cancellation is propagated instead; it cannot fall through to scoring or filing.
 Category classification remains a separate model call and can still fail the workflow.
 
 ## Measurement
@@ -28,14 +29,19 @@ Among the 102 documents sent to review, the model is correct on 44 (43.1%,
 95% Wilson interval 33.9–52.8%).
 The rules' top candidate is correct on 62 (60.8%, interval 51.1–69.7%).
 Suggesting none counts as correct when the expected label names no record.
-Documents that did not go to review are excluded.
+Documents that did not go to review and failed suggestions are excluded.
+The saved run has zero suggestion failures; a successful suggestion of none is an abstention.
 Wilson intervals give uncertainty ranges for these proportions.
 
 These results support keeping the suggestion out of automatic filing.
 They do not show a reviewer works faster or makes fewer mistakes with the suggestion.
 That human-use comparison is not measured.
-The model's category accuracy is 124/140 versus 132/140 for rules;
-record choice and category accuracy are separate measures.
+The pipeline's category accuracy is 124/140 versus 132/140 for the rules-only baseline.
+All 16 pipeline misses have empty shortlists, where the workflow assigns misc without a classify call.
+They comprise eight no-record documents and eight documents without text layers.
+The simulated classify answers are correct on all 120 documents whose shortlists were nonempty.
+These counts include duplicate documents; they are not counts of unique model calls.
+Record choice and pipeline category accuracy are separate measures.
 
 ## Alternatives and limits
 

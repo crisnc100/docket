@@ -54,7 +54,11 @@ Commit `24093d1` added continuous match strengths and ten graded documents per s
 The threshold selection used seed 7 only and chose 0.5857142.
 The operator supplied 40 new answers.
 Commit `cb053f5` saved the held-out results: six distinct curve points, with no filing gain from model choice.
-The model changed review proposals and category labels, not filing decisions.
+Review proposals and pipeline category labels differed from the baseline, not filing decisions.
+In the current seed-11 report, pipeline category accuracy is 124/140 versus 132/140 for rules.
+All 16 pipeline misses have empty shortlists and receive misc without a classify call.
+The simulated classify answers are correct for all 120 documents with nonempty shortlists.
+Those document counts include duplicates; they do not count unique model calls.
 
 ## 2026-11-10 — review the core and preserve evidence
 
@@ -125,8 +129,10 @@ Choose failures leave no suggestion, record a reason and continue to rules scori
 A patch guard preserves the old failure path when replaying an older workflow history.
 Extraction, classification and filing failures retain their terminal failure behavior.
 Login clears a saved token only after HTTP 401; service and network failures retain it.
-The browser harness checks the browser result before copying artifacts.
-The report's suggestion section excludes every document not sent to review, as its code already did.
+The browser harness preserves artifacts best-effort and reports a browser failure before any copy failure.
+The report's suggestion section excludes documents not sent to review and failed suggestions.
+It counts failed suggestions separately from successful abstentions.
+Cancellation during choose stops processing without scoring or filing.
 
 Reports were generated through the existing replay path with no new answers:
 

@@ -89,7 +89,7 @@ Recall is correct filings divided by the 39 documents labelled for filing.
 | Filing recall | 38/39, 97.4% [86.8–99.5] | 38/39, 97.4% [86.8–99.5] |
 | Share filed automatically | 38/180, 21.1% [15.8–27.6] | 38/180, 21.1% [15.8–27.6] |
 | Share sent to review | 102/180, 56.7% [49.4–63.7] | 102/180, 56.7% [49.4–63.7] |
-| Category accuracy, among 140 not rejected | 124/140, 88.6% [82.2–92.8] | 132/140, 94.3% [89.1–97.1] |
+| Pipeline category accuracy, among 140 not rejected | 124/140, 88.6% [82.2–92.8] | 132/140, 94.3% [89.1–97.1] |
 | Correct record on review items | 44/102, 43.1% [33.9–52.8] | 62/102, 60.8% [51.1–69.7] |
 
 Brackets give 95% Wilson intervals: uncertainty ranges for the measured proportions.
@@ -97,8 +97,12 @@ They do not establish accuracy on real incoming documents.
 There were zero wrong filings and zero filings to injected record ids.
 All 10 clean documents filed; all four held-out floors pass.
 The other 40 documents were rejected.
+All 16 pipeline category misses came from empty shortlists, assigned misc without a classify call.
+The simulated classify answers were right on all 120 documents with nonempty shortlists.
+Those document counts include duplicates and do not count unique model calls.
 
-Only documents sent to review count in the suggestion comparison.
+Only documents sent to review without a suggestion failure count in the comparison.
+The saved run has zero suggestion failures. The report counts failures separately from abstentions.
 Suggesting none is correct when gold names no record.
 Suggestions differ from the rules on 79 review documents and change no filing decision.
 

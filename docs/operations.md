@@ -94,13 +94,44 @@ returns the existing document id and records nothing new. The same file bytes
 from a different message also return the existing document. A NUL character in
 `message_id`, `from` or a file name fails with 422.
 
+## Reviewer access and routes
+
+Set `DOCKET_REVIEW_TOKEN` to a long random secret in the API environment.
+The CLI reads the same variable.
+Every route except `POST /inbound` and `GET /healthz` requires this header:
+
+```http
+Authorization: Bearer <the value of DOCKET_REVIEW_TOKEN>
+```
+
+An unset, empty or whitespace-only token makes protected routes return 503.
+A missing or invalid Bearer token returns 401.
+The root page presents token entry after a 401.
+It keeps the token in session storage for that browser tab.
+The page fetches scripts, styles and PDF previews with the authorization header.
+A 401 clears its saved token; a server or network failure keeps it for retry.
+
+| Route | Purpose |
+| --- | --- |
+| `GET /` | Open the review page |
+| `GET /review` | List act-mode documents waiting for review, oldest first |
+| `GET /documents/{id}` | Read status, reason and the event trace |
+| `GET /documents/{id}/file` | Read the PDF preview with reviewer authorization |
+| `POST /review/{id}/approve` | Send JSON with `record_id` to approve a known record |
+| `POST /review/{id}/dismiss` | Send JSON with a nonempty `reason` to dismiss |
+
+A terminal document or duplicate, late or invalid review action returns 409.
+Approving a known record files the document to that record.
+The model suggestion cannot approve it for the reviewer.
+
 ## Storage and the ledger
 
 The workflow uses storage and the ledger for each document.
 
 - **Storage** (`docket/core/storage.py`) writes files to S3-compatible storage under
-  `<building>/<record_id>/<category>/<hash>.pdf`. Writing the same bytes to the same
-  key again does nothing, so retries never write twice. Different bytes under an
+  `<building>/<record_id>/<category>/<sha256[:16]>.pdf`.
+  The filename uses the first 16 hexadecimal characters of the file's SHA-256 digest.
+  Writing the same bytes to the same key again does nothing, so retries never write twice. Different bytes under an
   existing key raise `StorageConflict`. Key parts must match `[A-Za-z0-9_-]+`.
 - **Ledger** (`docket/core/ledger.py`) stores each document's status in Postgres and
   logs every change as an event. An event with the same step for the same document

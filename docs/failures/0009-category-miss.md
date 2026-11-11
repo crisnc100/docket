@@ -15,7 +15,7 @@ The rules-only baseline assigns notice.
 
 The workflow gives every empty shortlist category misc.
 Classification is skipped along with record choice, even when the PDF contains useful category text.
-Eight no-record documents cause the model-versus-baseline category gap on this seed.
+Eight no-record documents account for the pipeline's eight additional category misses versus the baseline.
 This is workflow policy, not a bad model response.
 
 ## What would fix it

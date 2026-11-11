@@ -63,8 +63,15 @@ The [held-out report](../evals/reports/2026-11-11-seed-11.md) measures:
 - Precision: correct filings divided by all automatic filings. Both systems reach 38/38.
 - Recall: correct filings divided by the 39 documents labelled for filing. Both reach 38/39.
 - Automatic filing and review rates: 38/180 and 102/180. The remaining 40 are rejected.
-- Category accuracy: Docket 124/140 versus the baseline's 132/140 among documents not rejected.
+- Pipeline category accuracy: Docket 124/140 versus the baseline's 132/140 among documents not rejected.
 - Correct record suggestions on review items: model 44/102 versus rules 62/102.
+
+All 16 pipeline category misses have empty shortlists and receive misc without a classify call.
+Eight are no-record documents; eight have no text layer.
+The simulated classify answers are correct on all 120 documents with nonempty shortlists.
+These document counts include duplicates, not just unique model calls.
+Failed suggestions are excluded from the suggestion comparison and counted separately.
+The saved seed-11 run has zero suggestion failures.
 
 The report includes 95% Wilson intervals, uncertainty ranges for each proportion,
 a threshold curve and results by case type.
@@ -75,5 +82,5 @@ The model adds no measured filing gain on this sample.
 Model answers are simulated, with each answer's source saved.
 They do not measure the target provider's quality, output compliance or cost.
 Five [fault tests](adr/007-temporal-recovery.md) measure recovery after process exits and a storage outage.
-They check one document, one filing and a final reason.
+They check one document, one filing and a final filed status.
 [Replay instructions](rerecord.md) explain how to reproduce the evidence.

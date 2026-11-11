@@ -5,7 +5,7 @@ from typing import Any
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
-from temporalio.exceptions import ActivityError, ApplicationError
+from temporalio.exceptions import ActivityError, ApplicationError, is_cancelled_exception
 
 
 def activity_failure_reason(exc: ActivityError) -> str:
@@ -118,6 +118,8 @@ class FileDocumentWorkflow:
                     try:
                         stage = await self.step("choose", stage)
                     except ActivityError as exc:
+                        if is_cancelled_exception(exc):
+                            raise
                         if not workflow.patched("choose-suggestion-fallback-v1"):
                             raise
                         stage.update(
@@ -157,6 +159,9 @@ class FileDocumentWorkflow:
                     finally:
                         self.review_open = False
         except ActivityError as exc:
+            if is_cancelled_exception(exc):
+                terminal, reason = "failed", "cancelled"
+                raise
             cause = exc.cause
             if isinstance(cause, ApplicationError) and cause.type == "DocumentRejected":
                 terminal, reason = "rejected", str(cause.details[0])
@@ -176,6 +181,7 @@ class FileDocumentWorkflow:
             "reason": reason,
             "record_id": stage.get("chosen"),
             "suggested_record_id": stage.get("suggested_record_id"),
+            "suggestion_failure_reason": stage.get("suggestion_failure_reason"),
             "category": stage.get("category", "misc"),
             "score": stage.get("score", "0"),
             "tier": stage.get("tier", "none"),

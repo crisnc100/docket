@@ -5,7 +5,22 @@ from typing import Any
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
-from temporalio.exceptions import ActivityError, ApplicationError
+from temporalio.exceptions import ActivityError, ApplicationError, is_cancelled_exception
+
+
+def activity_failure_reason(exc: ActivityError) -> str:
+    cause = exc.cause
+    return {
+        "ReplayMiss": "replay_miss",
+        "BudgetExceeded": "budget_exceeded",
+        "StorageConflict": "storage_conflict",
+        "ParseError": "parse_error",
+    }.get(
+        getattr(cause, "type", ""),
+        "non_retryable_error"
+        if isinstance(cause, ApplicationError) and cause.non_retryable
+        else "retries_exhausted",
+    )
 
 
 @dataclass
@@ -100,7 +115,16 @@ class FileDocumentWorkflow:
                 self.valid_ids = stage["valid_ids"]
                 if stage["candidates"]:
                     stage = await self.step("classify", stage)
-                    stage = await self.step("choose", stage)
+                    try:
+                        stage = await self.step("choose", stage)
+                    except ActivityError as exc:
+                        if is_cancelled_exception(exc):
+                            raise
+                        if not workflow.patched("choose-suggestion-fallback-v1"):
+                            raise
+                        stage.update(
+                            chosen=None, suggestion_failure_reason=activity_failure_reason(exc)
+                        )
                 else:
                     stage.update(category="misc", chosen=None)
                 stage = await self.step("score", stage)
@@ -114,8 +138,12 @@ class FileDocumentWorkflow:
                     terminal, reason = "would_review", stage["reason"]
                 else:
                     stage["terminal"], stage["reason"] = "needs_review", stage["reason"]
+                    open_before_publish = workflow.patched("review-open-before-publish-v1")
+                    if open_before_publish:
+                        self.state, self.review_open = "needs_review", True
                     await self.step("finalize", stage)
-                    self.state, self.review_open = "needs_review", True
+                    if not open_before_publish:
+                        self.state, self.review_open = "needs_review", True
                     try:
                         await workflow.wait_condition(
                             lambda: self.action is not None,
@@ -135,26 +163,20 @@ class FileDocumentWorkflow:
                     finally:
                         self.review_open = False
         except ActivityError as exc:
+            if is_cancelled_exception(exc):
+                terminal, reason = "failed", "cancelled"
+                raise
             cause = exc.cause
             if isinstance(cause, ApplicationError) and cause.type == "DocumentRejected":
                 terminal, reason = "rejected", str(cause.details[0])
             else:
                 terminal = "failed"
-                reason = {
-                    "ReplayMiss": "replay_miss",
-                    "BudgetExceeded": "budget_exceeded",
-                    "StorageConflict": "storage_conflict",
-                    "ParseError": "parse_error",
-                }.get(
-                    getattr(cause, "type", ""),
-                    "non_retryable_error"
-                    if isinstance(cause, ApplicationError) and cause.non_retryable
-                    else "retries_exhausted",
-                )
+                reason = activity_failure_reason(exc)
         except asyncio.CancelledError:
             terminal, reason = "failed", "cancelled"
             raise
         finally:
+            self.review_open = False
             stage["terminal"], stage["reason"] = terminal, reason
             await asyncio.shield(self.step("finalize", stage))
             self.state = terminal
@@ -164,6 +186,7 @@ class FileDocumentWorkflow:
             "reason": reason,
             "record_id": stage.get("chosen"),
             "suggested_record_id": stage.get("suggested_record_id"),
+            "suggestion_failure_reason": stage.get("suggestion_failure_reason"),
             "category": stage.get("category", "misc"),
             "score": stage.get("score", "0"),
             "tier": stage.get("tier", "none"),

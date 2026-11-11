@@ -51,6 +51,7 @@ class ScenarioActivities:
     @activity.defn(name="score")
     async def score(self, stage: dict) -> dict:
         self.calls.append("score")
+        stage["suggested_record_id"] = stage["chosen"]
         auto = stage["request"]["filename"] in {"happy", "duplicate"}
         stage.update(
             score=".95" if auto else ".3",

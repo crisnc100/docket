@@ -1,0 +1,44 @@
+{
+ "mode": "pr",
+ "purpose": "Docket PR4, 'Docs': a newcomer can understand what Docket does, how to run and operate it, how it was measured, and where it falls short. It also lands the small fixes filed from PR3: a failed suggestion never stops filing, the login page clears the reviewer token only on a 401, and the report states which documents its suggestion comparison covers.",
+ "mechanism": "1. docket/workflows.py: the optional 'choose' activity (the model's record suggestion) is wrapped so that BudgetExceeded, ParseError, other non-retryable errors and replay misses leave no suggestion, record suggestion_failure_reason on the stage and in the workflow result, and let scoring continue on the rules; a workflow cancel during choose is re-raised (is_cancelled_exception) so the document stops; workflow.patched('choose-suggestion-fallback-v1') keeps old histories replaying.\n2. docket/activities.py records the failure reason on the score event.\n3. docket/evaluation.py: rows with a failed suggestion are excluded from the suggestion-versus-rules comparison and counted separately; the report text states that documents not sent to review are excluded and how many failed suggestions were excluded.\n4. web/login.html clears the stored reviewer token only after a 401 from the review API or its assets.\n5. Docs: README (links to operations), docs/product-brief.md, docs/operations.md (headers, routes, settings, services, reviewer Bearer token and DOCKET_REVIEW_TOKEN, 503 when unset, 10 MiB request limit, filed key uses the first 16 hex characters of the SHA-256), ADRs 005-007 marked as retrospective records of measured results, docs/build-log.md, docs/failures/ (0002, 0009, 0075, 0176).",
+ "decisions": "The model only suggests records to reviewers and never decides tier or filing (rejected: letting the model's choice file documents, since in v0.1 it was right on 44 of 102 review documents versus 62 for the rules). A failed suggestion degrades to no suggestion instead of failing the document (rejected: failing the whole document for an optional step). ADRs 005-007 say they were written after the measurement (rejected: presenting them as advance predictions). Category accuracy 124/140 is the pipeline's, not the model's: all 16 misses are empty-shortlist documents that never reach the model.",
+ "readers": "README, docs/product-brief.md and docs/failures: users and hiring managers. docs/operations.md: people running or configuring Docket. docs/adr and docs/build-log.md: engineers judging the design. Code comments and docstrings: the next maintainer.",
+ "base": "origin/main",
+ "docMap": [
+  {
+   "behavior": "Failed or cancelled suggestion handling",
+   "docs": [
+    "docs/operations.md",
+    "docs/adr/005-candidates-and-suggestions.md",
+    "docs/failures/0002-missing-suggestion.md"
+   ]
+  },
+  {
+   "behavior": "Suggestion comparison excludes failed suggestions",
+   "docs": [
+    "README.md",
+    "docs/product-brief.md"
+   ]
+  },
+  {
+   "behavior": "Login clears the token only on 401",
+   "docs": [
+    "docs/operations.md"
+   ]
+  },
+  {
+   "behavior": "Request size limit and reviewer token",
+   "docs": [
+    "README.md",
+    "docs/operations.md"
+   ]
+  }
+ ],
+ "untouchable": [
+  "evals/**",
+  "corpus/**",
+  "tests/**",
+  "builds/**"
+ ]
+}

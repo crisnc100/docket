@@ -33,7 +33,7 @@ async def wait_review(handle):
         ("poison", "act", "rejected", "corrupt"),
         ("rejected", "act", "rejected", "encrypted"),
         ("failed", "act", "failed", "retries_exhausted"),
-        ("replay_miss", "act", "failed", "replay_miss"),
+        ("replay_miss", "act", "needs_review_expired", "review_timeout"),
     ],
 )
 async def test_workflow_terminals_and_bounded_retries(case, mode, status, reason):
@@ -64,6 +64,15 @@ async def test_workflow_terminals_and_bounded_retries(case, mode, status, reason
         assert "choose" not in activities.calls and "classify" not in activities.calls
     if case == "failed":
         assert activities.attempts == 5
+    if case == "happy":
+        assert result["suggested_record_id"] == "UNIT-0001"
+    if case == "replay_miss":
+        assert activities.calls.count("choose") == activities.calls.count("score") == 1
+        assert result["suggested_record_id"] is None
+        assert activities.finalized == [
+            ("needs_review", "uncertain"),
+            ("needs_review_expired", "review_timeout"),
+        ]
 
 
 @pytest.mark.parametrize(

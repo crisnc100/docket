@@ -249,6 +249,9 @@ async def model_outcomes(labels, folder: Path, settings: Settings, mode: str, bu
                 result = await client.get_workflow_handle(f"doc-{document_id}").result()
                 if not result["reason"]:
                     raise ValueError("Every eval outcome requires a reason")
+                suggestion = {"record_id": result.get("suggested_record_id")}
+                if result.get("suggestion_failure_reason"):
+                    suggestion["suggestion_failure_reason"] = result["suggestion_failure_reason"]
                 outcomes.append(
                     Outcome(
                         label.document_id,
@@ -258,7 +261,7 @@ async def model_outcomes(labels, folder: Path, settings: Settings, mode: str, bu
                         result["category"],
                         result["score"],
                         result["tier"],
-                        {"record_id": result.get("suggested_record_id")},
+                        suggestion,
                     )
                 )
     finally:
@@ -299,6 +302,7 @@ def compare_choices(outcomes: list[Outcome], baseline_results: list[Outcome]) ->
         filed_record_changes += record_changed
         review_proposal_changes += (
             new_decision == old_decision == "review"
+            and not (result.suggestion or {}).get("suggestion_failure_reason")
             and (result.suggestion or {"record_id": result.record_id})["record_id"]
             != legacy.record_id
         )
@@ -322,10 +326,14 @@ def compare_review_suggestions(
     rules: list[Outcome],
 ) -> dict:
     rows = []
+    excluded_suggestion_failures = 0
     for label, result, rule in zip(labels, outcomes, rules, strict=True):
         if label.document_id != result.document_id or result.document_id != rule.document_id:
             raise ValueError("Suggestion comparison requires the same document order")
         if result.status != "would_review":
+            continue
+        if (result.suggestion or {}).get("suggestion_failure_reason"):
+            excluded_suggestion_failures += 1
             continue
         rows.append(
             {
@@ -347,6 +355,11 @@ def compare_review_suggestions(
     rule_correct = sum(row["rules_correct"] for row in rows)
     return {
         "review_documents": total,
+        **(
+            {"excluded_suggestion_failures": excluded_suggestion_failures}
+            if excluded_suggestion_failures
+            else {}
+        ),
         "suggestion_correct": suggested,
         "rules_correct": rule_correct,
         "suggestion_accuracy": suggested / total if total else None,
@@ -674,7 +687,10 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
             f"Among {suggestions['review_documents']} documents sent to review, "
             f"the model suggested the correct record on {suggestions['suggestion_correct']}; "
             f"the rules' top candidate was correct on {suggestions['rules_correct']}.\n"
-            "An abstention is correct when gold names no record. Poison documents are excluded.\n"
+            "An abstention is correct when gold names no record. "
+            "Documents that did not go to review are excluded.\n"
+            "Suggestion failures excluded from this comparison: "
+            f"{suggestions.get('excluded_suggestion_failures', 0)}.\n"
             "Suggestions come from the existing recordings; "
             "they do not control automatic filing.\n\n"
             "```json\n"

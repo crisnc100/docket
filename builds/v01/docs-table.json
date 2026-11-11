@@ -1,40 +1,133 @@
-{"rows":[
-{"behavior":"Signed webhook for incoming email: HMAC over timestamp and raw body, 5-minute window, per-IP rate limit, 10 MiB limit while reading, NUL refused, repeat message adds nothing","files":["docket/webhook.py","docket/api.py","docket/ingress.py","docket/settings.py","compose.yaml",".env.example"],"docs":[{"path":"README.md","claims":[
- {"claim":"Sign HMAC-SHA256(secret, timestamp + \".\" + raw_body); digest prefixed with sha256=","at":"docket/webhook.py:77"},
- {"claim":"Timestamp must be whole seconds and within five minutes either way, else 401","at":"docket/webhook.py:70"},
- {"claim":"No secret set means every webhook request fails with 401","at":"docket/webhook.py:81"},
- {"claim":"Requests limited to 10 MiB, counted while the body is read","at":"docket/webhook.py:34"},
- {"claim":"Rate limit per directly connected IP, per API process, forwarded headers ignored","at":"docket/api.py:71"},
- {"claim":"Rate limit defaults to 60 per minute via DOCKET_WEBHOOK_RATE_LIMIT","at":"docket/settings.py:14"},
- {"claim":"Each attachment becomes one document","at":"docket/api.py:90"},
- {"claim":"Same message and attachment again records nothing new","at":"docket/ingress.py:108"},
- {"claim":"NUL in message_id, from or file name fails with 422","at":"docket/api.py:88"}]},
- {"path":"docket/ingress.py","claims":[{"claim":"The advisory lock serialises two deliveries of the same message","at":"docket/ingress.py:96"}]}]},
-{"behavior":"Reviewer token on every route except POST /inbound and GET /healthz; 503 when unset; CLI reads the token","files":["docket/review_access.py","docket/cli.py","web/login.html"],"docs":[{"path":"README.md","claims":[
- {"claim":"Every route except POST /inbound and GET /healthz needs Authorization: Bearer <token>","at":"docket/review_access.py:46"},
- {"claim":"With no token set those routes answer 503","at":"docket/review_access.py:53"},
- {"claim":"Token kept in sessionStorage; page scripts fetched with the header and loaded from blob URLs","at":"web/login.html:51"},
- {"claim":"compose forwards DOCKET_REVIEW_TOKEN to the API","at":"compose.yaml:73"},
- {"claim":"CLI submit and status read DOCKET_REVIEW_TOKEN and accept --api-url","at":"docket/cli.py:207"}]}]},
-{"behavior":"Review queue, page, PDF preview, approve/dismiss, model suggestion beside the rules' pick","files":["docket/api.py","docket/activities.py","docket/workflows.py","web/index.html","web/src/main.ts","web/src/style.css"],"docs":[{"path":"README.md","claims":[
- {"claim":"Queue lists waiting documents, oldest first","at":"docket/api.py:178"},
- {"claim":"PDF fetched with the header and shown from a blob URL","at":"web/src/main.ts:209"},
- {"claim":"Each candidate shown with score, tier and signals","at":"web/src/main.ts:171"},
- {"claim":"Rules' top candidate and model suggestion shown side by side, each approvable","at":"web/src/main.ts:157"},
- {"claim":"Pick another candidate or dismiss with a reason","at":"web/src/main.ts:187"},
- {"claim":"An approved id that is not a known record fails with 409","at":"docket/workflows.py:49"},
- {"claim":"GET /documents/{id}/file returns the PDF; GET /review lists the queue","at":"docket/api.py:147"},
- {"claim":"The model only suggests; the rules' top score decides tier and filing","at":"docket/activities.py:181"}]},
- {"path":"docs/adr/004-simulated-model-measurements.md","claims":[{"claim":"The model only suggests; the rules' top score decides tier and filing","at":"docket/activities.py:163"}]},
- {"path":"docket/activities.py","claims":[{"claim":"The model's pick is kept as the suggestion; the rules' top score decides","at":"docket/activities.py:167"}]}]},
-{"behavior":"Suggestion-versus-rules comparison in the eval report and its replay check","files":["docket/evaluation.py","scripts/reproduce_eval.py"],"docs":[{"path":"README.md","claims":[
- {"claim":"Only documents that went to review count","at":"docket/evaluation.py:328"},
- {"claim":"On seed 11 the suggestion was correct on 44 of 102 and the rules' top candidate on 62","at":"evals/reports/2026-11-11-seed-11.md:47"},
- {"claim":"The replay check covers the comparison","at":"scripts/reproduce_eval.py:45"}]},
- {"path":"docs/adr/004-simulated-model-measurements.md","claims":[{"claim":"44 (43.1%) versus 62 (60.8%) on 102 reviewed seed-11 documents","at":"evals/reports/2026-11-11-seed-11.md:47"}]}]},
-{"behavior":"verify.sh and CI build the page and run two Playwright tests in a separate browser image","files":["verify.sh",".github/workflows/verify.yml","Dockerfile","web/package.json","web/playwright.config.ts","web/tsconfig.json",".gitignore",".dockerignore"],"docs":[{"path":"README.md","claims":[
- {"claim":"verify.sh builds the review page and the test-profile images","at":"verify.sh:20"},
- {"claim":"Chromium runs in a separate test image, not the API or worker images","at":"Dockerfile:10"},
- {"claim":"web/ holds the review page and its Playwright tests","at":"web/package.json:9"}]}]},
-{"behavior":"Generated data","files":["evals/reports/2026-11-11-seed-11.json","evals/reports/2026-11-11-seed-11.md","web/package-lock.json"],"none":"generated, checked by verify.sh"}
-]}
+{
+ "rows": [
+  {
+   "behavior": "A failed record-choice (choose) call leaves no suggestion, records its reason, and scoring continues on the rules; a cancel during choose stops the document; the patch keeps old histories replaying",
+   "files": [
+    "docket/workflows.py",
+    "docket/activities.py"
+   ],
+   "docs": [
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "A failed record-choice call leaves no suggestion; its reason is saved in the score event and scoring continues",
+       "at": "docket/workflows.py:120"
+      },
+      {
+       "claim": "The failure reason is saved in the score event",
+       "at": "docket/activities.py:184"
+      },
+      {
+       "claim": "A failed category call still ends failed",
+       "at": "docket/workflows.py:117"
+      },
+      {
+       "claim": "ParseError in choose records no suggestion and the reason, then scores with rules",
+       "at": "docket/workflows.py:126"
+      }
+     ]
+    },
+    {
+     "path": "docs/adr/005-candidates-and-suggestions.md",
+     "claims": [
+      {
+       "claim": "A choose failure records no suggestion and its reason, then continues with the rules",
+       "at": "docket/workflows.py:125"
+      },
+      {
+       "claim": "Cancellation is propagated instead of falling through to scoring or filing",
+       "at": "docket/workflows.py:121"
+      }
+     ]
+    },
+    {
+     "path": "docs/product-brief.md",
+     "claims": [
+      {
+       "claim": "A failed suggestion leaves no suggestion and saves its failure reason in the trace",
+       "at": "docket/activities.py:197"
+      }
+     ]
+    },
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "A failed record suggestion does not block the rules; a category-call failure still fails the document",
+       "at": "docket/workflows.py:117"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Evaluation excludes failed suggestions from the suggestion-versus-rules comparison, counts them separately, and the report states the exclusions",
+   "files": [
+    "docket/evaluation.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "Only documents sent to review without a suggestion failure count in the comparison",
+       "at": "docket/evaluation.py:335"
+      },
+      {
+       "claim": "The saved run has zero suggestion failures; the report counts failures separately",
+       "at": "evals/reports/2026-11-11-seed-11.md:49"
+      }
+     ]
+    },
+    {
+     "path": "docs/product-brief.md",
+     "claims": [
+      {
+       "claim": "Failed suggestions are excluded from the comparison and counted separately",
+       "at": "docket/evaluation.py:336"
+      },
+      {
+       "claim": "The saved seed-11 run has zero suggestion failures",
+       "at": "evals/reports/2026-11-11-seed-11.md:49"
+      }
+     ]
+    },
+    {
+     "path": "docs/adr/005-candidates-and-suggestions.md",
+     "claims": [
+      {
+       "claim": "Documents that did not go to review and failed suggestions are excluded",
+       "at": "docket/evaluation.py:691"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "The login page clears the stored reviewer token only after a 401 from the review API or its assets",
+   "files": [
+    "web/login.html"
+   ],
+   "docs": [
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "A 401 clears its saved token; a server or network failure keeps it for retry",
+       "at": "web/login.html:66"
+      },
+      {
+       "claim": "The page fetches scripts and styles with the authorization header",
+       "at": "web/login.html:37"
+      },
+      {
+       "claim": "Nine browser tests check token retention after access and asset failures",
+       "at": "web/tests/login.spec.ts:3"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

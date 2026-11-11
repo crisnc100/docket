@@ -10,7 +10,7 @@ The project ships with 200 synthetic units in `config/records.csv`, so no real
 personal data is involved.
 
 The matching code runs in a durable Temporal workflow. Temporal saves progress so a
-worker can resume after a crash. The review UI and inbound webhook are not built yet.
+worker can resume after a crash.
 
 ## Try it
 
@@ -94,8 +94,8 @@ The workflow runs these steps:
 2. Shortlist candidate records, as above.
 3. Ask the model for a category, then ask it to choose one shortlisted record or
    `none`. An empty shortlist skips both calls and the category is `misc`.
-4. Score the choice. The model can only pick from the shortlist, and the score
-   alone decides whether the document files.
+4. Score every candidate and take the rules' highest score for the tier and filing
+   decision. The model's record choice is a suggestion for the reviewer.
 5. File the document, or wait for a person. `POST /review/{id}/approve` with a
    `record_id` files it; `POST /review/{id}/dismiss` with a `reason` closes it. An
    unanswered review expires after `DOCKET_REVIEW_TIMEOUT_SECONDS` (one hour by
@@ -107,6 +107,66 @@ Every document ends with one final status and a reason: `filed`, `dismissed`,
 uploads that never got one and marks abandoned documents `failed`.
 [ADR-002](docs/adr/002-review-workflow-patching.md) explains how to change the
 workflow while reviews are still waiting.
+
+## Inbound webhook
+
+`POST /inbound` takes email from a mail provider. Set `DOCKET_WEBHOOK_SECRET` to a
+secret shared with the sender. With no secret set, every webhook request fails
+with 401.
+
+Send JSON with `message_id`, `from`, and an `attachments` list; each attachment has
+`filename` and `content` (base64 bytes). Sign the exact body bytes:
+`HMAC-SHA256(secret, timestamp + "." + raw_body)`. Send the Unix timestamp, in
+whole seconds, in `X-Docket-Timestamp` and the hex digest prefixed with `sha256=` in
+`X-Docket-Signature`. A timestamp more than five minutes from the server's clock,
+in either direction, fails with 401. This stops an old request being sent again.
+
+Each attachment becomes one document. Requests are limited to 10 MiB, counted while
+the body is read, including JSON and base64 overhead. The webhook allows 60 requests
+per minute per directly connected IP, per API process (`DOCKET_WEBHOOK_RATE_LIMIT`);
+forwarded-IP headers are ignored. Sending the same message and attachment again
+returns the existing document id and records nothing new. The same file bytes
+from a different message also return the existing document. A NUL character in
+`message_id`, `from` or a file name fails with 422.
+
+## Review page
+
+When Docket is unsure of a match, the document waits for a person. The review page
+and the API behind it need a shared reviewer token:
+
+```sh
+export DOCKET_REVIEW_TOKEN=<a long random string>
+docker compose up -d
+```
+
+Every route except `POST /inbound` and `GET /healthz` needs the header
+`Authorization: Bearer <token>`. With no token set, those routes answer 503, so the
+API never runs open.
+
+Open `http://127.0.0.1:8010/` and enter the token. The page keeps it in
+`sessionStorage` for that browser tab only. The token never goes in a URL: the
+page's scripts and the PDF are fetched with the header and shown from blob URLs.
+
+The queue lists waiting documents, oldest first. For each document the page shows:
+
+- the PDF, its sender and the reason it went to review;
+- every candidate record with its score, tier and signals;
+- two picks side by side: the rules' top candidate and the model's suggestion.
+
+The reviewer approves either pick, picks another candidate, or dismisses the
+document with a reason. Approving files the document to that record. An id that is
+not a known record fails with 409. The model
+only suggests; the rules alone decide what files without a person. On seed 11 the
+model's suggestion was correct for 44 of 102 reviewed documents and the rules' top
+pick for 62 of 102, from simulated answers (see [Simulated evaluation](#simulated-evaluation)).
+
+The page uses plain API routes: `GET /review` lists the queue,
+`GET /documents/{id}/file` returns the PDF, and the approve and dismiss routes in
+[Workflow per document](#workflow-per-document) record the decision.
+
+The CLI reads the same token from `DOCKET_REVIEW_TOKEN`.
+`uv run docket submit <pdf>` uploads a PDF and prints its document id.
+`uv run docket status <id>` prints its trace. Both accept `--api-url`.
 
 ## Storage and the ledger
 
@@ -128,7 +188,8 @@ The workflow uses storage and the ledger for each document.
 
 `docket/llm/` calls a language model through OpenRouter. The model
 picks among the shortlisted records. Scoring refuses a pick that is not on the
-shortlist (`InvalidChoice`), and the score above still decides whether anything files.
+shortlist (`InvalidChoice`). Automatic filing uses the rules' top candidate;
+the model's record suggestion does not affect its score, tier or filing decision.
 
 - **Modes.** `live` calls the model. `record` calls it and saves the answer, and
   accepts only the synthetic corpus. `replay` returns saved answers with no network
@@ -183,7 +244,7 @@ rules-only baseline, which takes the highest-scored candidate without a model.
 Seed 7 picked the filing threshold (`scripts/tune_threshold.py`). Seed 11 is held
 out and picked nothing.
 
-The held-out result ([seed-11 report](evals/reports/2026-11-10-seed-11.md)):
+The held-out result ([seed-11 report](evals/reports/2026-11-11-seed-11.md)):
 
 - 0 wrong filings, and no filings to a record id injected into the text.
 - All 10 clean documents filed without a person.
@@ -194,6 +255,13 @@ The held-out result ([seed-11 report](evals/reports/2026-11-10-seed-11.md)):
   to the reviewer, on 79 documents that go to review either way.
 - Category accuracy is lower with the model: 124/140, against 132/140 for the
   baseline.
+
+Among the 102 seed-11 documents sent to review, the model's suggestion was correct
+on 44 (43.1%) and the rules' top candidate on 62 (60.8%). When the labels name no
+record, suggesting none counts as correct. Only documents that went to review count.
+The [JSON report](evals/reports/2026-11-11-seed-11.json) lists each one, with 95%
+Wilson intervals (the range the true rate likely falls in). These numbers replay the
+existing simulated answers; no new model answers were made.
 
 `verify.sh` fails unless the newest seed-11 report is a measured pass that replay
 reproduces exactly (`scripts/reproduce_eval.py`). `docket eval` checks each place
@@ -214,6 +282,7 @@ were used.
 
 ## Run the checks
 
+The checks need Node.js 22.12+ and Docker Compose as well as uv.
 The tests need Postgres, Temporal and S3 storage. `compose.yaml` runs Postgres, a
 Temporal dev server, SeaweedFS (S3-compatible storage), the API and the worker.
 Every port listens on 127.0.0.1 only.
@@ -231,8 +300,12 @@ docker compose up -d
 | S3       | `http://127.0.0.1:9000`                 |
 
 `verify.sh` runs ruff and pyright (strict on `docket/core`), checks the exchange
-archive, builds the Docker images and creates the database tables. Then it runs
-pytest. It fails if any test is skipped, or if branch coverage of a core module
+archive, builds the Vite review page and Docker images, and creates the database
+tables. Then it runs pytest. That includes two Playwright browser tests against
+their own API and worker containers in replay mode: one approves a suggested record
+end to end, and one checks that a script-like file name and sender show as plain
+text. Chromium runs in a separate test image, not in the API or worker images.
+`verify.sh` fails if any test is skipped, or if branch coverage of a core module
 falls below its floor in `scripts/check_coverage.py`. Last, it reproduces the
 held-out report and runs detect-secrets, which also scans the archive's contents.
 CI runs `./verify.sh` and `./verify.sh --fault`.
@@ -246,20 +319,23 @@ document is never filed twice and still reaches a final status.
 
 ## Layout
 
-| Path                   | What it holds                                         |
-| ---------------------- | ----------------------------------------------------- |
-| `docket/core/`         | Extraction, shortlist, scoring, storage and ledger    |
-| `docket/llm/`          | Model gateway, replay store, exchange archive, budget |
-| `docket/workflows.py`  | The per-document Temporal workflow                    |
-| `docket/activities.py` | The workflow's steps, run by `docket/worker.py`       |
-| `docket/api.py`        | Upload, status and review endpoints                   |
-| `docket/evaluation.py` | Evaluation runs and reports                           |
-| `docket/cli.py`        | The `docket` command                                  |
-| `config/`              | Records, categories and scoring weights               |
-| `migrations/`          | Alembic migrations for the Postgres tables            |
-| `corpus/`              | Committed synthetic documents and labels              |
-| `evals/`               | Reports, saved answers and the exchange archive       |
-| `docs/adr/`            | Decision records                                      |
+| Path                      | What it holds                                         |
+| ------------------------- | ----------------------------------------------------- |
+| `docket/core/`            | Extraction, shortlist, scoring, storage and ledger    |
+| `docket/llm/`             | Model gateway, replay store, exchange archive, budget |
+| `docket/workflows.py`     | The per-document Temporal workflow                    |
+| `docket/activities.py`    | The workflow's steps, run by `docket/worker.py`       |
+| `docket/api.py`           | Upload, webhook, status and review endpoints          |
+| `docket/webhook.py`       | Webhook signature check, size limit and rate limit    |
+| `docket/review_access.py` | Reviewer token check and the token entry page         |
+| `docket/evaluation.py`    | Evaluation runs and reports                           |
+| `docket/cli.py`           | The `docket` command                                  |
+| `web/`                    | The review page and its Playwright tests              |
+| `config/`                 | Records, categories and scoring weights               |
+| `migrations/`             | Alembic migrations for the Postgres tables            |
+| `corpus/`                 | Committed synthetic documents and labels              |
+| `evals/`                  | Reports, saved answers and the exchange archive       |
+| `docs/adr/`               | Decision records                                      |
 
 ## License
 

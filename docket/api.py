@@ -1,17 +1,47 @@
+import base64
+import binascii
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowUpdateFailedError
 from temporalio.service import RPCError
 
 from docket.core.ledger import TERMINAL_STATUSES
-from docket.db import Document, Event
+from docket.db import Document, DocumentSource, Event
 from docket.ingress import Ingress
+from docket.review_access import ReviewerAccess, reviewer_page
 from docket.runtime import Runtime
+from docket.webhook import BodyLimit, RateLimit, valid_signature
+
+
+def no_nul(value: str) -> str:
+    if "\x00" in value:
+        raise ValueError("NUL is not allowed in document metadata")
+    return value
+
+
+type MetadataText = Annotated[str, AfterValidator(no_nul)]
+
+
+class Attachment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    filename: MetadataText = Field(min_length=1, max_length=255)
+    content: str
+
+
+class Inbound(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    message_id: MetadataText = Field(min_length=1, max_length=1000)
+    sender: MetadataText = Field(alias="from", max_length=1000)
+    attachments: list[Attachment] = Field(min_length=1, max_length=100)
 
 
 def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -> FastAPI:
@@ -22,16 +52,52 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         app.state.temporal = temporal or await Client.connect(
             app.state.runtime.settings.temporal_address
         )
+        app.state.rate_limit = RateLimit(app.state.runtime.settings.docket_webhook_rate_limit)
         app.state.ingress = Ingress(app.state.runtime, app.state.temporal)
         yield
         if runtime is None:
             app.state.runtime.close()
 
     app = FastAPI(lifespan=lifespan)
+    app.add_middleware(BodyLimit)
+    app.add_middleware(ReviewerAccess, settings=lambda: app.state.runtime.settings)
 
     @app.get("/healthz")
     async def health():
         return {"status": "ok"}
+
+    @app.post("/inbound")
+    async def inbound(request: Request):
+        ip = request.client.host if request.client else "unknown"
+        if not app.state.rate_limit.allow(ip):
+            raise HTTPException(429, "Rate limit exceeded", headers={"Retry-After": "60"})
+        body = await request.body()
+        if not valid_signature(
+            app.state.runtime.settings.docket_webhook_secret.get_secret_value(),
+            request.headers.get("x-docket-timestamp", ""),
+            request.headers.get("x-docket-signature", ""),
+            body,
+        ):
+            raise HTTPException(401, "Invalid or stale webhook signature")
+        try:
+            payload = Inbound.model_validate_json(body)
+            attachments = [
+                base64.b64decode(item.content, validate=True) for item in payload.attachments
+            ]
+        except (ValueError, binascii.Error) as exc:
+            raise HTTPException(422, "Invalid webhook payload or base64 attachment") from exc
+        ids = []
+        for attachment, content in zip(payload.attachments, attachments, strict=True):
+            ids.append(
+                await app.state.ingress.submit(
+                    content,
+                    attachment.filename,
+                    message_id=payload.message_id,
+                    sender=payload.sender,
+                    source="webhook",
+                )
+            )
+        return {"document_ids": ids}
 
     @app.post("/documents")
     async def documents(
@@ -45,6 +111,8 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         if len(content) > 10 * 1024 * 1024:
             raise HTTPException(413, "Attachment exceeds 10 MB")
         try:
+            for value in (message_id, sender, file.filename or ""):
+                no_nul(value)
             document_id = await app.state.ingress.submit(
                 content,
                 file.filename or "attachment.pdf",
@@ -58,7 +126,7 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         return {"document_id": document_id}
 
     @app.get("/documents/{document_id}")
-    async def document_status(document_id: uuid.UUID):
+    def document_status(document_id: uuid.UUID):
         with Session(app.state.runtime.engine) as session:
             document = session.get(Document, document_id)
             if document is None:
@@ -72,9 +140,76 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
                 "reason": document.status_reason,
                 "record_id": document.record_id,
                 "category": document.category,
-                "score": str(document.score),
+                "score": str(document.score) if document.score is not None else None,
                 "events": [{"step": event.step, "detail": event.detail} for event in events],
             }
+
+    @app.get("/documents/{document_id}/file")
+    def document_file(document_id: uuid.UUID):
+        with Session(app.state.runtime.engine) as session:
+            document = session.get(Document, document_id)
+            if document is None:
+                raise HTTPException(404, "Unknown document")
+            if document.status == "rejected":
+                raise HTTPException(415, "Rejected documents cannot be previewed")
+            content_hash = document.content_hash
+        content = app.state.runtime.read(f"raw/{content_hash}")
+        if not content.startswith(b"%PDF-"):
+            raise HTTPException(415, "Document is not a PDF")
+        return Response(
+            content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": "inline",
+                "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'self'",
+            },
+        )
+
+    @app.get("/review")
+    def review_queue():
+        with Session(app.state.runtime.engine) as session:
+            documents = session.scalars(
+                select(Document)
+                .where(
+                    Document.status == "needs_review",
+                    Document.mode == "act",
+                )
+                .order_by(Document.created_at, Document.id)
+            ).all()
+            items = []
+            for document in documents:
+                events = {
+                    event.step: event.detail
+                    for event in session.scalars(
+                        select(Event).where(Event.document_id == document.id).order_by(Event.id)
+                    )
+                }
+                source = session.scalar(
+                    select(DocumentSource)
+                    .where(DocumentSource.document_id == document.id)
+                    .order_by(DocumentSource.id)
+                )
+                scored = events.get("score", {})
+                items.append(
+                    {
+                        "document_id": str(document.id),
+                        "filename": events.get("received", {})
+                        .get("workflow_input", {})
+                        .get("filename", ""),
+                        "sender": source.sender if source else "",
+                        "created_at": document.created_at.isoformat(),
+                        "reason": document.status_reason,
+                        "score": str(document.score) if document.score is not None else None,
+                        "tier": scored.get("tier"),
+                        "candidates": scored.get("candidates", []),
+                        "rules_top_record_id": scored.get("rules_top_record_id"),
+                        "suggested_record_id": scored.get(
+                            "suggested_record_id", events.get("choose", {}).get("record_id")
+                        ),
+                    }
+                )
+            return {"items": items}
 
     @app.post("/review/{document_id}/{action}")
     async def review(document_id: uuid.UUID, action: str, body: dict[str, str]):
@@ -95,6 +230,13 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         except (WorkflowUpdateFailedError, RPCError) as exc:
             raise HTTPException(409, "Duplicate, late or invalid review action") from exc
         return {"accepted": True}
+
+    static = Path(__file__).resolve().parent.parent / "web" / "dist"
+    app.mount("/assets", StaticFiles(directory=static / "assets", check_dir=False), name="assets")
+
+    @app.get("/", include_in_schema=False)
+    def review_page():
+        return reviewer_page()
 
     return app
 

@@ -151,17 +151,30 @@ class Activities:
                 )
                 for item in stage["candidates"]
             )
-            result = score_choice(
-                CandidateResult(
-                    candidates,
-                    stage["conflict"],
-                    tuple(stage["explicit_ids"]),
-                    tuple(stage["conflict_record_ids"]),
-                    stage.get("over_budget", False),
-                ),
-                stage["chosen"],
-                load_scoring_config(),
+            shortlist = CandidateResult(
+                candidates,
+                stage["conflict"],
+                tuple(stage["explicit_ids"]),
+                tuple(stage["conflict_record_ids"]),
+                stage.get("over_budget", False),
             )
+            config = load_scoring_config()
+            scored = [score_choice(shortlist, item.record_id, config) for item in candidates]
+            scored.sort(key=lambda item: item.score, reverse=True)
+            result = scored[0] if scored else score_choice(shortlist, None, config)
+            # The model's pick is kept only as a suggestion for the reviewer. The rules' top
+            # score decides the tier and whether the document files.
+            stage["suggested_record_id"] = stage["chosen"]
+            stage["chosen"] = result.record_id
+            candidate_scores = [
+                {
+                    "record_id": item.record_id,
+                    "score": str(item.score),
+                    "tier": item.tier.value,
+                    "signals": next(c.signals for c in candidates if c.record_id == item.record_id),
+                }
+                for item in scored
+            ]
             stage.update(
                 score=str(result.score),
                 tier=result.tier.value,
@@ -172,7 +185,12 @@ class Activities:
                 self.event,
                 stage,
                 "score",
-                {key: stage[key] for key in ["score", "tier", "decision", "reason"]},
+                {
+                    **{key: stage[key] for key in ["score", "tier", "decision", "reason"]},
+                    "rules_top_record_id": result.record_id,
+                    "suggested_record_id": stage["suggested_record_id"],
+                    "candidates": candidate_scores,
+                },
             )
             return stage
 
@@ -269,7 +287,7 @@ class Activities:
                             stage.get("chosen"),
                             stage.get("category"),
                         )
-                        document.score = Decimal(stage.get("score", "0"))
+                        document.score = Decimal(stage["score"]) if "score" in stage else None
                         transition(session, document.id, stage["terminal"], stage["reason"])
                 return stage
 

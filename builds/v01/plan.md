@@ -184,3 +184,27 @@ Every document ends in a terminal status with a reason. Fault-injection tests sh
   - **"Live" eval runs:** become simulated runs, and every simulated report is labelled at the top: "Model responses simulated by <claude model>, standing in for <target>; not an OpenRouter measurement."
   - **Budget caps and live mode:** stay in the code for when a key is added.
 - **Floors** apply to the simulated run, and are re-measured on a real model when a key is added.
+
+## P4/P5 rev 2 (replaces P4 and P5) — 2026-11-11
+Decided by Cristian, 2026-11-11: **the model's job is to suggest a record to the human reviewer.** It stays out of auto-filing. In v0.1 its choice changed no filing decision, and its category accuracy was lower than the rules (124/140 against 132/140 on seed 11).
+
+### Two PRs
+- **PR3 — Review (P4):** the API, the webhook, the review page with the model's suggestion, and the CLI. The webhook and upload are internet-facing, so they are reviewed with the code that uses them.
+- **PR4 — Docs (P5):** the docs, unchanged from P5 above.
+
+### P4 — API, CLI, review page (PR3)
+1. **API** (existing routes kept):
+   - `POST /inbound`: JSON with base64 attachments, `message_id` and `from`. An HMAC-SHA256 signature header over the raw body with a shared secret, and a timestamp within 5 minutes to stop replays. Per-IP rate limit; 10 MB limit enforced while reading. One document per attachment; the same `message_id` and attachment is a no-op.
+   - `GET /documents/{id}/file`: a proxied preview with `Content-Type: application/pdf` and `Content-Disposition: inline`, so no presigned URLs.
+   - `GET /review`: the queue, oldest first, each item with its candidates, scores, signals, reason and the model's suggestion.
+   - `GET /documents/{id}` keeps the trace; `score` is JSON null until scored.
+2. **The model's suggestion** on each review item: the record the model chose, shown as "Suggested", next to the rules' top candidate. A reviewer approves either with one click or picks another candidate. The model's suggestion never changes the tier or the filing decision.
+3. **Measured, not claimed:** on seed 11, over the documents that ended in review, report how often the model's suggestion is the correct record against how often the rules' top candidate is. Both come from the existing recordings, so no new simulation run is needed. The result goes in the eval report and the README, whichever way it falls.
+4. **Review page** (Vite + TypeScript, served by FastAPI): the queue, a document view with the PDF preview, the candidates and the suggestion, approve, pick another, dismiss. Every user-supplied string (file names, sender, extracted text) is inserted as text, never HTML.
+5. **CLI:** `docket submit <pdf>`, `docket worker`, `docket status <id>`, `docket reconcile`.
+
+### Acceptance (replaces D12–D13; D8 stands)
+- **D12** Webhook: unsigned, a wrong signature, or a stale timestamp → 401; oversize → 413 before the whole body is read; rate limit → 429; a repeated `message_id` makes no new document (tests).
+- **D13** One Playwright smoke test on compose in replay mode: open the queue, view a document, approve the suggested record, see it filed.
+- **D16** The suggestion is shown, never changes tier or filing (test), and the seed-11 suggestion-versus-rules comparison is in the report and reproduces.
+- **D17** The XSS test passes: a `<script>` file name and sender render as text.

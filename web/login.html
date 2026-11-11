@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Docket · Reviewer access</title>
+  <style nonce="__NONCE__">
+    body { margin: 0; font: 16px/1.5 system-ui, sans-serif; background: #f5f6f3; color: #21332e; }
+    form { max-width: 24rem; margin: 12vh auto; padding: 2rem; background: white; border: 1px solid #d7dfd9; border-radius: .5rem; }
+    label, input { display: block; }
+    input { box-sizing: border-box; width: 100%; margin: .5rem 0 1rem; padding: .5rem; font: inherit; }
+    button { padding: .5rem 1rem; font: inherit; cursor: pointer; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <form>
+    <h1>Docket</h1>
+    <label for="review-token">Reviewer token</label>
+    <input id="review-token" type="password" autocomplete="off" required autofocus>
+    <button type="submit">Unlock review</button>
+    <p role="status"></p>
+  </form>
+</div>
+<script nonce="__NONCE__">
+(() => {
+  const assets = __ASSETS__;
+  const key = 'docket-review-token';
+  const form = document.querySelector('form');
+  const input = document.querySelector('input');
+  const message = document.querySelector('[role="status"]');
+  const button = document.querySelector('button');
+  const urls = [];
+  async function unlock(token) {
+    button.disabled = true;
+    message.textContent = 'Checking access…';
+    const headers = { Authorization: 'Bearer ' + token };
+    try {
+      const response = await fetch('/review', { headers, cache: 'no-store' });
+      if (!response.ok) throw new Error(response.status === 401 ? 'Invalid reviewer token.' : await response.text());
+      const styles = await Promise.all(assets.styles.map(async path => {
+        const response = await fetch(path, { headers, cache: 'no-store' });
+        if (!response.ok) throw new Error('Unable to load the review page.');
+        return URL.createObjectURL(await response.blob());
+      }));
+      const scripts = await Promise.all(assets.scripts.map(async path => {
+        const response = await fetch(path, { headers, cache: 'no-store' });
+        if (!response.ok) throw new Error('Unable to load the review page.');
+        return URL.createObjectURL(await response.blob());
+      }));
+      sessionStorage.setItem(key, token);
+      input.value = '';
+      document.querySelector('#app').replaceChildren();
+      styles.forEach(url => {
+        urls.push(url);
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = url;
+        document.head.append(link);
+      });
+      for (const url of scripts) {
+        urls.push(url);
+        await import(url);
+      }
+    } catch (error) {
+      sessionStorage.removeItem(key);
+      message.textContent = error instanceof Error ? error.message : 'Unable to unlock review.';
+    } finally {
+      button.disabled = false;
+    }
+  }
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    void unlock(input.value);
+  });
+  window.addEventListener('pagehide', () => urls.forEach(url => URL.revokeObjectURL(url)));
+  const saved = sessionStorage.getItem(key);
+  if (saved) void unlock(saved);
+})();
+</script>
+</body>
+</html>

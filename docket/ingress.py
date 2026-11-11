@@ -4,7 +4,7 @@ import uuid
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowExecutionStatus
@@ -86,11 +86,34 @@ class Ingress:
                     )
                 )
                 assert document is not None
-                session.add(
-                    DocumentSource(
-                        document_id=document.id, source=source, message_id=message_id, sender=sender
+                # Two deliveries of the same message can arrive at once. The lock makes the
+                # second one wait, see the first source row and add none.
+                if source == "webhook":
+                    lock = int.from_bytes(
+                        hashlib.sha256(f"{document.id}:{message_id}".encode()).digest()[:8],
+                        signed=True,
                     )
+                    session.execute(select(func.pg_advisory_xact_lock(lock)))
+                seen = (
+                    source == "webhook"
+                    and session.scalar(
+                        select(DocumentSource.id).where(
+                            DocumentSource.document_id == document.id,
+                            DocumentSource.source == source,
+                            DocumentSource.message_id == message_id,
+                        )
+                    )
+                    is not None
                 )
+                if not seen:
+                    session.add(
+                        DocumentSource(
+                            document_id=document.id,
+                            source=source,
+                            message_id=message_id,
+                            sender=sender,
+                        )
+                    )
                 if created:
                     request = DocumentInput(
                         str(document.id),

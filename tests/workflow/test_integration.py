@@ -59,7 +59,12 @@ async def test_real_core_workflow_http_dedup_and_filing(runtime, monkeypatch):
             app = create_app(runtime, env.client)
             async with app.router.lifespan_context(app):
                 async with httpx.AsyncClient(
-                    transport=httpx.ASGITransport(app), base_url="http://test"
+                    transport=httpx.ASGITransport(app),
+                    base_url="http://test",
+                    headers={
+                        "Authorization": "Bearer "
+                        + runtime.settings.docket_review_token.get_secret_value()
+                    },
                 ) as http:
 
                     async def submit(message):
@@ -162,7 +167,12 @@ async def test_http_review_approve_unknown_duplicate_and_late_are_409(runtime, m
             app = create_app(runtime, env.client)
             async with app.router.lifespan_context(app):
                 async with httpx.AsyncClient(
-                    transport=httpx.ASGITransport(app), base_url="http://test"
+                    transport=httpx.ASGITransport(app),
+                    base_url="http://test",
+                    headers={
+                        "Authorization": "Bearer "
+                        + runtime.settings.docket_review_token.get_secret_value()
+                    },
                 ) as http:
                     result = await http.post(
                         "/documents", files={"file": ("single.pdf", pdf(["UNIT-0001"]))}
@@ -265,7 +275,12 @@ async def test_http_concurrent_double_approve_and_reconcile_leaves_running_workf
             app = create_app(runtime, env.client)
             async with app.router.lifespan_context(app):
                 async with httpx.AsyncClient(
-                    transport=httpx.ASGITransport(app), base_url="http://test"
+                    transport=httpx.ASGITransport(app),
+                    base_url="http://test",
+                    headers={
+                        "Authorization": "Bearer "
+                        + runtime.settings.docket_review_token.get_secret_value()
+                    },
                 ) as http:
                     response = await http.post(
                         "/documents", files={"file": ("single.pdf", pdf(["UNIT-0001"]))}
@@ -304,7 +319,12 @@ async def test_http_approve_after_expiry_is_409(runtime):
             app = create_app(runtime, env.client)
             async with app.router.lifespan_context(app):
                 async with httpx.AsyncClient(
-                    transport=httpx.ASGITransport(app), base_url="http://test"
+                    transport=httpx.ASGITransport(app),
+                    base_url="http://test",
+                    headers={
+                        "Authorization": "Bearer "
+                        + runtime.settings.docket_review_token.get_secret_value()
+                    },
                 ) as http:
                     response = await http.post(
                         "/documents", files={"file": ("empty.pdf", pdf([], empty=True))}

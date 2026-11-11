@@ -1,6 +1,7 @@
 import uuid
 
 import pytest
+from pydantic import SecretStr
 
 from docket.runtime import Runtime
 from docket.settings import Settings
@@ -23,7 +24,12 @@ class ScriptedModel:
 
 @pytest.fixture()
 def runtime(postgres_engine):
-    instance = Runtime(Settings(s3_bucket="workflow-test-" + uuid.uuid4().hex))
+    instance = Runtime(
+        Settings(
+            s3_bucket="workflow-test-" + uuid.uuid4().hex,
+            docket_review_token=SecretStr(uuid.uuid4().hex),
+        )
+    )
     instance.engine.dispose()
     instance.engine = postgres_engine
     instance.ensure_bucket()

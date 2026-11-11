@@ -191,3 +191,59 @@ def shadow_diff_command(report: str | None = None) -> None:
             shadow["simulation"] = data["simulation"]
     output.write_text(json.dumps(shadow, indent=2, sort_keys=True) + "\n")
     typer.echo(f"{data['shadow']['status']}: {output}")
+
+
+def reviewer_headers() -> dict[str, str]:
+    import os
+
+    token = os.environ.get("DOCKET_REVIEW_TOKEN", "")
+    if not token or token.isspace():
+        typer.echo("Set DOCKET_REVIEW_TOKEN to use the reviewer API.", err=True)
+        raise typer.Exit(1)
+    return {"Authorization": "Bearer " + token}
+
+
+@app.command()
+def submit(pdf: str = typer.Argument(...), api_url: str = "http://127.0.0.1:8010") -> None:
+    """Upload a PDF and print its document id."""
+    import json
+    from pathlib import Path
+
+    import httpx
+
+    headers = reviewer_headers()
+    path = Path(pdf)
+    try:
+        with path.open("rb") as stream:
+            response = httpx.post(
+                api_url.rstrip("/") + "/documents",
+                files={"file": (path.name, stream, "application/pdf")},
+                headers=headers,
+                timeout=60,
+            )
+        response.raise_for_status()
+    except (OSError, httpx.HTTPError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(response.json()))
+
+
+@app.command()
+def status(document_id: str = typer.Argument(...), api_url: str = "http://127.0.0.1:8010") -> None:
+    """Print a document's status and trace."""
+    import json
+    import uuid
+
+    import httpx
+
+    headers = reviewer_headers()
+    try:
+        document_id = str(uuid.UUID(document_id))
+        response = httpx.get(
+            api_url.rstrip("/") + "/documents/" + document_id, headers=headers, timeout=30
+        )
+        response.raise_for_status()
+    except (ValueError, httpx.HTTPError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(response.json(), indent=2))

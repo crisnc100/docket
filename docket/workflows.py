@@ -163,6 +163,7 @@ class FileDocumentWorkflow:
             "status": terminal,
             "reason": reason,
             "record_id": stage.get("chosen"),
+            "suggested_record_id": stage.get("suggested_record_id"),
             "category": stage.get("category", "misc"),
             "score": stage.get("score", "0"),
             "tier": stage.get("tier", "none"),

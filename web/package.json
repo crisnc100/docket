@@ -1,0 +1,15 @@
+{
+  "name": "docket-review",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.8"
+  }
+}

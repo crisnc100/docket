@@ -19,19 +19,32 @@ def test_suggestion_report_states_the_actual_population(tmp_path):
     assert "Among 102 documents sent to review" in text
 
 
-async def test_browser_failure_precedes_artifact_copy(monkeypatch):
+@pytest.mark.parametrize(
+    "returncode,copy_fails,expected",
+    [
+        (1, True, "Playwright failedbrowser assertionartifact directory missing"),
+        (1, False, "Playwright failedbrowser assertion"),
+        (0, True, "artifact directory missing"),
+        (0, False, None),
+    ],
+)
+async def test_browser_failure_preserves_artifacts_and_primary_error(
+    monkeypatch, returncode, copy_fails, expected
+):
     commands = []
 
     def docker(*args):
         commands.append(args)
         if args[0] == "inspect":
             return json.dumps([{"NetworkSettings": {"Ports": {"8000/tcp": [{"HostPort": "1"}]}}}])
-        if args[0] == "cp":
+        if args[0] == "cp" and copy_fails:
             raise AssertionError("artifact directory missing")
         return "container"
 
     async def browser_run(*args, **kwargs):
-        return subprocess.CompletedProcess([], 1, "Playwright failed", "browser assertion")
+        return subprocess.CompletedProcess(
+            [], returncode, "Playwright failed" if returncode else "11 passed", "browser assertion"
+        )
 
     class HealthyClient:
         def __init__(self, **kwargs):
@@ -56,7 +69,10 @@ async def test_browser_failure_precedes_artifact_copy(monkeypatch):
     monkeypatch.setattr(browser_test.asyncio, "to_thread", browser_run)
     monkeypatch.setattr(browser_test.httpx, "AsyncClient", HealthyClient)
     monkeypatch.setattr(browser_test.shutil, "rmtree", lambda *args, **kwargs: None)
-    with pytest.raises(AssertionError, match="Playwright failedbrowser assertion"):
+    if expected:
+        with pytest.raises(AssertionError, match=expected):
+            await browser_test.test_playwright_compose_replay_review_and_xss(runtime)
+    else:
         await browser_test.test_playwright_compose_replay_review_and_xss(runtime)
-    assert not any(args[0] == "cp" for args in commands)
+    assert sum(args[0] == "cp" for args in commands) == 1
     assert sum(args[:2] == ("rm", "-f") for args in commands) == 3

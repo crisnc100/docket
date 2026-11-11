@@ -76,9 +76,9 @@ async def test_playwright_compose_replay_review_and_xss(runtime):
             text=True,
             timeout=270,
         )
-        docker("cp", browser + ":/web/test-results", "web/")
         assert result.returncode == 0, result.stdout + result.stderr
-        assert "2 passed" in result.stdout and "skipped" not in result.stdout, result.stdout
+        docker("cp", browser + ":/web/test-results", "web/")
+        assert "11 passed" in result.stdout and "skipped" not in result.stdout, result.stdout
         print(result.stdout)
     finally:
         for name in names:

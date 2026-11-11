@@ -22,6 +22,12 @@ class NonRetryableActivities(ScenarioActivities):
             "test non-retryable failure", type=self.error_type, non_retryable=True
         )
 
+    @activity.defn(name="score")
+    async def score(self, stage: dict) -> dict:
+        assert stage["chosen"] is None
+        self.suggestion_failure_reason = stage["suggestion_failure_reason"]
+        return await super().score(stage)
+
 
 @pytest.mark.parametrize(
     "error_type,reason",
@@ -31,7 +37,7 @@ class NonRetryableActivities(ScenarioActivities):
         ("OtherNonRetryable", "non_retryable_error"),
     ],
 )
-async def test_non_retryable_errors_finalize_once_without_exhaustion_reason(error_type, reason):
+async def test_choose_errors_score_and_finalize_once_without_exhaustion_reason(error_type, reason):
     activities = NonRetryableActivities(error_type)
     async with await WorkflowEnvironment.start_time_skipping() as env:
         async with Worker(
@@ -46,6 +52,8 @@ async def test_non_retryable_errors_finalize_once_without_exhaustion_reason(erro
                 id="nonretryable-" + uuid.uuid4().hex,
                 task_queue="error-test",
             )
-    assert result["status"] == "failed" and result["reason"] == reason
+    assert result["status"] == "filed" and result["reason"] == "threshold_met"
     assert activities.calls.count("choose") == 1
-    assert "file" not in activities.calls and activities.finalized == [("failed", reason)]
+    assert activities.calls.count("score") == activities.calls.count("file") == 1
+    assert activities.finalized == [("filed", "threshold_met")]
+    assert activities.suggestion_failure_reason == reason

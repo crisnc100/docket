@@ -138,8 +138,12 @@ class FileDocumentWorkflow:
                     terminal, reason = "would_review", stage["reason"]
                 else:
                     stage["terminal"], stage["reason"] = "needs_review", stage["reason"]
+                    open_before_publish = workflow.patched("review-open-before-publish-v1")
+                    if open_before_publish:
+                        self.state, self.review_open = "needs_review", True
                     await self.step("finalize", stage)
-                    self.state, self.review_open = "needs_review", True
+                    if not open_before_publish:
+                        self.state, self.review_open = "needs_review", True
                     try:
                         await workflow.wait_condition(
                             lambda: self.action is not None,
@@ -172,6 +176,7 @@ class FileDocumentWorkflow:
             terminal, reason = "failed", "cancelled"
             raise
         finally:
+            self.review_open = False
             stage["terminal"], stage["reason"] = terminal, reason
             await asyncio.shield(self.step("finalize", stage))
             self.state = terminal

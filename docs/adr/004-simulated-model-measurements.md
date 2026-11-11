@@ -39,6 +39,11 @@ filings, at least 90% of clean documents filed, no filing to an injected id, and
 recall at least equal to the baseline. On seed 11 the model's choose step changes no
 filing decision. The reports hold the curves, intervals and category accuracy.
 
+The model only suggests a record to the reviewer. The rules' top score decides the
+tier and whether a document files, and the review page shows both picks. On the 102
+seed-11 documents sent to review, the model's suggestion was correct on 44 (43.1%)
+and the rules' top candidate on 62 (60.8%).
+
 Replay uses saved answers and makes no model calls. The replay check compares the
 metrics, each document's result and the model provenance with the saved report.
 

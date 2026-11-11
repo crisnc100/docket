@@ -86,6 +86,8 @@ class Ingress:
                     )
                 )
                 assert document is not None
+                # Two deliveries of the same message can arrive at once. The lock makes the
+                # second one wait, see the first source row and add none.
                 if source == "webhook":
                     lock = int.from_bytes(
                         hashlib.sha256(f"{document.id}:{message_id}".encode()).digest()[:8],

@@ -162,6 +162,8 @@ class Activities:
             scored = [score_choice(shortlist, item.record_id, config) for item in candidates]
             scored.sort(key=lambda item: item.score, reverse=True)
             result = scored[0] if scored else score_choice(shortlist, None, config)
+            # The model's pick is kept only as a suggestion for the reviewer. The rules' top
+            # score decides the tier and whether the document files.
             stage["suggested_record_id"] = stage["chosen"]
             stage["chosen"] = result.record_id
             candidate_scores = [

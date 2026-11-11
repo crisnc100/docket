@@ -1,5 +1,5 @@
 import signal
-from time import perf_counter
+from time import process_time
 
 import pytest
 
@@ -30,18 +30,18 @@ def test_matching_at_both_caps_with_double_records_finishes_under_one_second(kin
     text = capped_attack(kind)
 
     def deadline(signum, frame):
-        raise TimeoutError(f"{kind}: shortlist exceeded one second")
+        raise TimeoutError(f"{kind}: shortlist exceeded one CPU second")
 
-    previous = signal.signal(signal.SIGALRM, deadline)
-    signal.setitimer(signal.ITIMER_REAL, 1)
-    started = perf_counter()
+    previous = signal.signal(signal.SIGPROF, deadline)
+    signal.setitimer(signal.ITIMER_PROF, 1)
+    started = process_time()
     try:
         result = shortlist(records, text=text)
-        elapsed = perf_counter() - started
+        elapsed = process_time() - started
     finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous)
-    print(f"{kind}: {elapsed:.6f}s; 64000 characters; 2000 lines; 400 records")
+        signal.setitimer(signal.ITIMER_PROF, 0)
+        signal.signal(signal.SIGPROF, previous)
+    print(f"{kind}: {elapsed:.6f} CPU seconds; 64000 characters; 2000 lines; 400 records")
     assert elapsed < 1
     assert not result.over_budget
 

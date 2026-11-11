@@ -1,36 +1,133 @@
-{"rows":[
-{"behavior":"A failed record-choice (choose) call leaves no suggestion, records its reason, and scoring continues on the rules; a cancel during choose stops the document; the patch keeps old histories replaying","files":["docket/workflows.py","docket/activities.py"],"docs":[
- {"path":"docs/operations.md","claims":[
-  {"claim":"A failed record-choice call leaves no suggestion; its reason is saved in the score event and scoring continues","at":"docket/workflows.py:120"},
-  {"claim":"The failure reason is saved in the score event","at":"docket/activities.py:184"},
-  {"claim":"A failed category call still ends failed","at":"docket/workflows.py:117"},
-  {"claim":"ParseError in choose records no suggestion and the reason, then scores with rules","at":"docket/workflows.py:126"}]},
- {"path":"docs/adr/005-candidates-and-suggestions.md","claims":[
-  {"claim":"A choose failure records no suggestion and its reason, then continues with the rules","at":"docket/workflows.py:125"},
-  {"claim":"Cancellation is propagated instead of falling through to scoring or filing","at":"docket/workflows.py:121"}]},
- {"path":"docs/product-brief.md","claims":[
-  {"claim":"A failed suggestion leaves no suggestion and saves its failure reason in the trace","at":"docket/activities.py:197"}]},
- {"path":"README.md","claims":[
-  {"claim":"A failed record suggestion does not block the rules; a category-call failure still fails the document","at":"docket/workflows.py:117"}]}]},
-{"behavior":"Evaluation excludes failed suggestions from the suggestion-versus-rules comparison, counts them separately, and the report states the exclusions","files":["docket/evaluation.py"],"docs":[
- {"path":"README.md","claims":[
-  {"claim":"Only documents sent to review without a suggestion failure count in the comparison","at":"docket/evaluation.py:335"},
-  {"claim":"The saved run has zero suggestion failures; the report counts failures separately","at":"evals/reports/2026-11-11-seed-11.md:49"}]},
- {"path":"docs/product-brief.md","claims":[
-  {"claim":"Failed suggestions are excluded from the comparison and counted separately","at":"docket/evaluation.py:336"},
-  {"claim":"The saved seed-11 run has zero suggestion failures","at":"evals/reports/2026-11-11-seed-11.md:49"}]},
- {"path":"docs/adr/005-candidates-and-suggestions.md","claims":[
-  {"claim":"Documents that did not go to review and failed suggestions are excluded","at":"docket/evaluation.py:691"}]}]},
-{"behavior":"The login page clears the stored reviewer token only after a 401 from the review API or its assets","files":["web/login.html"],"docs":[
- {"path":"docs/operations.md","claims":[
-  {"claim":"A 401 clears its saved token; a server or network failure keeps it for retry","at":"web/login.html:66"},
-  {"claim":"The page fetches scripts and styles with the authorization header","at":"web/login.html:37"},
-  {"claim":"Nine browser tests check token retention after access and asset failures","at":"web/tests/login.spec.ts:3"}]}]},
-{"behavior":"Request size limit and reviewer token (documented, unchanged code)","files":[],"docs":[
- {"path":"docs/operations.md","claims":[
-  {"claim":"Uploads and webhook requests have a 10 MiB limit","at":"docket/webhook.py:9"},
-  {"claim":"An unset, empty or whitespace-only token makes protected routes return 503","at":"docket/review_access.py:53"},
-  {"claim":"The filed key uses the first 16 hex characters of the SHA-256","at":"docket/core/storage.py:34"}]},
- {"path":"README.md","claims":[
-  {"claim":"10 MiB request limit","at":"docket/api.py:111"}]}]}
-]}
+{
+ "rows": [
+  {
+   "behavior": "A failed record-choice (choose) call leaves no suggestion, records its reason, and scoring continues on the rules; a cancel during choose stops the document; the patch keeps old histories replaying",
+   "files": [
+    "docket/workflows.py",
+    "docket/activities.py"
+   ],
+   "docs": [
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "A failed record-choice call leaves no suggestion; its reason is saved in the score event and scoring continues",
+       "at": "docket/workflows.py:120"
+      },
+      {
+       "claim": "The failure reason is saved in the score event",
+       "at": "docket/activities.py:184"
+      },
+      {
+       "claim": "A failed category call still ends failed",
+       "at": "docket/workflows.py:117"
+      },
+      {
+       "claim": "ParseError in choose records no suggestion and the reason, then scores with rules",
+       "at": "docket/workflows.py:126"
+      }
+     ]
+    },
+    {
+     "path": "docs/adr/005-candidates-and-suggestions.md",
+     "claims": [
+      {
+       "claim": "A choose failure records no suggestion and its reason, then continues with the rules",
+       "at": "docket/workflows.py:125"
+      },
+      {
+       "claim": "Cancellation is propagated instead of falling through to scoring or filing",
+       "at": "docket/workflows.py:121"
+      }
+     ]
+    },
+    {
+     "path": "docs/product-brief.md",
+     "claims": [
+      {
+       "claim": "A failed suggestion leaves no suggestion and saves its failure reason in the trace",
+       "at": "docket/activities.py:197"
+      }
+     ]
+    },
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "A failed record suggestion does not block the rules; a category-call failure still fails the document",
+       "at": "docket/workflows.py:117"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Evaluation excludes failed suggestions from the suggestion-versus-rules comparison, counts them separately, and the report states the exclusions",
+   "files": [
+    "docket/evaluation.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "Only documents sent to review without a suggestion failure count in the comparison",
+       "at": "docket/evaluation.py:335"
+      },
+      {
+       "claim": "The saved run has zero suggestion failures; the report counts failures separately",
+       "at": "evals/reports/2026-11-11-seed-11.md:49"
+      }
+     ]
+    },
+    {
+     "path": "docs/product-brief.md",
+     "claims": [
+      {
+       "claim": "Failed suggestions are excluded from the comparison and counted separately",
+       "at": "docket/evaluation.py:336"
+      },
+      {
+       "claim": "The saved seed-11 run has zero suggestion failures",
+       "at": "evals/reports/2026-11-11-seed-11.md:49"
+      }
+     ]
+    },
+    {
+     "path": "docs/adr/005-candidates-and-suggestions.md",
+     "claims": [
+      {
+       "claim": "Documents that did not go to review and failed suggestions are excluded",
+       "at": "docket/evaluation.py:691"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "The login page clears the stored reviewer token only after a 401 from the review API or its assets",
+   "files": [
+    "web/login.html"
+   ],
+   "docs": [
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "A 401 clears its saved token; a server or network failure keeps it for retry",
+       "at": "web/login.html:66"
+      },
+      {
+       "claim": "The page fetches scripts and styles with the authorization header",
+       "at": "web/login.html:37"
+      },
+      {
+       "claim": "Nine browser tests check token retention after access and asset failures",
+       "at": "web/tests/login.spec.ts:3"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

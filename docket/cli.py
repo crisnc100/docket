@@ -191,3 +191,44 @@ def shadow_diff_command(report: str | None = None) -> None:
             shadow["simulation"] = data["simulation"]
     output.write_text(json.dumps(shadow, indent=2, sort_keys=True) + "\n")
     typer.echo(f"{data['shadow']['status']}: {output}")
+
+
+@app.command()
+def submit(pdf: str = typer.Argument(...), api_url: str = "http://127.0.0.1:8010") -> None:
+    """Upload a PDF and print its document id."""
+    import json
+    from pathlib import Path
+
+    import httpx
+
+    path = Path(pdf)
+    try:
+        with path.open("rb") as stream:
+            response = httpx.post(
+                api_url.rstrip("/") + "/documents",
+                files={"file": (path.name, stream, "application/pdf")},
+                timeout=60,
+            )
+        response.raise_for_status()
+    except (OSError, httpx.HTTPError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(response.json()))
+
+
+@app.command()
+def status(document_id: str = typer.Argument(...), api_url: str = "http://127.0.0.1:8010") -> None:
+    """Print a document's status and trace."""
+    import json
+    import uuid
+
+    import httpx
+
+    try:
+        document_id = str(uuid.UUID(document_id))
+        response = httpx.get(api_url.rstrip("/") + "/documents/" + document_id, timeout=30)
+        response.raise_for_status()
+    except (ValueError, httpx.HTTPError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(response.json(), indent=2))

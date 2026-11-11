@@ -36,6 +36,7 @@ class Outcome:
     category: str
     score: str
     tier: str
+    suggestion: dict[str, str | None] | None = None
 
 
 def wilson(successes: int, total: int) -> list[float] | None:
@@ -257,6 +258,7 @@ async def model_outcomes(labels, folder: Path, settings: Settings, mode: str, bu
                         result["category"],
                         result["score"],
                         result["tier"],
+                        {"record_id": result.get("suggested_record_id")},
                     )
                 )
     finally:
@@ -296,7 +298,9 @@ def compare_choices(outcomes: list[Outcome], baseline_results: list[Outcome]) ->
         routing_changes += routing_changed
         filed_record_changes += record_changed
         review_proposal_changes += (
-            new_decision == old_decision == "review" and result.record_id != legacy.record_id
+            new_decision == old_decision == "review"
+            and (result.suggestion or {"record_id": result.record_id})["record_id"]
+            != legacy.record_id
         )
         category_changes += result.category != legacy.category
         if routing_changed or record_changed:
@@ -309,6 +313,48 @@ def compare_choices(outcomes: list[Outcome], baseline_results: list[Outcome]) ->
         "review_proposal_changes": review_proposal_changes,
         "category_changes": category_changes,
         "changed_document_ids": changed,
+    }
+
+
+def compare_review_suggestions(
+    labels: list[Label],
+    outcomes: list[Outcome],
+    rules: list[Outcome],
+) -> dict:
+    rows = []
+    for label, result, rule in zip(labels, outcomes, rules, strict=True):
+        if label.document_id != result.document_id or result.document_id != rule.document_id:
+            raise ValueError("Suggestion comparison requires the same document order")
+        if result.status != "would_review":
+            continue
+        rows.append(
+            {
+                "document_id": result.document_id,
+                "gold_record_id": label.record_id,
+                "suggested_record_id": (result.suggestion or {"record_id": result.record_id})[
+                    "record_id"
+                ],
+                "rules_top_record_id": rule.record_id,
+                "suggestion_correct": (result.suggestion or {"record_id": result.record_id})[
+                    "record_id"
+                ]
+                == label.record_id,
+                "rules_correct": rule.record_id == label.record_id,
+            }
+        )
+    total = len(rows)
+    suggested = sum(row["suggestion_correct"] for row in rows)
+    rule_correct = sum(row["rules_correct"] for row in rows)
+    return {
+        "review_documents": total,
+        "suggestion_correct": suggested,
+        "rules_correct": rule_correct,
+        "suggestion_accuracy": suggested / total if total else None,
+        "rules_accuracy": rule_correct / total if total else None,
+        "suggestion_wilson_95": wilson(suggested, total),
+        "rules_wilson_95": wilson(rule_correct, total),
+        "null_gold_means_no_record": True,
+        "documents": rows,
     }
 
 
@@ -498,6 +544,7 @@ async def evaluate(
         floors=floors,
         shadow=shadow_diff(labels, outcomes, legacy),
         choice_comparison=compare_choices(outcomes, legacy),
+        review_suggestion_comparison=compare_review_suggestions(labels, outcomes, legacy),
     )
     return report
 
@@ -619,6 +666,22 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
             f"Filed-record changes: {comparison['filed_record_changes']}.\n"
             f"Review proposals differ on {comparison['review_proposal_changes']} documents. "
             f"Category labels differ on {comparison['category_changes']} documents.\n\n"
+        )
+    suggestions = report.get("review_suggestion_comparison")
+    if suggestions:
+        text += (
+            "## Suggestions on reviewed documents\n\n"
+            f"Among {suggestions['review_documents']} documents sent to review, "
+            f"the model suggested the correct record on {suggestions['suggestion_correct']}; "
+            f"the rules' top candidate was correct on {suggestions['rules_correct']}.\n"
+            "An abstention is correct when gold names no record. Poison documents are excluded.\n"
+            "Suggestions come from the existing recordings; "
+            "they do not control automatic filing.\n\n"
+            "```json\n"
+            + json.dumps(
+                {key: value for key, value in suggestions.items() if key != "documents"}, indent=2
+            )
+            + "\n```\n\n"
         )
     text += (
         "## Metrics\n\n```json\n"

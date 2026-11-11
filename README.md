@@ -10,7 +10,7 @@ The project ships with 200 synthetic units in `config/records.csv`, so no real
 personal data is involved.
 
 The matching code runs in a durable Temporal workflow. Temporal saves progress so a
-worker can resume after a crash. The review UI and inbound webhook are not built yet.
+worker can resume after a crash.
 
 ## Try it
 
@@ -94,8 +94,8 @@ The workflow runs these steps:
 2. Shortlist candidate records, as above.
 3. Ask the model for a category, then ask it to choose one shortlisted record or
    `none`. An empty shortlist skips both calls and the category is `misc`.
-4. Score the choice. The model can only pick from the shortlist, and the score
-   alone decides whether the document files.
+4. Score every candidate and take the rules' highest score for the tier and filing
+   decision. The model's record choice is a suggestion for the reviewer.
 5. File the document, or wait for a person. `POST /review/{id}/approve` with a
    `record_id` files it; `POST /review/{id}/dismiss` with a `reason` closes it. An
    unanswered review expires after `DOCKET_REVIEW_TIMEOUT_SECONDS` (one hour by
@@ -107,6 +107,29 @@ Every document ends with one final status and a reason: `filed`, `dismissed`,
 uploads that never got one and marks abandoned documents `failed`.
 [ADR-002](docs/adr/002-review-workflow-patching.md) explains how to change the
 workflow while reviews are still waiting.
+
+## Inbound webhook
+
+Set `DOCKET_WEBHOOK_SECRET` to a shared secret before using `POST /inbound`.
+Send JSON with `message_id`, `from`, and an `attachments` list; each attachment has
+`filename` and `content` (base64 bytes). Sign the exact body bytes:
+`HMAC-SHA256(secret, timestamp + "." + raw_body)`. Send the Unix timestamp in
+`X-Docket-Timestamp` and the hex digest prefixed with `sha256=` in
+`X-Docket-Signature`. Timestamps more than five minutes in either direction fail
+with 401. An unset secret disables webhook admission.
+
+Requests are limited to 10 MiB while reading, including JSON/base64 or multipart
+overhead. The webhook allows 60 requests per minute per directly connected IP,
+per API process (`DOCKET_WEBHOOK_RATE_LIMIT`); forwarded-IP headers are ignored.
+A repeated message and identical attachment returns the existing document and
+adds no source. Content deduplication also applies across different messages.
+
+`uv run docket submit <pdf>` uploads to the local API. `uv run docket status <id>`
+prints its trace; both accept `--api-url`. The PDF preview is proxied at
+`/documents/<id>/file`. Open `http://127.0.0.1:8010/` for the review queue.
+The page shows the suggestion beside the rules' top candidate, lets you approve
+either or pick another candidate, and supports dismissing with a reason. Keep the API behind your access controls: the review and
+upload routes have no user authentication in v0.1.
 
 ## Storage and the ledger
 
@@ -128,7 +151,8 @@ The workflow uses storage and the ledger for each document.
 
 `docket/llm/` calls a language model through OpenRouter. The model
 picks among the shortlisted records. Scoring refuses a pick that is not on the
-shortlist (`InvalidChoice`), and the score above still decides whether anything files.
+shortlist (`InvalidChoice`). Automatic filing uses the rules' top candidate;
+the model's record suggestion does not affect its score, tier or filing decision.
 
 - **Modes.** `live` calls the model. `record` calls it and saves the answer, and
   accepts only the synthetic corpus. `replay` returns saved answers with no network
@@ -183,7 +207,7 @@ rules-only baseline, which takes the highest-scored candidate without a model.
 Seed 7 picked the filing threshold (`scripts/tune_threshold.py`). Seed 11 is held
 out and picked nothing.
 
-The held-out result ([seed-11 report](evals/reports/2026-11-10-seed-11.md)):
+The held-out result ([seed-11 report](evals/reports/2026-11-11-seed-11.md)):
 
 - 0 wrong filings, and no filings to a record id injected into the text.
 - All 10 clean documents filed without a person.
@@ -194,6 +218,13 @@ The held-out result ([seed-11 report](evals/reports/2026-11-10-seed-11.md)):
   to the reviewer, on 79 documents that go to review either way.
 - Category accuracy is lower with the model: 124/140, against 132/140 for the
   baseline.
+
+Among the 102 seed-11 documents sent to review, the model's suggestion
+was correct on 44/102 (43.1%); the rules' top candidate was correct on
+62/102 (60.8%). This includes a correct abstention when gold names no
+record and excludes rejected documents. The report lists every compared document
+and Wilson intervals. These are the existing simulated recordings, replayed with
+no new model answers.
 
 `verify.sh` fails unless the newest seed-11 report is a measured pass that replay
 reproduces exactly (`scripts/reproduce_eval.py`). `docket eval` checks each place
@@ -214,6 +245,7 @@ were used.
 
 ## Run the checks
 
+The checks need Node.js 22.12+ and Docker Compose as well as uv.
 The tests need Postgres, Temporal and S3 storage. `compose.yaml` runs Postgres, a
 Temporal dev server, SeaweedFS (S3-compatible storage), the API and the worker.
 Every port listens on 127.0.0.1 only.
@@ -231,8 +263,10 @@ docker compose up -d
 | S3       | `http://127.0.0.1:9000`                 |
 
 `verify.sh` runs ruff and pyright (strict on `docket/core`), checks the exchange
-archive, builds the Docker images and creates the database tables. Then it runs
-pytest. It fails if any test is skipped, or if branch coverage of a core module
+archive, builds the Vite review page and Docker images, and creates the database
+tables. Then it runs pytest, including the Playwright review and XSS tests against
+isolated Compose API and worker containers in replay mode. Chromium runs in a
+separate test image; it is not installed in the API or worker images. It fails if any test is skipped, or if branch coverage of a core module
 falls below its floor in `scripts/check_coverage.py`. Last, it reproduces the
 held-out report and runs detect-secrets, which also scans the archive's contents.
 CI runs `./verify.sh` and `./verify.sh --fault`.

@@ -59,6 +59,7 @@ services:
       S3_SECRET_KEY: docket-local-password # pragma: allowlist secret
       S3_BUCKET: docket
       DOCKET_MODEL_MODE: ${DOCKET_MODEL_MODE:-replay}
+      DOCKET_WEBHOOK_SECRET: ${DOCKET_WEBHOOK_SECRET:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     depends_on:
       postgres:
@@ -97,6 +98,15 @@ services:
       interval: 3s
       timeout: 3s
       retries: 40
+
+  browser:
+    profiles: ["test"]
+    build:
+      context: .
+      target: browser
+    image: docket-v01-browser
+    init: true
+    shm_size: 256mb
 
 volumes:
   postgres-data:

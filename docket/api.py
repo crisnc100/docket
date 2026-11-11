@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowUpdateFailedError
@@ -17,20 +17,30 @@ from temporalio.service import RPCError
 from docket.core.ledger import TERMINAL_STATUSES
 from docket.db import Document, DocumentSource, Event
 from docket.ingress import Ingress
+from docket.review_access import ReviewerAccess, reviewer_page
 from docket.runtime import Runtime
 from docket.webhook import BodyLimit, RateLimit, valid_signature
 
 
+def no_nul(value: str) -> str:
+    if "\x00" in value:
+        raise ValueError("NUL is not allowed in document metadata")
+    return value
+
+
+type MetadataText = Annotated[str, AfterValidator(no_nul)]
+
+
 class Attachment(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    filename: str = Field(min_length=1, max_length=255)
+    filename: MetadataText = Field(min_length=1, max_length=255)
     content: str
 
 
 class Inbound(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
-    message_id: str = Field(min_length=1, max_length=1000)
-    sender: str = Field(alias="from", max_length=1000)
+    message_id: MetadataText = Field(min_length=1, max_length=1000)
+    sender: MetadataText = Field(alias="from", max_length=1000)
     attachments: list[Attachment] = Field(min_length=1, max_length=100)
 
 
@@ -50,6 +60,7 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
 
     app = FastAPI(lifespan=lifespan)
     app.add_middleware(BodyLimit)
+    app.add_middleware(ReviewerAccess, settings=lambda: app.state.runtime.settings)
 
     @app.get("/healthz")
     async def health():
@@ -100,6 +111,8 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         if len(content) > 10 * 1024 * 1024:
             raise HTTPException(413, "Attachment exceeds 10 MB")
         try:
+            for value in (message_id, sender, file.filename or ""):
+                no_nul(value)
             document_id = await app.state.ingress.submit(
                 content,
                 file.filename or "attachment.pdf",
@@ -223,18 +236,7 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
 
     @app.get("/", include_in_schema=False)
     def review_page():
-        if not (static / "index.html").is_file():
-            raise HTTPException(503, "Build the review page with npm --prefix web run build")
-        return FileResponse(
-            static / "index.html",
-            headers={
-                "Content-Security-Policy": (
-                    "default-src 'self'; script-src 'self'; style-src 'self'; "
-                    "frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
-                ),
-                "X-Content-Type-Options": "nosniff",
-            },
-        )
+        return reviewer_page()
 
     return app
 

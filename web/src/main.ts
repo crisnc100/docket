@@ -36,8 +36,21 @@ function button(text: string, action: () => void | Promise<void>) {
   node.addEventListener('click', () => { void Promise.resolve().then(action).catch(showError); });
   return node;
 }
+async function authorizedFetch(path: string, options?: RequestInit) {
+  const headers = new Headers(options?.headers);
+  const token = sessionStorage.getItem('docket-review-token');
+  if (!token) throw new Error('A reviewer token is required.');
+  headers.set('Authorization', 'Bearer ' + token);
+  const response = await fetch(path, { ...options, headers, cache: 'no-store' });
+  if (response.status === 401) {
+    sessionStorage.removeItem('docket-review-token');
+    window.location.reload();
+    throw new Error('Reviewer access expired.');
+  }
+  return response;
+}
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(path, options);
+  const response = await authorizedFetch(path, options);
   if (!response.ok) {
     const body = await response.json().catch(() => ({ detail: response.statusText }));
     throw new Error(typeof body.detail === 'string' ? body.detail : `Request failed (${response.status})`);
@@ -61,6 +74,13 @@ let items: ReviewItem[] = [];
 let selected: ReviewItem | undefined;
 let generation = 0;
 let busy = false;
+let previewUrl: string | undefined;
+
+function releasePreview() {
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl = undefined;
+}
+window.addEventListener('pagehide', releasePreview);
 
 function showError(error: unknown) {
   message.textContent = error instanceof Error ? error.message : 'Request failed';
@@ -109,22 +129,26 @@ async function act(action: 'approve' | 'dismiss', value: string) {
     await openDocument();
   }
 }
-function renderDocument(item: ReviewItem | undefined, trace: Trace, id: string) {
+function renderDocument(item: ReviewItem | undefined, trace: Trace, pdfUrl?: string) {
   detail.replaceChildren(element('h2', item?.filename || 'Document'));
   const state = element('p', `Status: ${trace.status}`);
   state.dataset.testid = 'document-status';
   detail.append(state, element('p', `Reason: ${trace.reason || 'Processing'}`));
   if (item) detail.append(element('p', `Sender: ${item.sender || 'Unknown sender'}`));
   if (trace.record_id) detail.append(element('p', `Record: ${trace.record_id}`));
-  const preview = element('iframe');
-  preview.title = 'PDF preview';
-  preview.src = `/documents/${id}/file`;
-  detail.append(preview);
-  const fileLink = element('a', 'Open PDF');
-  fileLink.href = `/documents/${id}/file`;
-  fileLink.target = '_blank';
-  fileLink.rel = 'noopener';
-  detail.append(fileLink);
+  if (pdfUrl) {
+    const preview = element('iframe');
+    preview.title = 'PDF preview';
+    preview.src = pdfUrl;
+    detail.append(preview);
+    const fileLink = element('a', 'Open PDF');
+    fileLink.href = pdfUrl;
+    fileLink.target = '_blank';
+    fileLink.rel = 'noopener';
+    detail.append(fileLink);
+  } else {
+    detail.append(element('p', 'PDF preview unavailable.'));
+  }
   if (item && trace.status === 'needs_review') {
     const choices = element('div');
     choices.className = 'choices';
@@ -174,14 +198,20 @@ async function openDocument() {
   const id = documentId();
   renderQueue();
   if (!id) {
+    releasePreview();
     detail.replaceChildren(element('h2', 'Select a document'), element('p', 'Review the evidence and choose where it belongs.'));
     return;
   }
   const item = items.find(item => item.document_id === id) || (selected?.document_id === id ? selected : undefined);
   const trace = await request<Trace>(`/documents/${id}`);
   if (token !== generation) return;
+  const response = await authorizedFetch(`/documents/${id}/file`);
+  const blob = response.ok ? await response.blob() : undefined;
+  if (token !== generation) return;
+  releasePreview();
+  if (blob) previewUrl = URL.createObjectURL(blob);
   selected = item;
-  renderDocument(item, trace, id);
+  renderDocument(item, trace, previewUrl);
 }
 async function refresh() {
   items = (await request<{ items: ReviewItem[] }>('/review')).items;

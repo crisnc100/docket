@@ -67,9 +67,12 @@ class RateLimit:
 
 
 def valid_signature(secret: str, timestamp: str, signature: str, body: bytes) -> bool:
+    if not timestamp or len(timestamp) > 19 or not timestamp.isascii() or not timestamp.isdecimal():
+        return False
     try:
-        fresh = abs(time.time() - int(timestamp)) <= 300
-    except ValueError:
+        value = int(timestamp)
+        fresh = value <= 2**63 - 1 and abs(time.time() - value) <= 300
+    except (ValueError, OverflowError):
         return False
     expected = hmac.new(
         secret.encode(), timestamp.encode() + b"." + body, hashlib.sha256

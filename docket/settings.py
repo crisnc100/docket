@@ -9,6 +9,7 @@ class Settings(BaseSettings):
         "postgresql+psycopg://docket:docket@localhost:55432/docket"  # pragma: allowlist secret
     )
     openrouter_api_key: SecretStr = SecretStr("")
+    docket_review_token: SecretStr | None = None
     docket_webhook_secret: SecretStr = SecretStr("")
     docket_webhook_rate_limit: int = Field(default=60, gt=0)
     docket_model: str = "openai/gpt-4o-mini"

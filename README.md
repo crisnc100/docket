@@ -128,8 +128,13 @@ adds no source. Content deduplication also applies across different messages.
 prints its trace; both accept `--api-url`. The PDF preview is proxied at
 `/documents/<id>/file`. Open `http://127.0.0.1:8010/` for the review queue.
 The page shows the suggestion beside the rules' top candidate, lets you approve
-either or pick another candidate, and supports dismissing with a reason. Keep the API behind your access controls: the review and
-upload routes have no user authentication in v0.1.
+either or pick another candidate, and supports dismissing with a reason.
+
+Set `DOCKET_REVIEW_TOKEN` in the API environment and the CLI environment. Without
+it, reviewer routes return 503. Every route except `POST /inbound` and
+`GET /healthz` requires `Authorization: Bearer <token>`. The page asks for the token
+and keeps it in sessionStorage for that tab. PDF previews use authenticated fetches
+and blob URLs; the token never goes in a URL.
 
 ## Storage and the ledger
 

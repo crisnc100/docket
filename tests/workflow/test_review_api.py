@@ -58,7 +58,7 @@ async def test_webhook_authentication_rate_limit_and_concurrent_idempotence(runt
                     {},
                     signed(body) | {"X-Docket-Signature": "sha256=wrong"},
                     signed(body, int(time.time()) - 301),
-                    signed(body, int(time.time()) + 301),
+                    signed(body, int(time.time()) + 400),
                     signed(body) | {"X-Docket-Timestamp": "invalid"},
                     signed(body + b"tampered"),
                 ]:
@@ -158,7 +158,12 @@ async def test_review_queue_preview_null_score_and_dismiss(runtime, monkeypatch)
         app = create_app(runtime, env.client)
         async with app.router.lifespan_context(app):
             async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app), base_url="http://test"
+                transport=httpx.ASGITransport(app),
+                base_url="http://test",
+                headers={
+                    "Authorization": "Bearer "
+                    + runtime.settings.docket_review_token.get_secret_value()
+                },
             ) as http:
                 # No worker yet: this is a persisted, unscored upload.
                 content = pdf(["UNIT-0001"])

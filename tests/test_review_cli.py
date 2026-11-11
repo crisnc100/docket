@@ -9,9 +9,12 @@ from docket.cli import app
 def test_submit_and_status_commands_use_http_and_preserve_trace(tmp_path, monkeypatch):
     path = tmp_path / "sample.pdf"
     path.write_bytes(b"%PDF-test")
+    token = uuid.uuid4().hex
+    monkeypatch.setenv("DOCKET_REVIEW_TOKEN", token)
     document_id = str(uuid.uuid4())
 
-    def post(url, *, files, timeout):
+    def post(url, *, files, headers, timeout):
+        assert headers == {"Authorization": "Bearer " + token}
         assert url == "http://test/documents"
         assert files["file"][0] == "sample.pdf"
         assert files["file"][1].read() == b"%PDF-test"
@@ -19,7 +22,8 @@ def test_submit_and_status_commands_use_http_and_preserve_trace(tmp_path, monkey
             200, json={"document_id": document_id}, request=httpx.Request("POST", url)
         )
 
-    def get(url, *, timeout):
+    def get(url, *, headers, timeout):
+        assert headers == {"Authorization": "Bearer " + token}
         assert url == "http://test/documents/" + document_id
         return httpx.Response(
             200,
@@ -39,7 +43,11 @@ def test_submit_and_status_commands_use_http_and_preserve_trace(tmp_path, monkey
 
 
 def test_cli_http_error_returns_nonzero(monkeypatch):
-    def get(url, *, timeout):
+    token = uuid.uuid4().hex
+    monkeypatch.setenv("DOCKET_REVIEW_TOKEN", token)
+
+    def get(url, *, headers, timeout):
+        assert headers == {"Authorization": "Bearer " + token}
         return httpx.Response(404, request=httpx.Request("GET", url))
 
     monkeypatch.setattr(httpx, "get", get)

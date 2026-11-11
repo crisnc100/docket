@@ -28,6 +28,7 @@ async def test_playwright_compose_replay_review_and_xss(runtime):
         "DOCKET_TASK_QUEUE": "browser-" + uuid.uuid4().hex,
         "S3_BUCKET": runtime.settings.s3_bucket,
         "DOCKET_MODEL_MODE": "replay",
+        "DOCKET_REVIEW_TOKEN": runtime.settings.docket_review_token.get_secret_value(),
         "DOCKET_RUN_BUDGET_USD": "0.01",
     }
     try:
@@ -67,6 +68,8 @@ async def test_playwright_compose_replay_review_and_xss(runtime):
                 browser,
                 "-e",
                 "DOCKET_BROWSER_URL=http://" + names[-2] + ":8000",
+                "-e",
+                "DOCKET_REVIEW_TOKEN=" + runtime.settings.docket_review_token.get_secret_value(),
                 "browser",
             ],
             capture_output=True,

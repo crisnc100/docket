@@ -37,6 +37,7 @@ class Processes:
             ).render_as_string(hide_password=False),
             "DOCKET_TASK_QUEUE": self.queue,
             "S3_BUCKET": runtime.settings.s3_bucket,
+            "DOCKET_REVIEW_TOKEN": runtime.settings.docket_review_token.get_secret_value(),
         }
 
     def start(self, service, failpoint="", gate=False):
@@ -138,7 +139,13 @@ async def finished(runtime, document_id):
 async def test_worker_crash_restart_exactly_once_and_http_dedup(runtime, processes, point):
     worker = await processes.ready_worker(failpoint=point)
     _, url = await processes.ready_api()
-    async with httpx.AsyncClient(base_url=url, timeout=20) as http:
+    async with httpx.AsyncClient(
+        base_url=url,
+        timeout=20,
+        headers={
+            "Authorization": "Bearer " + runtime.settings.docket_review_token.get_secret_value(),
+        },
+    ) as http:
         ids = await asyncio.gather(*(post(http, str(i)) for i in range(3)))
         assert len(set(ids)) == 1
         await processes.fired(worker, point)
@@ -164,7 +171,13 @@ async def test_worker_crash_restart_exactly_once_and_http_dedup(runtime, process
 @pytest.mark.parametrize("point", ["ingress.after_raw", "ingress.after_insert"])
 async def test_api_crash_ingress_order_resubmit_and_reconcile(runtime, processes, point):
     api, url = await processes.ready_api(failpoint=point)
-    async with httpx.AsyncClient(base_url=url, timeout=20) as http:
+    async with httpx.AsyncClient(
+        base_url=url,
+        timeout=20,
+        headers={
+            "Authorization": "Bearer " + runtime.settings.docket_review_token.get_secret_value(),
+        },
+    ) as http:
         with pytest.raises(httpx.HTTPError):
             await post(http, "crashed-submit")
     await processes.fired(api, point)
@@ -179,7 +192,13 @@ async def test_api_crash_ingress_order_resubmit_and_reconcile(runtime, processes
         assert (await Ingress(runtime, client).reconcile(0))["started"] == 1
         await finished(runtime, document_id)
     _, recovered_url = await processes.ready_api()
-    async with httpx.AsyncClient(base_url=recovered_url, timeout=20) as http:
+    async with httpx.AsyncClient(
+        base_url=recovered_url,
+        timeout=20,
+        headers={
+            "Authorization": "Bearer " + runtime.settings.docket_review_token.get_secret_value(),
+        },
+    ) as http:
         recovered_id = await post(http, "resubmitted-after-api-crash")
     if document_id:
         assert recovered_id == document_id
@@ -189,7 +208,13 @@ async def test_api_crash_ingress_order_resubmit_and_reconcile(runtime, processes
 async def test_real_s3_outage_retries_after_confirmed_worker_failpoint(runtime, processes):
     worker = await processes.ready_worker(failpoint="choose.during")
     _, url = await processes.ready_api()
-    async with httpx.AsyncClient(base_url=url, timeout=20) as http:
+    async with httpx.AsyncClient(
+        base_url=url,
+        timeout=20,
+        headers={
+            "Authorization": "Bearer " + runtime.settings.docket_review_token.get_secret_value(),
+        },
+    ) as http:
         document_id = await post(http, "outage")
     await processes.fired(worker, "choose.during")
     recovered = await processes.ready_worker(gate=True)

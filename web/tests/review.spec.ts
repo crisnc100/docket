@@ -1,5 +1,32 @@
-import { test, expect, APIRequestContext } from '@playwright/test';
+import { test as base, expect, APIRequestContext } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+
+const token = process.env.DOCKET_REVIEW_TOKEN!;
+const test = base.extend({
+  request: async ({ playwright, baseURL }, use) => {
+    const context = await playwright.request.newContext({
+      baseURL, extraHTTPHeaders: { Authorization: 'Bearer ' + token },
+    });
+    await use(context);
+    await context.dispose();
+  },
+});
+
+async function unlock(page: import('@playwright/test').Page) {
+  const response = await page.goto('/');
+  expect(response!.status()).toBe(401);
+  await page.getByLabel('Reviewer token').fill('wrong-token');
+  await page.getByRole('button', { name: 'Unlock review' }).click();
+  await expect(page.getByRole('status')).toHaveText('Invalid reviewer token.');
+  await expect(page.getByRole('navigation', { name: 'Review queue' })).toHaveCount(0);
+  expect(await page.evaluate(() => sessionStorage.getItem('docket-review-token'))).toBeNull();
+  await page.getByLabel('Reviewer token').fill(token);
+  await page.getByRole('button', { name: 'Unlock review' }).click();
+  await expect(page.getByRole('navigation', { name: 'Review queue' })).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem('docket-review-token'))).toBe(token);
+  expect(await page.evaluate(() => localStorage.getItem('docket-review-token'))).toBeNull();
+  expect(page.url()).not.toContain(token);
+}
 
 async function submit(request: APIRequestContext, source: string, name: string, sender: string) {
   const response = await request.post('/documents', {
@@ -18,11 +45,16 @@ async function submit(request: APIRequestContext, source: string, name: string, 
 test('D13: queue → document → approve suggested → filed on compose replay', async ({ page, request }) => {
   const name = 'doc-0075-decoy_near_miss_address.pdf';
   const id = await submit(request, name, name, 'reviewer@example.test');
-  await page.goto('/');
+  await unlock(page);
   await page.getByRole('navigation', { name: 'Review queue' }).getByRole('link', { name: new RegExp(name) }).click();
   await expect(page.getByRole('heading', { name: name })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: name })).toBeVisible();
+  await expect(page.getByLabel('Reviewer token')).toHaveCount(0);
   const preview = page.getByTitle('PDF preview');
-  await expect(preview).toHaveAttribute('src', `/documents/${id}/file`);
+  await expect(preview).toHaveAttribute('src', /^blob:/);
+  await expect(page.getByRole('link', { name: 'Open PDF' })).toHaveAttribute('href', /^blob:/);
+  expect(await page.evaluate(() => performance.getEntriesByType('resource').some(entry => entry.name.includes(sessionStorage.getItem('docket-review-token')!)))).toBe(false);
   const file = await request.get(`/documents/${id}/file`);
   expect(file.headers()['content-type']).toBe('application/pdf');
   expect(file.headers()['content-disposition']).toBe('inline');
@@ -52,7 +84,7 @@ test('D17: script filename and sender render as text without execution', async (
   const filename = '<script>window.__docketXss=1</script>.pdf';
   const sender = '<script>window.__docketXss=2</script>';
   const id = await submit(request, 'doc-0004-tenant_only.pdf', filename, sender);
-  await page.goto('/');
+  await unlock(page);
   const link = page.getByRole('navigation', { name: 'Review queue' }).getByRole('link').filter({ hasText: filename });
   await expect(link).toContainText(sender);
   await link.click();

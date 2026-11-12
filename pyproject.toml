@@ -8,6 +8,7 @@ dependencies = [
   "fastapi", "uvicorn", "python-multipart", "pydantic>=2", "pydantic-settings",
   "pyyaml", "sqlalchemy>=2", "alembic", "psycopg[binary]", "temporalio",
   "pypdf", "rapidfuzz", "reportlab", "faker", "langchain-openai", "boto3", "typer", "httpx",
+  "anthropic>=2.8.0",
 ]
 
 [project.scripts]

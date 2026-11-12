@@ -33,6 +33,9 @@ JSON_SCHEMA: OutputModeName = "json_schema"
 JSON_PROMPT: OutputModeName = "json_prompt"
 # Words in a 400's message that mean the API refused the output schema, not the request.
 SCHEMA_REFUSED = ("schema", "grammar", "output_config", "format")
+# Statuses that mean the API did not process the request. Any other 5xx, and a 408,
+# may come after the API did the work (a 504 from a gateway, say), so it may be billed.
+NOT_PROCESSED = frozenset({429, 500, 503, 529})
 # These httpx2 errors happen while connecting, so the request was never sent.
 NOT_SENT = (httpx2.ConnectError, httpx2.ConnectTimeout)
 
@@ -161,8 +164,12 @@ class AnthropicTransport:
         started = self.clock()
         try:
             message = await self._client.messages.create(**self.body(prompt, schema, system_prompt))
-        except (anthropic.RateLimitError, anthropic.InternalServerError) as exc:
-            raise NotSent(f"HTTP {exc.status_code}") from exc
+        except anthropic.APIStatusError as exc:
+            if exc.status_code in NOT_PROCESSED:
+                raise NotSent(f"HTTP {exc.status_code}") from exc
+            if exc.status_code == 408 or exc.status_code >= 500:
+                raise MaybeBilled(f"HTTP {exc.status_code} may follow processing") from exc
+            raise
         except anthropic.APIConnectionError as exc:
             if isinstance(exc.__cause__, NOT_SENT):
                 raise NotSent(type(exc.__cause__).__name__) from exc

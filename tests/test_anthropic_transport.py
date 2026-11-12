@@ -413,3 +413,19 @@ async def test_record_mode_replays_requests_already_recorded(postgres_engine, tm
     assert spent(postgres_engine) == spent_before and again.actual_cost_usd == 0
     assert (tmp_path / "anthropic.jsonl").read_bytes() == recorded
     assert list(again.used_recordings) == list(recorder.used_recordings)
+
+
+@pytest.mark.parametrize("status", [408, 502, 504, 520])
+async def test_statuses_that_may_follow_processing_are_charged_worst_case_not_retried(
+    postgres_engine, tmp_path, status
+):
+    delays = []
+    error = {"type": "error", "error": {"type": "timeout_error", "message": "maybe processed"}}
+    api = FakeApi((status, error), message())
+    run_budget = budget(postgres_engine)
+    live = gateway(api, postgres_engine, tmp_path, delays=delays, run_budget=run_budget)
+    with pytest.raises(MaybeBilled):
+        await live.call(**choose())
+    assert len(api.requests) == 1 and delays == []
+    worst = run_budget.run.spent
+    assert worst > 0 and spent(postgres_engine) == worst == live.actual_cost_usd

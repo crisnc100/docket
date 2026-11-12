@@ -143,37 +143,69 @@ The workflow uses storage and the ledger for each document.
 
 ## Model gateway
 
-`docket/llm/` calls a language model through OpenRouter. The model
+`docket/llm/` calls a language model. The model
 picks among the shortlisted records. The response schema and import checks refuse
 picks outside that shortlist. Automatic filing uses the rules' top candidate;
 the model's record suggestion does not affect its score, tier or filing decision.
 
+- **Provider.** `DOCKET_MODEL_PROVIDER` is `openrouter` (the default) or `anthropic`.
+  The defaults, `openrouter` with `openai/gpt-4o-mini`, replay the saved v0.1
+  answers. Live answers use `anthropic` with `DOCKET_MODEL=claude-haiku-5-5` and
+  the key in `ANTHROPIC_API_KEY`. OpenRouter uses `OPENROUTER_API_KEY`. Keys come
+  from the environment or the gitignored `.env`.
+- **Saved answers.** Each provider has its own file, so live and simulated answers
+  never share one: `evals/recordings/anthropic.jsonl` or `evals/recordings/calls.jsonl`.
+  `DOCKET_REPLAY_PATH` overrides it. A saved answer is found by a key that includes
+  the model name, so answers replay only under the model they were saved for.
 - **Modes.** `live` calls the model. `record` calls it and saves the answer, and
-  accepts only the synthetic corpus. `replay` returns saved answers with no network
-  or key, so tests are repeatable. `export` writes each request that has no saved
-  answer to a file, and `import` checks supplied answers and saves them.
+  accepts only the synthetic corpus. A request that already has a saved answer,
+  readable or not, is replayed in `record` mode instead of sent again. `replay`
+  returns saved answers with no network or key, so tests are repeatable. `export`
+  writes each request that has no saved answer to a file, and `import` checks
+  supplied answers and saves them.
 - **Budget.** Before each call, Docket reserves the worst-case cost against a run cap
   and a daily cap kept in Postgres. In live use each document has its own run cap
-  (`DOCKET_RUN_BUDGET_USD`, default $2.00); an evaluation run shares one. The daily
-  cap is shared by all calls and defaults to $1.50 (`DOCKET_DAILY_BUDGET_USD`).
-  After the call it charges the real cost.
-- **Bad output.** An answer that does not fit the schema raises `ParseError`, which
-  is not retried. This also covers truncated and filtered responses.
-  In choose, the workflow records no suggestion and the error reason, then scores with rules.
-  In classify, the document ends failed.
+  (`DOCKET_RUN_BUDGET_USD`, default $2.00); an evaluation run shares one. An
+  evaluation refuses a run budget above `DOCKET_RUN_BUDGET_CAP_USD` (default $5.00).
+  The daily cap is shared by all calls and defaults to $1.50 (`DOCKET_DAILY_BUDGET_USD`).
+  After the call it charges the real cost: for Anthropic, the tokens the API reports
+  times the prices in [config/model_prices.yaml](../config/model_prices.yaml).
+- **Retries.** A rate limit is not billed, and on Anthropic neither is a server error
+  or a refused connection. The gateway retries these after 1, 2, 4 and 8 seconds.
+  After the fourth retry an Anthropic call raises `NoAnswer`. A connection that fails
+  after the request was sent, such as a read timeout, may have been billed.
+  It raises `MaybeBilled`, keeps its worst-case charge and is never resent.
+  Each Anthropic request times out after 15 seconds.
+  The classify and choose steps get 120 seconds in Temporal, longer than a call with
+  every retry can take, so the deadline never cuts a call off and starts it again.
+- **Unreadable answers.** A refusal, an answer cut off at the token limit, text that
+  is not JSON, or JSON that fails the schema raises `UnreadableAnswer`, a kind of
+  `ParseError`. The API bills these, so they are charged and saved with their reason
+  and raw text. Replaying one raises the same error.
+- **Schema fallback.** Anthropic calls send the schema as structured output. If the
+  API refuses the schema, the process asks for JSON in the prompt from then on. Each
+  live answer records which of the two it used.
+- **Failures in the workflow.** None of these errors is retried by Temporal. In
+  choose, the workflow records no suggestion and the error reason (`parse_error`,
+  `no_answer` or `maybe_billed`), then scores with rules. In classify, the document
+  ends failed.
 
 `docket spike-models` checks that the configured model keeps to a different list
-of allowed ids on each call. It makes real calls, so it needs an OpenRouter key. It
-also needs Postgres with the tables created, because the daily cap is kept there:
+of allowed ids on each call. It makes two real calls, so it needs the provider's
+key. It also needs Postgres with the tables created, because the daily cap is kept
+there:
 
 ```sh
-cp .env.example .env        # then set OPENROUTER_API_KEY in .env
+cp .env.example .env        # then set ANTHROPIC_API_KEY and the provider in .env
 docker compose up -d
 uv run alembic upgrade head
 uv run docket spike-models
 ```
 
-See [docs/adr/001-model-enum-spike.md](adr/001-model-enum-spike.md).
+For Anthropic the spike has a $0.05 budget. It writes
+`docs/adr/008-spike-result.json` and the Spike section of
+[ADR 008](adr/008-real-model.md). For OpenRouter the budget is $0.50, and the result
+goes to [ADR 001](adr/001-model-enum-spike.md).
 
 ## Test corpus
 
@@ -216,7 +248,9 @@ end to end, and one checks that a script-like file name and sender show as plain
 text. Nine more check token retention after access and asset failures. Chromium runs in a separate test image, not in the API or worker images.
 `verify.sh` fails if any test is skipped, or if branch coverage of a core module
 falls below its floor in `scripts/check_coverage.py`. Last, it reproduces the
-held-out report and runs detect-secrets, which also scans the archive's contents.
+held-out report and runs detect-secrets, which also scans the archives' contents.
+The scan skips the local `.env`, which holds keys, and `verify.sh` fails if git
+does not ignore `.env`.
 CI runs `./verify.sh` and `./verify.sh --fault`.
 
 `./verify.sh --fault` also runs the fault suite in `tests/fault/`.

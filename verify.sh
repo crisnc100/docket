@@ -30,5 +30,10 @@ fi
 uv run pytest "${test_paths[@]}" --cov=docket.core --cov-branch --cov-report=term-missing --cov-report=json:.cache/coverage.json
 uv run python scripts/check_coverage.py .cache/coverage.json
 uv run python scripts/reproduce_eval.py
-uv run detect-secrets scan --all-files --exclude-files '(\.lock$|package-lock\.json$|node_modules/|web/dist/|web/test-results/|corpus/|\.pytest_cache/|\.ruff_cache/|\.cache/|\.venv/|\.git/|builds/.*\.(jsonl|err|log)$)' > .cache/secrets.json
+# The scan skips .env, which holds local keys, so it must stay ignored by git.
+if ! git check-ignore -q .env; then
+  echo "FAIL: .env is not ignored by git, so the secret scan cannot skip it" >&2
+  exit 1
+fi
+uv run detect-secrets scan --all-files --exclude-files '(^\.env$|\.lock$|package-lock\.json$|node_modules/|web/dist/|web/test-results/|corpus/|\.pytest_cache/|\.ruff_cache/|\.cache/|\.venv/|\.git/|builds/.*\.(jsonl|err|log)$)' > .cache/secrets.json
 uv run python scripts/check_secrets.py .cache/secrets.json

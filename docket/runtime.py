@@ -8,7 +8,8 @@ from botocore.exceptions import ClientError
 from sqlalchemy import create_engine
 
 from docket.core.storage import S3Client, S3Storage
-from docket.llm.budget import Budget, DailyBudget, PriceCeiling, RunBudget
+from docket.llm.anthropic import AnthropicTransport
+from docket.llm.budget import Budget, DailyBudget, RunBudget, load_prices
 from docket.llm.gateway import Gateway, Mode, OpenRouterTransport
 from docket.llm.replay import ReplayStore
 from docket.settings import Settings
@@ -55,17 +56,25 @@ class Runtime:
             settings = self.settings.model_copy(update={"docket_model": request["model"]})
             kwargs = {}
             if mode in {Mode.RECORD, Mode.LIVE}:
+                prices = load_prices().ceiling(request["model"])
+                transport = (
+                    AnthropicTransport(settings, 256)
+                    if settings.docket_model_provider == "anthropic"
+                    else OpenRouterTransport(settings, prices, 256)
+                )
                 kwargs = {
                     "budget": Budget(
                         RunBudget(Decimal(request["budget"])),
                         DailyBudget(self.engine, Decimal(str(settings.docket_daily_budget_usd))),
                     ),
-                    "transport": OpenRouterTransport(settings, PriceCeiling(), 256),
+                    "transport": transport,
+                    "prices": prices,
                 }
             self.gateways[key] = Gateway(
                 mode=mode,
                 model=request["model"],
                 store=ReplayStore(Path(settings.docket_replay_path)),
+                provider=settings.docket_model_provider,
                 **kwargs,
             )
         return self.gateways[key]

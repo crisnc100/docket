@@ -5,6 +5,7 @@ from docket.llm.spike import FirstEnum, SecondEnum
 
 
 def test_spike_command_without_key_makes_no_calls(monkeypatch):
+    monkeypatch.setenv("DOCKET_MODEL_PROVIDER", "openrouter")
     monkeypatch.setenv("OPENROUTER_API_KEY", "")
     result = CliRunner().invoke(app, ["spike-models"])
     assert result.exit_code == 0
@@ -47,7 +48,13 @@ async def test_spike_writes_measured_adr_from_usage_without_live_model(
     adr.write_text("Status: PENDING\n\n## Result\n\nPENDING\n\n## Decision\n\nValidate enums.\n")
     output = tmp_path / "measurement.json"
     report = await spike_module.run_spike(
-        Settings(_env_file=None, openrouter_api_key=SecretStr("test-key")), output, adr
+        Settings(
+            _env_file=None,
+            docket_model_provider="openrouter",
+            openrouter_api_key=SecretStr("test-key"),
+        ),
+        output,
+        adr,
     )
     assert report["status"] == "PASS" and report["calls"] == 2
     assert Decimal(report["cost_usd"]) == Decimal("0.00002")

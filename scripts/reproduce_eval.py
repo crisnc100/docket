@@ -4,12 +4,13 @@ from decimal import Decimal
 from pathlib import Path
 
 from docket.evaluation import evaluate
+from docket.settings import Settings
 
 
 def require_measured_pass(report: dict) -> None:
     if (
         report.get("status") != "PASS"
-        or report.get("measurement") not in {"simulated", "mixed", "openrouter"}
+        or report.get("measurement") not in {"simulated", "mixed", "openrouter", "anthropic"}
         or not report.get("docket")
         or not report.get("docket_results")
         or not report.get("floors")
@@ -24,7 +25,13 @@ async def main():
         raise SystemExit("FAIL: held-out report missing")
     stored = json.loads(paths[-1].read_text())
     require_measured_pass(stored)
-    reproduced = await evaluate(11, "replay", Decimal(0), date=stored["date"])
+    # Replay under the stored report's own model and archive, whatever the defaults are now.
+    settings = Settings(
+        docket_model=stored["model"],
+        docket_model_provider="anthropic" if stored["measurement"] == "anthropic" else "openrouter",
+        docket_replay_path="",
+    )
+    reproduced = await evaluate(11, "replay", Decimal(0), settings=settings, date=stored["date"])
     require_measured_pass(reproduced)
     for name in [
         "status",

@@ -9,7 +9,7 @@ from pathlib import Path
 from detect_secrets.core.secrets_collection import SecretsCollection
 from detect_secrets.settings import default_settings
 
-from docket.llm.archive import load_archive
+from docket.llm.archive import load_archive, load_live_archive
 from docket.llm.exchange import PendingRequest
 
 
@@ -18,6 +18,10 @@ def remaining_findings(results: dict, pending: Path) -> tuple[dict, int]:
     archive = pending.parent / "recordings/exchange.jsonl.gz"
     if archive.exists():
         for key in load_archive(archive):
+            public_digests.add(hashlib.sha1(key.encode()).hexdigest())
+    live = pending.parent / "recordings/anthropic-exchange.jsonl.gz"
+    if live.exists():
+        for key in load_live_archive(live):
             public_digests.add(hashlib.sha1(key.encode()).hexdigest())
     for path in pending.glob("*.json"):
         request = PendingRequest.model_validate_json(path.read_text())
@@ -51,9 +55,23 @@ def archived_findings(archive: Path) -> dict:
         return {f"{archive}:{name}": findings for name, findings in secrets.json().items()}
 
 
+def live_archived_findings(archive: Path) -> dict:
+    entries = load_live_archive(archive)
+    with tempfile.TemporaryDirectory() as directory, default_settings():
+        secrets = SecretsCollection(root=directory)
+        for key, entry in entries.items():
+            filename = f"{key}-request.json"
+            (Path(directory) / filename).write_bytes(entry.request_json.encode())
+            secrets.scan_file(filename)
+        return {f"{archive}:{name}": findings for name, findings in secrets.json().items()}
+
+
 def main():
     results = json.loads(Path(sys.argv[1]).read_text())["results"]
     results.update(archived_findings(Path("evals/recordings/exchange.jsonl.gz")))
+    live = Path("evals/recordings/anthropic-exchange.jsonl.gz")
+    if live.exists():
+        results.update(live_archived_findings(live))
     remaining, count = remaining_findings(results, Path("evals/pending"))
     print("detect-secrets:", remaining)
     if count:

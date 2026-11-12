@@ -1,5 +1,7 @@
 import asyncio
+import json
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from pathlib import Path
@@ -14,11 +16,28 @@ from openai import (
 )
 from pydantic import BaseModel, ValidationError
 
+from docket.llm.anthropic import Reply
 from docket.llm.budget import Budget, PriceCeiling
-from docket.llm.errors import ExportPending, ParseError, RecordRefused, UsageError
+from docket.llm.errors import (
+    ExportPending,
+    MaybeBilled,
+    NoAnswer,
+    NotSent,
+    ParseError,
+    RecordRefused,
+    UnreadableAnswer,
+    UsageError,
+)
 from docket.llm.exchange import Exchange, PendingRequest
 from docket.llm.replay import Recording, ReplayStore, canonical, replay_key
 from docket.settings import Settings
+
+RETRY_DELAYS = (1, 2, 4, 8)
+
+
+def gateway_worst_seconds(request_timeout: float) -> float:
+    """The longest one gateway call can take: every attempt times out, with every backoff."""
+    return (len(RETRY_DELAYS) + 1) * request_timeout + sum(RETRY_DELAYS)
 
 
 class Mode(StrEnum):
@@ -105,6 +124,8 @@ class Gateway:
         max_output_tokens: int = 256,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         exchange: Exchange | None = None,
+        provider: str = "openrouter",
+        today: Callable[[], str] = lambda: datetime.now(UTC).date().isoformat(),
     ):
         self.mode = Mode(mode)
         self.model = model
@@ -118,6 +139,8 @@ class Gateway:
         self.exchange = exchange or Exchange(Path("evals/pending"), Path("evals/answers"))
         self.used_recordings: dict[str, Recording] = {}
         self.actual_cost_usd = Decimal(0)
+        self.provider = provider
+        self.today = today
 
     async def call[T: BaseModel](
         self,
@@ -136,34 +159,40 @@ class Gateway:
         if system_prompt:
             request["system_prompt"] = system_prompt
         key = replay_key(activity, prompt_version, self.model, request)
-        if self.mode == Mode.EXPORT:
-            self.exchange.export(
-                PendingRequest(
-                    key=key,
-                    activity=activity,
-                    prompt_version=prompt_version,
-                    target_model=self.model,
-                    system_prompt=system_prompt,
-                    messages=[{"role": "user", "content": prompt}],
-                    response_schema=schema.model_json_schema(),
-                    inputs=inputs,
-                    source=source,
-                )
+
+        def pending() -> PendingRequest:
+            return PendingRequest(
+                key=key,
+                activity=activity,
+                prompt_version=prompt_version,
+                target_model=self.model,
+                system_prompt=system_prompt,
+                messages=[{"role": "user", "content": prompt}],
+                response_schema=schema.model_json_schema(),
+                inputs=inputs,
+                source=source,
             )
+
+        if self.mode == Mode.EXPORT:
+            self.exchange.export(pending())
             raise ExportPending(f"Request exported: {key}")
         if self.mode == Mode.IMPORT:
             self.exchange.import_answers([key], self.store)
-        if self.mode in {Mode.REPLAY, Mode.IMPORT}:
+        # A request that already has an answer, readable or not, is never asked again.
+        recorded = self.mode == Mode.RECORD and self.store.contains(key)
+        if self.mode in {Mode.REPLAY, Mode.IMPORT} or recorded:
             try:
                 entry = self.store.get(key)
                 self.used_recordings[key] = entry
+                if entry.outcome == "unreadable":
+                    raise UnreadableAnswer(entry.reason or "")
                 return schema.model_validate(entry.output)
             except ValidationError as exc:
                 raise ParseError("Replay output does not match the per-call schema") from exc
         if self.budget is None or self.transport is None:
             raise ValueError("Live and record calls require a budget and transport")
         worst = self.prices.worst_case(canonical(request), self.max_output_tokens)
-        for attempt in range(5):
+        for attempt in range(len(RETRY_DELAYS) + 1):
             day = self.budget.reserve(worst)
             self.call_count += 1
             try:
@@ -189,14 +218,31 @@ class Gateway:
                         self.actual_cost_usd += cost
                         self.budget.settle(day, worst, cost)
                 raise ParseError("Model output does not match the per-call schema") from exc
+            except MaybeBilled:
+                # The reservation stays: the call is charged at its worst case.
+                self.actual_cost_usd += worst
+                raise
             except Exception as exc:
-                if getattr(exc, "status_code", None) == 429:
+                if isinstance(exc, NotSent) or getattr(exc, "status_code", None) == 429:
                     self.budget.settle(day, worst, Decimal(0))
-                    if attempt < 4:
-                        await self.sleep(2**attempt)
+                    if attempt < len(RETRY_DELAYS):
+                        await self.sleep(RETRY_DELAYS[attempt])
                         continue
+                    if isinstance(exc, NotSent):
+                        raise NoAnswer(f"No answer after 4 retries: {exc}") from exc
                 # Ambiguous transport failures retain reservations: the provider may have billed.
                 raise
+            if isinstance(result, Reply):
+                return self._settle_reply(
+                    result,
+                    schema,
+                    key=key,
+                    source=source,
+                    budget=self.budget,
+                    day=day,
+                    worst=worst,
+                    pending=pending,
+                )
             raw = result.get("raw")
             cost = response_cost(raw)
             self.actual_cost_usd += cost
@@ -220,3 +266,66 @@ class Gateway:
                     self.store.append(entry)
             return output
         raise AssertionError("Unreachable retry state")
+
+    def _settle_reply[T: BaseModel](
+        self,
+        reply: Reply,
+        schema: type[T],
+        *,
+        key: str,
+        source: str,
+        budget: Budget,
+        day: Any,
+        worst: Decimal,
+        pending: Callable[[], PendingRequest],
+    ) -> T:
+        cost = self.prices.cost(reply.input_tokens, reply.output_tokens)
+        self.actual_cost_usd += cost
+        # Charged before parsing: the API bills unreadable answers too.
+        budget.settle(day, worst, cost)
+        reason, output = read_reply(reply, schema)
+        if source == "synthetic_corpus":
+            entry = Recording(
+                key=key,
+                outcome="unreadable" if reason else "answer",
+                reason=reason,
+                output=None if output is None else output.model_dump(mode="json"),
+                raw_text=reply.text,
+                cost_usd=str(cost),
+                input_tokens=reply.input_tokens,
+                output_tokens=reply.output_tokens,
+                latency_ms=reply.latency_ms,
+                output_mode=reply.output_mode,
+                source=source,
+                provenance={
+                    "provider": self.provider,
+                    "model": self.model,
+                    "recorded": self.today(),
+                },
+            )
+            self.used_recordings[key] = entry
+            if self.mode == Mode.RECORD:
+                # The request text goes beside the answer, for packing into the exchange file.
+                self.exchange.export(pending())
+                self.store.append(entry)
+        if reason:
+            raise UnreadableAnswer(reason)
+        assert output is not None
+        return output
+
+
+def read_reply[T: BaseModel](reply: Reply, schema: type[T]) -> tuple[str | None, T | None]:
+    if reply.stop_reason == "refusal":
+        return "refusal", None
+    if reply.stop_reason in {"max_tokens", "model_context_window_exceeded"}:
+        return "cut", None
+    try:
+        value = json.loads(reply.text)
+    except (ValueError, RecursionError):
+        return "not_json", None
+    if not isinstance(value, dict):
+        return "not_json", None
+    try:
+        return None, schema.model_validate(value)
+    except ValidationError:
+        return "schema", None

@@ -31,6 +31,11 @@ from docket.llm.replay import Recording, ReplayStore
 from docket.settings import Settings
 from scripts.tune_threshold import select_threshold
 
+# The v0.1 simulated answers are keyed to the model they stood in for.
+SIMULATED_TARGET = Settings(
+    _env_file=None, docket_model_provider="openrouter", docket_model="openai/gpt-4o-mini"
+)
+
 
 def corpus_labels(seed):
     folder = Path(f"corpus/seed-{seed}")
@@ -103,7 +108,7 @@ def test_original_payloads_labels_and_requests_remain_unchanged(seed):
         if name.endswith("labels.jsonl"):
             content = b"\n".join(content.splitlines()[:170]) + b"\n"
         assert hashlib.sha256(content).hexdigest() == digest, name
-    requests = pending_requests(labels[:170], folder, Settings(_env_file=None))
+    requests = pending_requests(labels[:170], folder, SIMULATED_TARGET)
     assert len(requests) == 200
     store = ReplayStore(Path("evals/recordings/calls.jsonl"))
     archived = load_archive(Path("evals/recordings/exchange.jsonl.gz"))

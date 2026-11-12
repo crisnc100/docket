@@ -88,27 +88,36 @@ made.
 
 The replay check runs through `scripts/reproduce_eval.py`.
 It compares seed 11 with the saved report.
+It replays under the model and provider that report was measured with.
 It checks each document's result, metrics, curve, provenance and shadow diff.
 Continuous integration runs this check through `verify.sh`.
 A changed archive or scoring config needs new reports.
 Tune on seed 7 only. Do not tune on seed 11.
 
-## Real OpenRouter measurements
+## Live Anthropic answers
 
-Set OPENROUTER_API_KEY in the environment or gitignored `.env`.
-Never commit it.
-Use a separate archive so real and simulated answers cannot mix.
-Per-run and daily budget limits still apply.
+Set `ANTHROPIC_API_KEY` in the environment or gitignored `.env`. Never commit it.
+Set `DOCKET_MODEL_PROVIDER=anthropic` and `DOCKET_MODEL=claude-haiku-5-5`.
+Live answers then go to `evals/recordings/anthropic.jsonl`, apart from the simulated ones.
+[Operations](operations.md#model-gateway) explains the budgets, retries and unreadable answers.
 
 ```sh
 uv run docket spike-models
-DOCKET_REPLAY_PATH=evals/recordings/openrouter.jsonl uv run docket eval --seed 11 --mode record --budget 2.00
-DOCKET_REPLAY_PATH=evals/recordings/openrouter.jsonl uv run docket eval --seed 11 --mode replay --budget 0
+uv run docket eval --seed 11 --mode record --budget 2.00
+uv run python scripts/pack_exchange.py --live
+uv run docket eval --seed 11 --mode replay --budget 0
 ```
 
-Real measurements keep provider usage cost.
 Record mode accepts only the synthetic corpus.
-Do not label simulated results as real-provider results.
+It sends only requests with no saved answer. A rerun never resends an answered request.
+Its report counts `recorded_before_run` and `requests_to_send`.
+Each live answer keeps its raw text, tokens, cost, latency and output mode.
+Record mode also writes each request to `evals/pending/`.
+`pack_exchange.py --live` packs those requests into `evals/recordings/anthropic-exchange.jsonl.gz`,
+so the exact request behind each live answer is kept.
+`pack_exchange.py --check` also checks that file against the live recordings when either exists.
+A report refuses to mix live answers with simulated or OpenRouter answers.
+A live report opens with a line naming the model and the date or dates it was measured.
 
 ## Workflow histories
 

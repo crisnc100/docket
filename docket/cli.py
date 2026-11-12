@@ -15,17 +15,20 @@ def version() -> None:
 
 @app.command()
 def spike_models() -> None:
-    """Check the configured OpenRouter model's per-call enums (budget: $0.50)."""
+    """Check the configured model's per-call enums: two live calls (Anthropic budget $0.05)."""
     from pathlib import Path
 
-    from docket.llm.spike import spike
+    from docket.llm import spike as spike_module
     from docket.settings import Settings
 
     settings = Settings()
-    if not settings.openrouter_api_key.get_secret_value():
-        typer.echo("PENDING: OPENROUTER_API_KEY is not set; no live calls made.")
+    anthropic = settings.docket_model_provider == "anthropic"
+    name = "ANTHROPIC_API_KEY" if anthropic else "OPENROUTER_API_KEY"
+    if not settings.api_key().get_secret_value():
+        typer.echo(f"PENDING: {name} is not set; no live calls made.")
         return
-    result = spike(settings, Path("docs/adr/model-spike-result.json"))
+    output = "docs/adr/008-spike-result.json" if anthropic else "docs/adr/model-spike-result.json"
+    result = spike_module.spike(settings, Path(output))
     typer.echo(result)
 
 

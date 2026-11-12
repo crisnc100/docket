@@ -13,6 +13,14 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
             raise pytest.UsageError(f"Skipped tests are forbidden: {item.nodeid}")
 
 
+@pytest.fixture(autouse=True)
+def no_live_model_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The gitignored .env may hold a real key. Settings read the environment before .env,
+    # so blanking these keeps every test away from a live model.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "")
+
+
 @pytest.fixture()
 def postgres_engine():
     import uuid

@@ -31,7 +31,6 @@ from docket.llm.replay import Recording, ReplayStore
 from docket.settings import Settings
 from scripts.tune_threshold import select_threshold
 
-
 # The v0.1 simulated answers are keyed to the model they stood in for.
 SIMULATED_TARGET = Settings(
     _env_file=None, docket_model_provider="openrouter", docket_model="openai/gpt-4o-mini"

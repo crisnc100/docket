@@ -62,8 +62,8 @@ services:
       DOCKET_WEBHOOK_SECRET: ${DOCKET_WEBHOOK_SECRET:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      DOCKET_MODEL_PROVIDER: ${DOCKET_MODEL_PROVIDER:-anthropic}
-      DOCKET_MODEL: ${DOCKET_MODEL:-claude-haiku-5-5}
+      DOCKET_MODEL_PROVIDER: ${DOCKET_MODEL_PROVIDER:-openrouter}
+      DOCKET_MODEL: ${DOCKET_MODEL:-openai/gpt-4o-mini}
     depends_on:
       postgres:
         condition: service_healthy

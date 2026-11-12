@@ -16,6 +16,7 @@ from docket.db import BudgetLedger
 from docket.llm.anthropic import JSON_PROMPT, JSON_SCHEMA, AnthropicTransport, OutputMode
 from docket.llm.budget import Budget, DailyBudget, RunBudget, load_prices
 from docket.llm.errors import MaybeBilled, NoAnswer, ParseError, UnreadableAnswer, UsageError
+from docket.llm.exchange import Exchange
 from docket.llm.gateway import Gateway, Mode
 from docket.llm.replay import ReplayStore, canonical
 from docket.prompts import choose_request, classify_request
@@ -106,6 +107,7 @@ def gateway(api, engine, tmp_path, *, mode=Mode.RECORD, key="test-key", output_m
         sleep=sleep,
         provider="anthropic",
         today=lambda: "2026-11-12",
+        exchange=Exchange(tmp_path / "pending", tmp_path / "answers"),
     )
 
 

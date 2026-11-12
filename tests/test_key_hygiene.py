@@ -13,6 +13,7 @@ from docket.evaluation import write_report
 from docket.llm.anthropic import AnthropicTransport, OutputMode
 from docket.llm.budget import Budget, DailyBudget, RunBudget, load_prices
 from docket.llm.errors import MaybeBilled, NoAnswer, UnreadableAnswer
+from docket.llm.exchange import Exchange
 from docket.llm.gateway import Gateway, Mode
 from docket.llm.replay import ReplayStore
 from docket.prompts import choose_request
@@ -83,6 +84,7 @@ async def test_sentinel_key_never_leaves_the_header(postgres_engine, tmp_path, c
         prices=load_prices().ceiling("claude-haiku-5-5"),
         sleep=no_sleep,
         provider="anthropic",
+        exchange=Exchange(tmp_path / "pending", tmp_path / "answers"),
     )
     errors = []
     with caplog.at_level(logging.DEBUG):

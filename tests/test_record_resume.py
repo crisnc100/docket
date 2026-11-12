@@ -45,6 +45,8 @@ async def test_second_record_run_sends_only_missing_requests(tmp_path, monkeypat
     settings = Settings(
         _env_file=None,
         anthropic_api_key=SecretStr("test-key"),
+        docket_model_provider="anthropic",
+        docket_model="claude-haiku-5-5",
         docket_replay_path=str(tmp_path / "anthropic.jsonl"),
         docket_daily_budget_usd=5,
     )

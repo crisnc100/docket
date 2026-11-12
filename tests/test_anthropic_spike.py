@@ -76,7 +76,10 @@ async def test_anthropic_spike_makes_two_calls_on_a_five_cent_budget(
     adr.write_text(ADR)
     output = tmp_path / "spike.json"
     settings = Settings(
-        _env_file=None, anthropic_api_key=SecretStr("test-key"), docket_model_provider="anthropic"
+        _env_file=None,
+        anthropic_api_key=SecretStr("test-key"),
+        docket_model_provider="anthropic",
+        docket_model="claude-haiku-5-5",
     )
     report = await spike_module.run_spike(settings, output, adr)
     assert budgets == [Decimal("0.05")]

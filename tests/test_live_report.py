@@ -150,7 +150,12 @@ async def test_live_eval_needs_the_anthropic_key_and_a_budget_under_the_cap(tmp_
     shutil.copy("corpus/seed-11/labels.jsonl", tmp_path / "corpus/seed-11/labels.jsonl")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("docket.evaluation.pending_requests", lambda *args: {})
-    keyless = Settings(_env_file=None, docket_replay_path="anthropic.jsonl")
+    keyless = Settings(
+        _env_file=None,
+        docket_model_provider="anthropic",
+        docket_model="claude-haiku-5-5",
+        docket_replay_path="anthropic.jsonl",
+    )
     with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
         await evaluate(11, "record", Decimal("2"), settings=keyless, date="test")
     keyed = keyless.model_copy(update={"anthropic_api_key": SecretStr("test-key")})

@@ -33,8 +33,7 @@ under the SDK). An autouse fixture blanks both API keys for every test.
 
 ### Choices the plan did not settle
 
-These were sent to the orchestrator as callbacks. The build went ahead with the
-recommended answer, each in its own commit.
+The orchestrator accepted all of these as recommended.
 
 1. The replay path default follows the provider. The simulated replay is pinned to
    `openai/gpt-4o-mini` on OpenRouter in tests and in `reproduce_eval.py`.
@@ -62,17 +61,16 @@ None of them changes an assertion.
 
 ### Verify
 
-On `34cccfe`, `./verify.sh` passes every step but the last: ruff, pyright, the pack
-check, the web build, 679 tests with zero skips, the coverage gates, and the replay
-reproduction ("Replay report reproduced: PASS; seed=11; no model calls"). The
-detect-secrets step then fails on one finding: the gitignored `.env` holding the real
-key (`--all-files` scans ignored files). CI has no `.env`. The proposed fix is to
-exclude `^\.env$` in verify.sh. It is with the orchestrator, not applied.
+`./verify.sh` passes in full on `025513c`, the PR1 code. Its results: 681 tests with
+zero skips, the coverage gates, the pack check, "Replay report reproduced: PASS; seed=11;
+no model calls", and detect-secrets clean. The secret scan skips the root `.env`, which
+holds the local key, and a step before it fails unless `git check-ignore` confirms that
+`.env` is ignored.
 
-The run before it had one timing failure in
-`tests/core/test_structural_matching_bounds.py`: the ratio of two times between 0.011 s
-and 0.028 s was over 2.5 while the browser stack ran. The file passed alone three
-times, and the full rerun passed. `docket/core` is unchanged in PR1.
+One earlier run had a timing failure in `tests/core/test_structural_matching_bounds.py`.
+Two timings were 0.011 s and 0.028 s, a ratio over 2.5, while the browser stack was
+running. The file then passed alone three times, and the full rerun passed. PR1 does not
+change `docket/core`.
 
 ### What PR2 needs
 

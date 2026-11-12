@@ -4,11 +4,11 @@ import json
 import os
 import unicodedata
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from docket.llm.errors import ParseError, ReplayMiss
+from docket.llm.errors import UNREADABLE_REASONS, ParseError, ReplayMiss
 
 
 def normalize(value: Any) -> Any:
@@ -32,13 +32,48 @@ def replay_key(activity: str, prompt_version: str, model: str, inputs: Any) -> s
     return hashlib.sha256(canonical([activity, prompt_version, model, digest]).encode()).hexdigest()
 
 
+V01_FIELDS = {"key", "output", "cost_usd", "source", "provenance"}
+LIVE_FIELDS = ("raw_text", "cost_usd", "input_tokens", "output_tokens", "latency_ms", "output_mode")
+
+
 class Recording(BaseModel):
+    """One answer. Simulated entries carry only key, output, cost, source and provenance."""
+
     model_config = ConfigDict(extra="forbid")
     key: str = Field(pattern=r"^[a-f0-9]{64}$")
-    output: dict[str, Any]
+    outcome: Literal["answer", "unreadable"] = "answer"
+    reason: str | None = None
+    output: dict[str, Any] | None
+    raw_text: str | None = None
     cost_usd: str | None
+    input_tokens: int | None = Field(default=None, ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    latency_ms: int | None = Field(default=None, ge=0)
+    output_mode: Literal["json_schema", "json_prompt"] | None = None
     source: str = Field(pattern=r"^synthetic_corpus$")
     provenance: dict[str, str] | None = None
+
+    @model_validator(mode="after")
+    def consistent(self) -> "Recording":
+        if self.outcome == "answer" and (self.output is None or self.reason is not None):
+            raise ValueError("An answer needs an output and no reason")
+        if self.outcome == "unreadable" and (
+            self.output is not None or self.reason not in UNREADABLE_REASONS
+        ):
+            raise ValueError("An unreadable answer needs a known reason and no output")
+        if self.live and any(getattr(self, name) is None for name in LIVE_FIELDS):
+            raise ValueError("A live answer needs its raw text, cost, tokens, latency and mode")
+        return self
+
+    @property
+    def live(self) -> bool:
+        return bool(self.provenance and "provider" in self.provenance)
+
+    def line(self) -> str:
+        # Simulated entries keep their v0.1 shape; live entries always write every field.
+        if self.live:
+            return self.model_dump_json()
+        return self.model_dump_json(include=V01_FIELDS)
 
 
 class ReplayStore:
@@ -85,6 +120,6 @@ class ReplayStore:
                     raise ParseError("Refusing to overwrite a replay entry")
                 return
             file.seek(0, os.SEEK_END)
-            file.write(entry.model_dump_json() + "\n")
+            file.write(entry.line() + "\n")
             file.flush()
             os.fsync(file.fileno())

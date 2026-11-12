@@ -15,6 +15,8 @@ def activity_failure_reason(exc: ActivityError) -> str:
         "BudgetExceeded": "budget_exceeded",
         "StorageConflict": "storage_conflict",
         "ParseError": "parse_error",
+        "NoAnswer": "no_answer",
+        "MaybeBilled": "maybe_billed",
     }.get(
         getattr(cause, "type", ""),
         "non_retryable_error"

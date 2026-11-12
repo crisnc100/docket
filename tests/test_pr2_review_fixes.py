@@ -47,7 +47,16 @@ async def test_seed_import_without_working_folders_uses_saved_recordings(tmp_pat
 
     monkeypatch.setattr("docket.evaluation.model_outcomes", outcomes)
     with pytest.raises(RuntimeError, match="import reached replay"):
-        await evaluate(11, "import", Decimal(0), settings=Settings(_env_file=None))
+        await evaluate(
+            11,
+            "import",
+            Decimal(0),
+            settings=Settings(
+                _env_file=None,
+                docket_model_provider="openrouter",
+                docket_model="openai/gpt-4o-mini",
+            ),
+        )
     assert not Path("evals/pending").exists() and not Path("evals/answers").exists()
 
 
@@ -140,7 +149,9 @@ def test_live_documents_have_separate_run_budgets_and_a_shared_daily_cap(
     postgres_engine, monkeypatch
 ):
     monkeypatch.setattr("docket.runtime.OpenRouterTransport", lambda *args: object())
-    runtime = Runtime(Settings(_env_file=None, docket_daily_budget_usd=0.015))
+    runtime = Runtime(
+        Settings(_env_file=None, docket_model_provider="openrouter", docket_daily_budget_usd=0.015)
+    )
     runtime.engine.dispose()
     runtime.engine = postgres_engine
     try:
@@ -170,7 +181,7 @@ def test_live_documents_have_separate_run_budgets_and_a_shared_daily_cap(
 
 def test_observe_documents_keep_the_shared_evaluation_budget(postgres_engine, monkeypatch):
     monkeypatch.setattr("docket.runtime.OpenRouterTransport", lambda *args: object())
-    runtime = Runtime(Settings(_env_file=None))
+    runtime = Runtime(Settings(_env_file=None, docket_model_provider="openrouter"))
     runtime.engine.dispose()
     runtime.engine = postgres_engine
     try:

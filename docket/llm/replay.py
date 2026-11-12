@@ -104,6 +104,13 @@ class ReplayStore:
             raise ReplayMiss(f"No recording for {key}")
         return entries[key]
 
+    def contains(self, key: str) -> bool:
+        try:
+            self.get(key)
+        except ReplayMiss:
+            return False
+        return True
+
     def entries(self) -> list[Recording]:
         with self.path.open() as file:
             fcntl.flock(file, fcntl.LOCK_SH)

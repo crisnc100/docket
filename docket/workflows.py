@@ -25,6 +25,16 @@ def activity_failure_reason(exc: ActivityError) -> str:
     )
 
 
+MODEL_ACTIVITIES = {"classify", "choose"}
+# A model call with all its retries must finish inside this deadline
+# (tests/test_model_timeouts.py), or Temporal would rerun a call that may be billed.
+MODEL_ACTIVITY_TIMEOUT = timedelta(seconds=120)
+
+
+def activity_timeout(name: str) -> timedelta:
+    return MODEL_ACTIVITY_TIMEOUT if name in MODEL_ACTIVITIES else timedelta(seconds=30)
+
+
 @dataclass
 class DocumentInput:
     document_id: str
@@ -52,7 +62,7 @@ class FileDocumentWorkflow:
             name,
             stage,
             result_type=dict,
-            start_to_close_timeout=timedelta(seconds=30),
+            start_to_close_timeout=activity_timeout(name),
             heartbeat_timeout=timedelta(seconds=10),
             retry_policy=RetryPolicy(
                 initial_interval=timedelta(seconds=1), backoff_coefficient=2, maximum_attempts=5

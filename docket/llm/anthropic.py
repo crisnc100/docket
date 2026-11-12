@@ -36,6 +36,11 @@ SCHEMA_REFUSED = ("schema", "grammar", "output_config", "format")
 # These httpx2 errors happen while connecting, so the request was never sent.
 NOT_SENT = (httpx2.ConnectError, httpx2.ConnectTimeout)
 
+# Kept well under the model activities' Temporal deadline, with every retry included
+# (tests/test_model_timeouts.py). Past that deadline Temporal would run the activity
+# again and could resend a request the API already billed.
+REQUEST_TIMEOUT_SECONDS = 15.0
+
 log = logging.getLogger(__name__)
 
 
@@ -104,7 +109,10 @@ class AnthropicTransport:
         self.mode = mode
         self.clock = clock
         self._client = anthropic.AsyncAnthropic(
-            api_key=key, max_retries=0, timeout=30, http_client=http_client
+            api_key=key,
+            max_retries=0,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            http_client=http_client,
         )
 
     def __repr__(self) -> str:

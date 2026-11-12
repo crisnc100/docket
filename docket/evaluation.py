@@ -508,6 +508,10 @@ async def evaluate(
         except ReplayMiss:
             missing.append(key)
     report["pending_requests"] = len(missing)
+    if mode == "record":
+        # The gateway replays requests already in the archive, so only these are sent.
+        report["recorded_before_run"] = len(keys) - len(missing)
+        report["requests_to_send"] = len(missing)
     report["manifest"] = str(manifest_path)
     if mode == "export" or (mode in {"replay", "import"} and missing):
         report.update(

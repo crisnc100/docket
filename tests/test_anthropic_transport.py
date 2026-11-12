@@ -386,3 +386,30 @@ def test_schema_helper_closes_nested_objects():
 
     assert strict_schema(Classification)["additionalProperties"] is False
     assert "$defs" not in json.dumps(strict_schema(choice_schema(["UNIT-0001"])))
+
+
+# Record mode never asks again for a request that already has an answer.
+
+
+@pytest.mark.parametrize("first", [message(), message("not json")])
+async def test_record_mode_replays_requests_already_recorded(postgres_engine, tmp_path, first):
+    store = ReplayStore(tmp_path / "anthropic.jsonl")
+    api = FakeApi(first)
+    recorder = gateway(api, postgres_engine, tmp_path, store=store)
+    try:
+        before = (await recorder.call(**choose())).model_dump(mode="json")
+    except UnreadableAnswer as exc:
+        before = exc.reason
+    recorded = (tmp_path / "anthropic.jsonl").read_bytes()
+    spent_before = spent(postgres_engine)
+    again_api = FakeApi()
+    again = gateway(again_api, postgres_engine, tmp_path, store=store)
+    try:
+        after = (await again.call(**choose())).model_dump(mode="json")
+    except UnreadableAnswer as exc:
+        after = exc.reason
+    assert after == before
+    assert again_api.requests == [] and again.call_count == 0
+    assert spent(postgres_engine) == spent_before and again.actual_cost_usd == 0
+    assert (tmp_path / "anthropic.jsonl").read_bytes() == recorded
+    assert list(again.used_recordings) == list(recorder.used_recordings)

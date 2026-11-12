@@ -32,6 +32,13 @@ from docket.llm.exchange import Exchange, PendingRequest
 from docket.llm.replay import Recording, ReplayStore, canonical, replay_key
 from docket.settings import Settings
 
+RETRY_DELAYS = (1, 2, 4, 8)
+
+
+def gateway_worst_seconds(request_timeout: float) -> float:
+    """The longest one gateway call can take: every attempt times out, with every backoff."""
+    return (len(RETRY_DELAYS) + 1) * request_timeout + sum(RETRY_DELAYS)
+
 
 class Mode(StrEnum):
     RECORD = "record"
@@ -171,7 +178,9 @@ class Gateway:
             raise ExportPending(f"Request exported: {key}")
         if self.mode == Mode.IMPORT:
             self.exchange.import_answers([key], self.store)
-        if self.mode in {Mode.REPLAY, Mode.IMPORT}:
+        # A request that already has an answer, readable or not, is never asked again.
+        recorded = self.mode == Mode.RECORD and self.store.contains(key)
+        if self.mode in {Mode.REPLAY, Mode.IMPORT} or recorded:
             try:
                 entry = self.store.get(key)
                 self.used_recordings[key] = entry
@@ -183,7 +192,7 @@ class Gateway:
         if self.budget is None or self.transport is None:
             raise ValueError("Live and record calls require a budget and transport")
         worst = self.prices.worst_case(canonical(request), self.max_output_tokens)
-        for attempt in range(5):
+        for attempt in range(len(RETRY_DELAYS) + 1):
             day = self.budget.reserve(worst)
             self.call_count += 1
             try:
@@ -216,8 +225,8 @@ class Gateway:
             except Exception as exc:
                 if isinstance(exc, NotSent) or getattr(exc, "status_code", None) == 429:
                     self.budget.settle(day, worst, Decimal(0))
-                    if attempt < 4:
-                        await self.sleep(2**attempt)
+                    if attempt < len(RETRY_DELAYS):
+                        await self.sleep(RETRY_DELAYS[attempt])
                         continue
                     if isinstance(exc, NotSent):
                         raise NoAnswer(f"No answer after 4 retries: {exc}") from exc

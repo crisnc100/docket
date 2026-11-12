@@ -152,20 +152,22 @@ class Gateway:
         if system_prompt:
             request["system_prompt"] = system_prompt
         key = replay_key(activity, prompt_version, self.model, request)
-        if self.mode == Mode.EXPORT:
-            self.exchange.export(
-                PendingRequest(
-                    key=key,
-                    activity=activity,
-                    prompt_version=prompt_version,
-                    target_model=self.model,
-                    system_prompt=system_prompt,
-                    messages=[{"role": "user", "content": prompt}],
-                    response_schema=schema.model_json_schema(),
-                    inputs=inputs,
-                    source=source,
-                )
+
+        def pending() -> PendingRequest:
+            return PendingRequest(
+                key=key,
+                activity=activity,
+                prompt_version=prompt_version,
+                target_model=self.model,
+                system_prompt=system_prompt,
+                messages=[{"role": "user", "content": prompt}],
+                response_schema=schema.model_json_schema(),
+                inputs=inputs,
+                source=source,
             )
+
+        if self.mode == Mode.EXPORT:
+            self.exchange.export(pending())
             raise ExportPending(f"Request exported: {key}")
         if self.mode == Mode.IMPORT:
             self.exchange.import_answers([key], self.store)
@@ -230,6 +232,7 @@ class Gateway:
                     budget=self.budget,
                     day=day,
                     worst=worst,
+                    pending=pending,
                 )
             raw = result.get("raw")
             cost = response_cost(raw)
@@ -265,6 +268,7 @@ class Gateway:
         budget: Budget,
         day: Any,
         worst: Decimal,
+        pending: Callable[[], PendingRequest],
     ) -> T:
         cost = self.prices.cost(reply.input_tokens, reply.output_tokens)
         self.actual_cost_usd += cost
@@ -292,6 +296,8 @@ class Gateway:
             )
             self.used_recordings[key] = entry
             if self.mode == Mode.RECORD:
+                # The request text goes beside the answer, for packing into the exchange file.
+                self.exchange.export(pending())
                 self.store.append(entry)
         if reason:
             raise UnreadableAnswer(reason)

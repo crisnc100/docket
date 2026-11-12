@@ -425,11 +425,26 @@ async def export_requests(labels, folder: Path, settings: Settings) -> set[str]:
     return set(requests)
 
 
+def recording_kind(entry: Recording) -> str:
+    if entry.live:
+        return (entry.provenance or {})["provider"]
+    return "simulated" if entry.provenance else "openrouter"
+
+
 def measurement_label(recordings: list[Recording]) -> str:
     if not recordings:
         return "no model calls"
-    kinds = {"simulated" if entry.provenance else "openrouter" for entry in recordings}
+    kinds = {recording_kind(entry) for entry in recordings}
+    if "anthropic" in kinds and len(kinds) > 1:
+        raise ValueError("A report cannot mix live answers with simulated or other answers")
     return next(iter(kinds)) if len(kinds) == 1 else "mixed"
+
+
+def live_banner(report: dict) -> str:
+    dates = sorted({entry["recorded"] for entry in report["provenance"]})
+    models = ", ".join(sorted({entry["model"] for entry in report["provenance"]}))
+    when = dates[0] if len(dates) == 1 else f"{dates[0]} to {dates[-1]}"
+    return f"Model answers measured live from {models} on the Anthropic API on {when}."
 
 
 async def evaluate(
@@ -504,31 +519,48 @@ async def evaluate(
             shadow={"status": "PENDING-SIMULATION", "disagreements": None},
         )
         return report
-    if mode in {"record", "live"} and not settings.openrouter_api_key.get_secret_value():
-        raise ValueError("OPENROUTER_API_KEY is required for live evaluation")
+    if mode in {"record", "live"}:
+        if not settings.api_key().get_secret_value():
+            name = f"{settings.docket_model_provider.upper()}_API_KEY"
+            raise ValueError(f"{name} is required for live evaluation")
+        if budget > Decimal(str(settings.docket_run_budget_cap_usd)):
+            raise ValueError("The run budget is above DOCKET_RUN_BUDGET_CAP_USD")
     legacy = [baseline(label, folder, config) for label in labels]
     report["baseline"] = summarize(labels, legacy, config)
     report["baseline_results"] = [item.__dict__ for item in legacy]
     outcomes, recordings, run_cost = await model_outcomes(
         labels, folder, settings, "replay" if mode == "import" else mode, budget
     )
+    report["measurement"] = measurement_label(recordings)
     provenances = sorted(
         {
             (entry.provenance["simulated_by"], entry.provenance["standing_in_for"])
             for entry in recordings
-            if entry.provenance
+            if entry.provenance and not entry.live
         }
     )
     report["provenance"] = [
         dict(simulated_by=by, standing_in_for=target) for by, target in provenances
+    ] + [
+        dict(provider=provider, model=model, recorded=recorded)
+        for provider, model, recorded in sorted(
+            {
+                (
+                    entry.provenance["provider"],
+                    entry.provenance["model"],
+                    entry.provenance["recorded"],
+                )
+                for entry in recordings
+                if entry.provenance and entry.live
+            }
+        )
     ]
-    report["measurement"] = measurement_label(recordings)
     if provenances:
         report["simulation"] = simulation_summary(recordings, store, keys)
     report["live_run_cost_usd"] = str(run_cost)
     report["model_cost_usd"] = (
         None
-        if report["measurement"] != "openrouter"
+        if report["measurement"] not in {"openrouter", "anthropic"}
         else str(
             sum(
                 (Decimal(entry.cost_usd) for entry in recordings if entry.cost_usd is not None),
@@ -640,6 +672,9 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
                 text += f"Method: {simulation['method']}\n\n"
             if simulation.get("context_source"):
                 text += f"Method and fallback reason: {simulation['context_source']}.\n\n"
+    if report.get("measurement") == "anthropic":
+        report["banner"] = live_banner(report)
+        text = report["banner"] + "\n\n" + text
     if report.get("measurement") == "no model calls":
         text = "No model calls. No model responses were used.\n\n" + text
     if report["status"].startswith("PENDING"):

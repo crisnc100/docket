@@ -440,6 +440,101 @@ def measurement_label(recordings: list[Recording]) -> str:
     return next(iter(kinds)) if len(kinds) == 1 else "mixed"
 
 
+def percentile(values: list[int], share: float) -> int | None:
+    """Nearest-rank percentile: the smallest value with at least `share` of values at or below."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    return ordered[max(0, math.ceil(share * len(ordered)) - 1)]
+
+
+def live_measures(
+    labels: list[Label],
+    outcomes: list[Outcome],
+    legacy: list[Outcome],
+    requests: dict[str, dict[str, PendingRequest]],
+    recordings: list[Recording],
+) -> dict[str, Any]:
+    """Measures that only live answers have: unreadable answers, spend and latency.
+
+    `requests` maps each document id to the model requests its text produces. Every
+    figure comes from the recordings, so replay reproduces it exactly.
+    """
+    activity = {
+        key: request.activity for keys in requests.values() for key, request in keys.items()
+    }
+    used = {entry.key: entry for entry in recordings}
+    unreadable = [entry for entry in used.values() if entry.outcome == "unreadable"]
+    # A failed call leaves no recording; its reason is on the workflow outcome instead.
+    failed: dict[str, set[str]] = {"no_answer": set(), "maybe_billed": set()}
+    for label, result in zip(labels, outcomes, strict=True):
+        keys = requests.get(label.document_id, {})
+        if result.status == "failed" and result.reason in failed:
+            failed[result.reason].update(k for k, r in keys.items() if r.activity == "classify")
+        reason = (result.suggestion or {}).get("suggestion_failure_reason")
+        if reason in failed:
+            failed[reason].update(k for k, r in keys.items() if r.activity == "choose")
+    spend = sum((Decimal(entry.cost_usd or "0") for entry in used.values()), Decimal(0))
+    spend_by_activity: dict[str, Decimal] = {}
+    for entry in used.values():
+        name = activity.get(entry.key, "unknown")
+        spend_by_activity[name] = spend_by_activity.get(name, Decimal(0)) + Decimal(
+            entry.cost_usd or "0"
+        )
+    reached = [label for label in labels if requests.get(label.document_id)]
+    not_rejected = [result for result in legacy if result.status != "rejected"]
+    reached_ids = {label.document_id for label in reached}
+    reached_pairs = [
+        (label, result)
+        for label, result in zip(labels, outcomes, strict=True)
+        if label.document_id in reached_ids
+    ]
+    category_correct = sum(
+        label.category.value == result.category for label, result in reached_pairs
+    )
+    latencies = [entry.latency_ms for entry in used.values() if entry.latency_ms is not None]
+    all_keys = set(activity)
+
+    def per_document(count: int) -> str | None:
+        return str(spend / count) if count else None
+
+    return {
+        "requests": len(all_keys),
+        "requests_answered": len(used),
+        "requests_not_asked": len(
+            all_keys - set(used) - failed["no_answer"] - failed["maybe_billed"]
+        ),
+        "unreadable_count": len(unreadable),
+        "unreadable_by_reason": dict(sorted(Counter(entry.reason for entry in unreadable).items())),
+        "unreadable_by_activity": dict(
+            sorted(Counter(activity.get(entry.key, "unknown") for entry in unreadable).items())
+        ),
+        "unreadable_wilson_95": wilson(len(unreadable), len(all_keys)),
+        "no_answer_count": len(failed["no_answer"]),
+        "maybe_billed_count": len(failed["maybe_billed"]),
+        "output_modes": dict(sorted(Counter(entry.output_mode for entry in used.values()).items())),
+        "input_tokens": sum(entry.input_tokens or 0 for entry in used.values()),
+        "output_tokens": sum(entry.output_tokens or 0 for entry in used.values()),
+        "spend_usd": str(spend),
+        "spend_by_activity_usd": {
+            name: str(value) for name, value in sorted(spend_by_activity.items())
+        },
+        "documents": len(labels),
+        "documents_not_rejected": len(not_rejected),
+        "documents_reaching_model": len(reached),
+        "cost_per_document_reaching_model_usd": per_document(len(reached)),
+        "cost_per_document_not_rejected_usd": per_document(len(not_rejected)),
+        "cost_per_document_usd": per_document(len(labels)),
+        "category_correct_reaching_model": category_correct,
+        "category_accuracy_reaching_model": category_correct / len(reached_pairs)
+        if reached_pairs
+        else None,
+        "category_accuracy_reaching_model_wilson_95": wilson(category_correct, len(reached_pairs)),
+        "latency_ms_median": percentile(latencies, 0.5),
+        "latency_ms_p95": percentile(latencies, 0.95),
+    }
+
+
 def live_banner(report: dict) -> str:
     dates = sorted({entry["recorded"] for entry in report["provenance"]})
     models = ", ".join(sorted({entry["model"] for entry in report["provenance"]}))
@@ -595,6 +690,14 @@ async def evaluate(
         choice_comparison=compare_choices(outcomes, legacy),
         review_suggestion_comparison=compare_review_suggestions(labels, outcomes, legacy),
     )
+    if report["measurement"] == "anthropic":
+        report["live"] = live_measures(
+            labels,
+            outcomes,
+            legacy,
+            {label.document_id: pending_requests([label], folder, settings) for label in labels},
+            recordings,
+        )
     return report
 
 
@@ -737,6 +840,30 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
                 {key: value for key, value in suggestions.items() if key != "documents"}, indent=2
             )
             + "\n```\n\n"
+        )
+    live = report.get("live")
+    if live:
+        by_reason = ", ".join(f"{k}: {v}" for k, v in live["unreadable_by_reason"].items())
+        text += (
+            "## Live answers, spend and latency\n\n"
+            f"Requests in this seed: {live['requests']}. Answered: {live['requests_answered']}. "
+            f"No answer: {live['no_answer_count']}. "
+            f"Maybe billed, no answer kept: {live['maybe_billed_count']}. "
+            f"Not asked because the category call failed first: {live['requests_not_asked']}.\n"
+            f"Unreadable answers: {live['unreadable_count']}"
+            + (f" ({by_reason})" if by_reason else "")
+            + ".\n"
+            f"Spend: ${live['spend_usd']} for {live['input_tokens']} input and "
+            f"{live['output_tokens']} output tokens.\n"
+            "Cost per document: "
+            f"${live['cost_per_document_reaching_model_usd']} per document that reached the "
+            f"model ({live['documents_reaching_model']}), "
+            f"${live['cost_per_document_not_rejected_usd']} per document not rejected "
+            f"({live['documents_not_rejected']}), "
+            f"${live['cost_per_document_usd']} per document overall ({live['documents']}).\n"
+            f"Latency per call: median {live['latency_ms_median']} ms, "
+            f"95th percentile {live['latency_ms_p95']} ms.\n\n"
+            "```json\n" + json.dumps(live, indent=2) + "\n```\n\n"
         )
     text += (
         "## Metrics\n\n```json\n"

@@ -11,7 +11,7 @@ from tests.browser import test_review_browser as browser_test
 
 
 def test_suggestion_report_states_the_actual_population(tmp_path):
-    report = json.loads(Path("evals/reports/2026-11-11-seed-11.json").read_text())
+    report = json.loads(Path("evals/history/simulated/reports/2026-11-11-seed-11.json").read_text())
     path = write_report(report, tmp_path)
     text = path.with_suffix(".md").read_text()
     assert "Documents that did not go to review are excluded." in text

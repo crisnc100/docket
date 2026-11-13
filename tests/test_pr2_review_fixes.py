@@ -36,10 +36,10 @@ async def test_seed_import_without_working_folders_uses_saved_recordings(tmp_pat
     root = Path.cwd()
     for directory in ("corpus", "config"):
         (tmp_path / directory).symlink_to(root / directory, target_is_directory=True)
-    recordings = tmp_path / "evals/recordings"
+    recordings = tmp_path / "evals/history/simulated"
     recordings.mkdir(parents=True)
     for name in ("calls.jsonl", "manifest.json", "exchange.jsonl.gz"):
-        shutil.copyfile(root / "evals/recordings" / name, recordings / name)
+        shutil.copyfile(root / "evals/history/simulated" / name, recordings / name)
     monkeypatch.chdir(tmp_path)
 
     async def outcomes(*args, **kwargs):

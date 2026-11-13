@@ -69,8 +69,36 @@ Written before any live call. The Result section marks each one right or wrong.
 
 ## Spike
 
-Pending. `uv run docket spike-models` makes two live calls on a $0.05 budget and
-writes its measurement here. It records whether the API accepted the schemas (P1).
+Measured by `uv run docket spike-models`:
+
+```json
+{
+  "status": "PASS",
+  "model": "claude-haiku-5-5",
+  "provider": "anthropic",
+  "cost_usd": "0.000073200",
+  "calls": 2,
+  "results": [
+    {
+      "enum": [
+        "UNIT-0001",
+        "none"
+      ],
+      "record_id": "UNIT-0001"
+    },
+    {
+      "enum": [
+        "UNIT-0199",
+        "none"
+      ],
+      "record_id": "UNIT-0199"
+    }
+  ],
+  "output_modes": [
+    "json_schema"
+  ]
+}
+```
 
 ## Result
 

@@ -4,6 +4,8 @@ import hashlib
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from docket.evaluation import Outcome, live_measures, percentile
 from docket.llm.replay import Recording
 from tests.test_graded_evidence import corpus_labels
@@ -140,3 +142,44 @@ def test_refused_category_is_counted_by_safety_category_and_routed_to_review():
     assert measures["refusal_categories"] == {"bio": 1}
     assert measures["category_unreadable_to_review"] == 1
     assert measures["requests_not_asked"] == 1
+
+
+async def test_a_maybe_billed_call_counts_at_the_worst_case_the_gateway_charged(
+    postgres_engine, tmp_path
+):
+    import httpx2
+
+    from docket.evaluation import pending_requests
+    from docket.llm.budget import load_prices
+    from docket.llm.errors import MaybeBilled
+    from docket.prompts import classify_request
+    from docket.settings import Settings
+    from tests.test_anthropic_transport import FakeApi, gateway
+
+    folder, labels = corpus_labels(7)
+    label = labels[0]
+    settings = Settings(
+        _env_file=None, docket_model_provider="anthropic", docket_model="claude-haiku-5-5"
+    )
+    requests = pending_requests([label], folder, settings)
+    classify = next(request for request in requests.values() if request.activity == "classify")
+    live = gateway(FakeApi(httpx2.ReadTimeout("slow")), postgres_engine, tmp_path)
+    with pytest.raises(MaybeBilled):
+        await live.call(**classify_request(classify.inputs["text"]), source="synthetic_corpus")
+    charged = live.actual_cost_usd
+    assert charged > 0
+
+    failed = outcome(label, "failed", "maybe_billed", category="misc")
+    measures = live_measures(
+        [label],
+        [failed],
+        [outcome(label)],
+        {label.document_id: requests},
+        [],
+        prices=load_prices().ceiling("claude-haiku-5-5"),
+    )
+    assert measures["maybe_billed_count"] == 1
+    assert measures["maybe_billed_spend_usd"] == str(charged)
+    assert measures["spend_usd"] == str(charged)
+    assert measures["spend_by_activity_usd"] == {"classify": str(charged)}
+    assert measures["cost_per_document_reaching_model_usd"] == str(charged)

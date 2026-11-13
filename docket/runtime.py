@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 from docket.core.storage import S3Client, S3Storage
 from docket.llm.anthropic import AnthropicTransport
 from docket.llm.budget import Budget, DailyBudget, RunBudget, load_prices
-from docket.llm.gateway import Gateway, Mode, OpenRouterTransport
+from docket.llm.gateway import MAX_OUTPUT_TOKENS, Gateway, Mode, OpenRouterTransport
 from docket.llm.replay import ReplayStore
 from docket.settings import Settings
 
@@ -58,9 +58,9 @@ class Runtime:
             if mode in {Mode.RECORD, Mode.LIVE}:
                 prices = load_prices().ceiling(request["model"])
                 transport = (
-                    AnthropicTransport(settings, 256)
+                    AnthropicTransport(settings, MAX_OUTPUT_TOKENS)
                     if settings.docket_model_provider == "anthropic"
-                    else OpenRouterTransport(settings, prices, 256)
+                    else OpenRouterTransport(settings, prices, MAX_OUTPUT_TOKENS)
                 )
                 kwargs = {
                     "budget": Budget(

@@ -18,9 +18,11 @@ from docket.core.extraction import DocumentRejection, Rejected, extract_document
 from docket.core.scoring import load_scoring_config, score_choice
 from docket.corpus import Label
 from docket.ingress import Ingress
+from docket.llm.budget import PriceCeiling, load_prices
 from docket.llm.errors import ReplayMiss
 from docket.llm.exchange import Exchange, PendingRequest
-from docket.llm.replay import Recording, ReplayStore, replay_key
+from docket.llm.gateway import MAX_OUTPUT_TOKENS
+from docket.llm.replay import Recording, ReplayStore, canonical, replay_key
 from docket.prompts import choose_request, classify_request
 from docket.runtime import Runtime
 from docket.settings import Settings
@@ -455,12 +457,26 @@ def percentile(values: list[int], share: float) -> int | None:
     return ordered[max(0, math.ceil(share * len(ordered)) - 1)]
 
 
+def worst_case_charge(request: PendingRequest, prices: PriceCeiling) -> Decimal:
+    """What the gateway reserved, and kept, for this request before sending it."""
+    body: dict[str, Any] = {
+        "inputs": request.inputs,
+        "prompt": request.messages[0]["content"],
+        "schema": request.response_schema,
+    }
+    if request.system_prompt:
+        body["system_prompt"] = request.system_prompt
+    return prices.worst_case(canonical(body), MAX_OUTPUT_TOKENS)
+
+
 def live_measures(
     labels: list[Label],
     outcomes: list[Outcome],
     legacy: list[Outcome],
     requests: dict[str, dict[str, PendingRequest]],
     recordings: list[Recording],
+    *,
+    prices: PriceCeiling | None = None,
 ) -> dict[str, Any]:
     """Measures that only live answers have: unreadable answers, spend and latency.
 
@@ -481,13 +497,22 @@ def live_measures(
         reason = (result.suggestion or {}).get("suggestion_failure_reason")
         if reason in failed:
             failed[reason].update(k for k, r in keys.items() if r.activity == "choose")
-    spend = sum((Decimal(entry.cost_usd or "0") for entry in used.values()), Decimal(0))
+    charges = {entry.key: Decimal(entry.cost_usd or "0") for entry in used.values()}
+    # A call that failed after sending has no recording, but it keeps its worst-case
+    # charge, because the API may have billed it.
+    pending = {key: request for keys in requests.values() for key, request in keys.items()}
+    maybe_billed = Decimal(0)
+    for key in sorted(failed["maybe_billed"]):
+        if prices is None:
+            raise ValueError("A maybe-billed call needs the price snapshot to be counted")
+        charge = worst_case_charge(pending[key], prices)
+        charges[key] = charges.get(key, Decimal(0)) + charge
+        maybe_billed += charge
+    spend = sum(charges.values(), Decimal(0))
     spend_by_activity: dict[str, Decimal] = {}
-    for entry in used.values():
-        name = activity.get(entry.key, "unknown")
-        spend_by_activity[name] = spend_by_activity.get(name, Decimal(0)) + Decimal(
-            entry.cost_usd or "0"
-        )
+    for key, charge in charges.items():
+        name = activity.get(key, "unknown")
+        spend_by_activity[name] = spend_by_activity.get(name, Decimal(0)) + charge
     reached = [label for label in labels if requests.get(label.document_id)]
     not_rejected = [result for result in legacy if result.status != "rejected"]
     reached_ids = {label.document_id for label in reached}
@@ -532,6 +557,7 @@ def live_measures(
         ),
         "no_answer_count": len(failed["no_answer"]),
         "maybe_billed_count": len(failed["maybe_billed"]),
+        "maybe_billed_spend_usd": str(maybe_billed),
         "output_modes": dict(sorted(Counter(entry.output_mode for entry in used.values()).items())),
         "input_tokens": sum(entry.input_tokens or 0 for entry in used.values()),
         "output_tokens": sum(entry.output_tokens or 0 for entry in used.values()),
@@ -717,6 +743,7 @@ async def evaluate(
             legacy,
             {label.document_id: pending_requests([label], folder, settings) for label in labels},
             recordings,
+            prices=load_prices().ceiling(settings.docket_model),
         )
     return report
 
@@ -830,14 +857,32 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
     )
     comparison = report.get("choice_comparison")
     if comparison:
+        changed = set(comparison["changed_document_ids"])
+        unreadable = sum(
+            result["document_id"] in changed and result.get("reason") == "category_unreadable"
+            for result in report.get("docket_results") or []
+        )
+        other = len(changed) - unreadable
+        # The record suggestion never decides filing, so a change has another cause.
+        cause = ""
+        if unreadable:
+            cause = (
+                f"{unreadable} of them went to review because the category answer was "
+                "unreadable; "
+                + (
+                    f"{other} changed for another reason.\n"
+                    if other
+                    else "the model's record suggestion changed none.\n"
+                )
+            )
         text += (
             "A filing decision is file versus review, including the record used for filing.\n"
             "A review proposal is a suggested record for a document sent to review.\n"
             "Category labels are compared separately from record choice.\n"
-            f"The model's choose step changes {comparison['filing_decision_changes']} filing "
-            "decisions versus the rules-only baseline "
-            f"across {comparison['documents']} documents.\n"
-            f"Routing changes: {comparison['routing_changes']}. "
+            "Docket's filing decisions differ from the rules-only baseline on "
+            f"{comparison['filing_decision_changes']} of {comparison['documents']} documents.\n"
+            + cause
+            + f"Routing changes: {comparison['routing_changes']}. "
             f"Filed-record changes: {comparison['filed_record_changes']}.\n"
             f"Review proposals differ on {comparison['review_proposal_changes']} documents. "
             f"Category labels differ on {comparison['category_changes']} documents.\n\n"

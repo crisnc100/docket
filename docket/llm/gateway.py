@@ -33,6 +33,7 @@ from docket.llm.replay import Recording, ReplayStore, canonical, replay_key
 from docket.settings import Settings
 
 RETRY_DELAYS = (1, 2, 4, 8)
+MAX_OUTPUT_TOKENS = 256
 
 
 def gateway_worst_seconds(request_timeout: float) -> float:
@@ -121,7 +122,7 @@ class Gateway:
         budget: Budget | None = None,
         transport: Any = None,
         prices: PriceCeiling | None = None,
-        max_output_tokens: int = 256,
+        max_output_tokens: int = MAX_OUTPUT_TOKENS,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         exchange: Exchange | None = None,
         provider: str = "openrouter",

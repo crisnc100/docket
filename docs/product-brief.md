@@ -39,7 +39,9 @@ Repeated steps use the same keys and database constraints to prevent duplicate f
 
 The model never decides whether or where to file automatically.
 Only the rules or an explicit human approval decide the record.
-The model still supplies the category used in the filing path; a category-call failure ends failed.
+The model still supplies the category used in the filing path. An unreadable category
+answer, such as a refusal, sends the document to review; a category call with no answer
+at all ends failed.
 
 Docket does not read page images with optical character recognition (OCR).
 It does not merge near-duplicates whose bytes differ.

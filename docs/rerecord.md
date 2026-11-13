@@ -15,25 +15,25 @@ Docket's figures come from live answers (see [Live Anthropic answers](#live-anth
 Export and import are how the v0.1 simulated answers were made. They work for any
 model whose answers an operator supplies.
 
-The commands below use the v0.1 simulated setting, which keeps simulated answers in
-`evals/history/simulated/calls.jsonl`. Without it, the defaults would import a
-simulated answer into the live archive, `evals/recordings/anthropic.jsonl`, and the
-live archive check would then reject it.
-
-```sh
-export DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini
-```
+Each `docket eval` command below sets the v0.1 simulated setting for that command only,
+so simulated answers go to `evals/history/simulated/calls.jsonl`. Without it, the
+defaults would import a simulated answer into the live archive,
+`evals/recordings/anthropic.jsonl`, and the live archive check would then reject it.
 
 Every `docket eval` run rewrites `evals/manifests/seed-N.json` for the model in use, and
-replay writes a new report to `evals/reports/`. The committed manifests and reports are
-the live pass's, so run the simulation in a separate checkout, or restore those files
-before committing.
+replay writes `evals/reports/<today>-seed-N.json`. `docket eval` has no option for
+another date or folder. If a live record run's report already has today's date, the
+replay stops rather than replace it. So run the simulation in a separate checkout with
+the committed reports and manifests removed, or on a date with no record report, and
+restore those files before committing anything.
 
 ## Export requests
 
 ```sh
-uv run docket eval --seed 7 --mode export --budget 0
-uv run docket eval --seed 11 --mode export --budget 0
+DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini \
+  uv run docket eval --seed 7 --mode export --budget 0
+DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini \
+  uv run docket eval --seed 11 --mode export --budget 0
 ```
 
 Each seed has a request list in `evals/manifests/seed-N.json`.
@@ -65,12 +65,16 @@ The example shows the shape only. It is not an answer to copy.
 The simulator must not see expected labels, code or other answers.
 
 ```sh
-uv run docket eval --seed 7 --mode import --budget 0
-uv run docket eval --seed 11 --mode import --budget 0
+DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini \
+  uv run docket eval --seed 7 --mode import --budget 0
+DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini \
+  uv run docket eval --seed 11 --mode import --budget 0
 uv run python scripts/pack_exchange.py
 uv run python scripts/pack_exchange.py --check
-uv run docket eval --seed 7 --mode replay --budget 0
-uv run docket eval --seed 11 --mode replay --budget 0
+DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini \
+  uv run docket eval --seed 7 --mode replay --budget 0
+DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini \
+  uv run docket eval --seed 11 --mode replay --budget 0
 uv run docket shadow-diff
 ./verify.sh
 ./verify.sh --fault

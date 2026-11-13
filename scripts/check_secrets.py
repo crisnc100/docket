@@ -15,7 +15,7 @@ from docket.llm.exchange import PendingRequest
 
 def remaining_findings(results: dict, pending: Path) -> tuple[dict, int]:
     public_digests = set()
-    archive = pending.parent / "recordings/exchange.jsonl.gz"
+    archive = pending.parent / "history/simulated/exchange.jsonl.gz"
     if archive.exists():
         for key in load_archive(archive):
             public_digests.add(hashlib.sha1(key.encode()).hexdigest())
@@ -68,7 +68,7 @@ def live_archived_findings(archive: Path) -> dict:
 
 def main():
     results = json.loads(Path(sys.argv[1]).read_text())["results"]
-    results.update(archived_findings(Path("evals/recordings/exchange.jsonl.gz")))
+    results.update(archived_findings(Path("evals/history/simulated/exchange.jsonl.gz")))
     live = Path("evals/recordings/anthropic-exchange.jsonl.gz")
     if live.exists():
         results.update(live_archived_findings(live))

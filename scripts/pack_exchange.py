@@ -12,7 +12,7 @@ def main() -> None:
         "--live", action="store_true", help="Pack the live requests for the live recordings"
     )
     args = parser.parse_args()
-    archive = Path("evals/recordings/exchange.jsonl.gz")
+    archive = Path("evals/history/simulated/exchange.jsonl.gz")
     live_archive = Path("evals/recordings/anthropic-exchange.jsonl.gz")
     live_recordings = Path("evals/recordings/anthropic.jsonl")
     try:
@@ -22,7 +22,7 @@ def main() -> None:
         elif not args.check:
             count = pack_exchange(Path("evals/pending"), Path("evals/answers"), archive)
             print(f"Packed {count} exchanges: {archive}")
-        count = check_archive(archive, Path("evals/recordings/calls.jsonl"))
+        count = check_archive(archive, archive.with_name("calls.jsonl"))
         print(f"PASS: {count} recordings match archived answers and provenance")
         if live_archive.exists() or live_recordings.exists():
             count = check_live_archive(live_archive, live_recordings)

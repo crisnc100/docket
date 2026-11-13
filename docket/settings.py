@@ -5,7 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPLAY_PATHS = {
     "anthropic": "evals/recordings/anthropic.jsonl",
-    "openrouter": "evals/recordings/calls.jsonl",
+    # The only OpenRouter-keyed answers are the v0.1 simulated ones, kept as history.
+    "openrouter": "evals/history/simulated/calls.jsonl",
 }
 
 

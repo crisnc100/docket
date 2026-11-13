@@ -59,7 +59,7 @@ def test_report_states_choice_effect_and_keeps_category_difference_separate(tmp_
     }
     path = write_report(report, tmp_path)
     text = path.with_suffix(".md").read_text()
-    assert "choose step changes 0 filing decisions versus the rules-only baseline" in text
+    assert "filing decisions differ from the rules-only baseline on 0 of 1 documents." in text
     assert "Review proposals differ on 1 documents" in text
     assert "Category labels differ on 1 documents" in text
     assert "Baseline distinct points: 1. Docket distinct points: 1." in text

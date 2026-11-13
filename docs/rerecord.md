@@ -1,4 +1,4 @@
-# Recording, importing and replaying evaluation
+# Recording and replaying evaluation
 
 Run commands from the repository root.
 Start services with `docker compose up -d --wait`.
@@ -11,111 +11,10 @@ This mode checks decisions without filing documents.
 It stores raw inputs only and does not wait for review.
 Each run gets a fresh run ID.
 
-Docket's figures come from live answers (see [Live Anthropic answers](#live-anthropic-answers)).
-Export and import are how the v0.1 simulated answers were made. They work for any
-model whose answers an operator supplies.
-
-Each `docket eval` command below sets the v0.1 simulated setting for that command only,
-so simulated answers go to `evals/history/simulated/calls.jsonl`. Without it, the
-defaults would import a simulated answer into the live archive,
-`evals/recordings/anthropic.jsonl`, and the live archive check would then reject it.
-
-Every `docket eval` run rewrites `evals/manifests/seed-N.json` for the model in use, and
-replay writes `evals/reports/<today>-seed-N.json`. `docket eval` has no option for
-another date or folder. If a live record run's report already has today's date, the
-replay stops rather than replace it. So run the simulation in a separate checkout with
-the committed reports and manifests removed, or on a date with no record report, and
-restore those files before committing anything.
-
-## Export requests
-
-```sh
-DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini \
-  uv run docket eval --seed 7 --mode export --budget 0
-DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini \
-  uv run docket eval --seed 11 --mode export --budget 0
-```
-
-Each seed has a request list in `evals/manifests/seed-N.json`.
-Export writes an untracked working file in `evals/pending/` only for keys with no saved answer.
-The file contains the system prompt, messages and response schema.
-A schema lists the allowed fields, types and values.
-It also names the activity, prompt version and target model.
-The record-choice schema allows only the shortlist IDs and `none`.
-Rejected documents and empty shortlists need no model call.
-
-## Supply and import answers
-
-The operator writes an untracked working file at `evals/answers/<key>.json`.
-Use this shape with values from that request:
-
-```json
-{
-  "output": {"record_id": "an-id-from-the-request-enum"},
-  "provenance": {
-    "simulated_by": "the-actual-simulator-model-id",
-    "standing_in_for": "the-request-target-model-id"
-  }
-}
-```
-
-Provenance names the simulator and the target model.
-Classification output has a `category` field instead of `record_id`.
-The example shows the shape only. It is not an answer to copy.
-The simulator must not see expected labels, code or other answers.
-
-```sh
-DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini \
-  uv run docket eval --seed 7 --mode import --budget 0
-DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini \
-  uv run docket eval --seed 11 --mode import --budget 0
-uv run python scripts/pack_exchange.py
-uv run python scripts/pack_exchange.py --check
-DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini \
-  uv run docket eval --seed 7 --mode replay --budget 0
-DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini \
-  uv run docket eval --seed 11 --mode replay --budget 0
-uv run docket shadow-diff
-./verify.sh
-./verify.sh --fault
-```
-
-`docket eval` compares Docket with the rules-only baseline.
-It checks each difference against the expected decision and stores the result in the report.
-`docket shadow-diff` saves that comparison as `<report>-shadow.json`.
-It reads the newest seed-11 report unless you pass `--report`.
-A review decision can be correct even when its proposed record or category differs.
-Category accuracy is reported separately.
-
-Import checks all supplied answers before saving any to the provider's archive: for
-`openrouter`, `evals/history/simulated/calls.jsonl`.
-Replay reads that file. It uses JSON Lines (JSONL): one JSON object per line.
-Bad fields, values, request keys or model provenance cause an error.
-Missing answers leave the report pending.
-A saved answer is never overwritten.
-Repack after importing answers, while both working folders are present.
-The durable evidence is `evals/history/simulated/exchange.jsonl.gz`.
-It keeps the exact request and answer text, file hashes and provenance.
-A file hash is a digest used to check file integrity.
-The check command compares that evidence with every replay recording.
-Replay and verification work without the untracked working folders.
-
-## The v0.1 simulation
-
-[evals/history/simulated/README.md](../evals/history/simulated/README.md) gives the
-simulated answer counts and the archive format.
-[Decision 004](adr/004-simulated-model-measurements.md) explains how the answers were
-made.
-
-## Replay check
-
-The replay check runs through `scripts/reproduce_eval.py`.
-It compares seed 11 with the saved report.
-It replays under the model and provider that report was measured with.
-It checks each document's result, metrics, curve, provenance and shadow diff.
-Continuous integration runs this check through `verify.sh`.
-A changed archive or scoring config needs new reports.
-Tune on seed 7 only. Do not tune on seed 11.
+Docket's figures come from live answers, recorded as below.
+How v0.1's simulated answers were made is kept as history in
+[evals/history/simulated/README.md](../evals/history/simulated/README.md); it is not
+runnable in a checkout that holds the live evidence.
 
 ## Live Anthropic answers
 
@@ -139,8 +38,7 @@ uv run python scripts/cost_summary.py
 uv run python scripts/reproduce_eval.py
 ```
 
-`scripts/reproduce_eval.py` replays seed 11 with no model call and checks it against the
-saved report without writing anything.
+`scripts/reproduce_eval.py` is the [replay check](#replay-check).
 
 A record run's report holds the paid run's budget and cost. A plain
 `docket eval --mode replay` on the same date would replace it, so `write_report` refuses
@@ -166,6 +64,27 @@ so the exact request behind each live answer is kept.
 `pack_exchange.py --check` also checks that file against the live recordings when either exists.
 A report refuses to mix live answers with simulated or OpenRouter answers.
 A live report opens with a line naming the model and the date or dates it was measured.
+
+`docket eval` compares Docket with the rules-only baseline.
+It checks each difference against the expected decision and stores the result in the report.
+`docket shadow-diff` saves that comparison as `<report>-shadow.json`.
+It reads the newest seed-11 report unless you pass `--report`.
+A review decision can be correct even when its proposed record or category differs.
+Category accuracy is reported separately.
+
+## Replay check
+
+The replay check runs through `scripts/reproduce_eval.py`.
+It replays seed 11 under the model and provider of the newest saved seed-11 report, and
+compares each document's result, metrics, curve, provenance, shadow diff and live
+measures with that report.
+It makes no model call and needs no key, but it is not read-only: it uses the local
+services (Postgres, Temporal and S3 storage), which get the replayed documents and their
+events, and it rewrites `evals/manifests/seed-11.json`. For the committed evidence the
+rewrite has the same content, so `git diff` stays empty. It does not write a report.
+Continuous integration runs this check through `verify.sh`.
+A changed archive or scoring config needs new reports.
+Tune on seed 7 only. Do not tune on seed 11.
 
 ## Workflow histories
 

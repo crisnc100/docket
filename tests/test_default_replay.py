@@ -11,9 +11,18 @@ from docket.settings import Settings
 
 def test_default_replay_path_is_an_existing_archive():
     settings = Settings(_env_file=None)
+    assert settings.docket_model_provider == "anthropic"
+    assert settings.docket_model == "claude-haiku-5-5"
     path = Path(settings.docket_replay_path)
+    assert path == Path("evals/recordings/anthropic.jsonl")
     assert path.is_file()
-    assert ReplayStore(path).entries()
+    entries = ReplayStore(path).entries()
+    assert entries
+    # Every default answer is a live one from the default model, never a simulated one.
+    assert all(entry.live for entry in entries)
+    assert {entry.provenance["model"] for entry in entries if entry.provenance} == {
+        "claude-haiku-5-5"
+    }
 
 
 async def test_default_replay_eval_finds_every_answer(tmp_path, monkeypatch):

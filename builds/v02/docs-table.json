@@ -1,79 +1,440 @@
-{"rows":[
-{"behavior":"Provider setting, defaults that replay the v0.1 answers, ANTHROPIC_API_KEY and per-provider saved-answer files","files":["docket/settings.py","compose.yaml",".env.example","docket/runtime.py","pyproject.toml","uv.lock"],"docs":[
- {"path":"docs/operations.md","claims":[
-  {"claim":"DOCKET_MODEL_PROVIDER is openrouter (the default) or anthropic","at":"docket/settings.py:25"},
-  {"claim":"The defaults, openrouter with openai/gpt-4o-mini, replay the saved v0.1 answers","at":"docket/settings.py:26"},
-  {"claim":"Live answers use anthropic with the key in ANTHROPIC_API_KEY; OpenRouter uses OPENROUTER_API_KEY","at":"docket/settings.py:51"},
-  {"claim":"The runtime picks the Anthropic transport when the provider is anthropic","at":"docket/runtime.py:62"},
-  {"claim":"Keys come from the environment or the gitignored .env","at":"docket/settings.py:13"},
-  {"claim":"Each provider has its own saved-answer file: evals/recordings/anthropic.jsonl or calls.jsonl","at":"docket/settings.py:7"},
-  {"claim":"An empty DOCKET_REPLAY_PATH resolves to the provider's file; a set one overrides it","at":"docket/settings.py:46"},
-  {"claim":"A saved answer's key includes the model name","at":"docket/llm/replay.py:32"}]},
- {"path":"docs/rerecord.md","claims":[
-  {"claim":"Set ANTHROPIC_API_KEY, DOCKET_MODEL_PROVIDER=anthropic and DOCKET_MODEL=claude-haiku-5-5 for live answers","at":"docket/settings.py:50"},
-  {"claim":"Live answers then go to evals/recordings/anthropic.jsonl","at":"docket/settings.py:7"}]},
- {"path":".env.example","claims":[
-  {"claim":"An evaluation refuses a --budget above DOCKET_RUN_BUDGET_CAP_USD","at":"docket/evaluation.py:530"}]}]},
-{"behavior":"Anthropic transport: structured output with JSON-in-prompt fallback, 15 s timeout, sent versus not-sent failures","files":["docket/llm/anthropic.py"],"docs":[
- {"path":"docs/operations.md","claims":[
-  {"claim":"Anthropic calls send the schema as structured output","at":"docket/llm/anthropic.py:126"},
-  {"claim":"If the API refuses the schema, the process asks for JSON in the prompt from then on","at":"docket/llm/anthropic.py:156"},
-  {"claim":"Each live answer records which output mode it used","at":"docket/llm/gateway.py:298"},
-  {"claim":"On Anthropic a rate limit or server error is treated as not sent","at":"docket/llm/anthropic.py:165"},
-  {"claim":"A refused connection is treated as not sent","at":"docket/llm/anthropic.py:168"},
-  {"claim":"A connection that fails after sending raises MaybeBilled","at":"docket/llm/anthropic.py:169"},
-  {"claim":"Each Anthropic request times out after 15 seconds","at":"docket/llm/anthropic.py:42"}]}]},
-{"behavior":"Gateway retries, NoAnswer, MaybeBilled charge, unreadable answers and record mode replaying saved answers","files":["docket/llm/gateway.py","docket/llm/errors.py","docket/llm/replay.py"],"docs":[
- {"path":"docs/operations.md","claims":[
-  {"claim":"The gateway retries after 1, 2, 4 and 8 seconds","at":"docket/llm/gateway.py:35"},
-  {"claim":"After the fourth retry an Anthropic call raises NoAnswer","at":"docket/llm/gateway.py:232"},
-  {"claim":"MaybeBilled keeps its worst-case charge and is not resent","at":"docket/llm/gateway.py:223"},
-  {"claim":"Before each call Docket reserves the worst-case cost","at":"docket/llm/gateway.py:196"},
-  {"claim":"Unreadable answers are charged before parsing","at":"docket/llm/gateway.py:285"},
-  {"claim":"Refusal, cut, not JSON and schema failure are the unreadable reasons","at":"docket/llm/gateway.py:317"},
-  {"claim":"UnreadableAnswer is a kind of ParseError","at":"docket/llm/errors.py:36"},
-  {"claim":"Unreadable answers are saved with their raw text","at":"docket/llm/gateway.py:293"},
-  {"claim":"Replaying an unreadable answer raises the same error","at":"docket/llm/gateway.py:187"},
-  {"claim":"In record mode a request that already has a saved answer is replayed instead of sent","at":"docket/llm/gateway.py:182"},
-  {"claim":"None of the gateway errors is retried by Temporal","at":"docket/llm/errors.py:6"}]},
- {"path":"docs/rerecord.md","claims":[
-  {"claim":"Record mode sends only requests with no saved answer","at":"docket/llm/gateway.py:182"},
-  {"claim":"Each live answer keeps its raw text, tokens, cost, latency and output mode","at":"docket/llm/replay.py:36"},
-  {"claim":"Record mode also writes each request to evals/pending/","at":"docket/llm/gateway.py:309"}]}]},
-{"behavior":"Price snapshot, token-based cost with a long-prompt tier, and the run budget cap","files":["docket/llm/budget.py","config/model_prices.yaml"],"docs":[
- {"path":"docs/operations.md","claims":[
-  {"claim":"Anthropic costs are API tokens times the prices in config/model_prices.yaml","at":"docket/llm/budget.py:16"},
-  {"claim":"Prompts above the long-prompt line use the long prices","at":"docket/llm/budget.py:54"},
-  {"claim":"An evaluation refuses a run budget above DOCKET_RUN_BUDGET_CAP_USD","at":"docket/evaluation.py:531"},
-  {"claim":"DOCKET_RUN_BUDGET_CAP_USD defaults to $5.00","at":"docket/settings.py:41"}]}]},
-{"behavior":"Model activity deadline and the no_answer and maybe_billed failure reasons","files":["docket/workflows.py"],"docs":[
- {"path":"docs/operations.md","claims":[
-  {"claim":"The classify and choose steps get 120 seconds in Temporal","at":"docket/workflows.py:31"},
-  {"claim":"A gateway call with every retry takes less than that deadline","at":"docket/llm/gateway.py:38"},
-  {"claim":"In choose, the workflow records no suggestion and the error reason","at":"docket/workflows.py:138"},
-  {"claim":"The reasons include no_answer and maybe_billed","at":"docket/workflows.py:18"}]}]},
-{"behavior":"Live exchange file: pack_exchange --live packs the request behind each live answer, and --check verifies it","files":["docket/llm/archive.py","scripts/pack_exchange.py"],"docs":[
- {"path":"docs/rerecord.md","claims":[
-  {"claim":"pack_exchange.py --live packs requests into evals/recordings/anthropic-exchange.jsonl.gz","at":"scripts/pack_exchange.py:20"},
-  {"claim":"Each live recording must have its exact request in that file","at":"docket/llm/archive.py:152"},
-  {"claim":"--check also checks the live file against the live recordings when either exists","at":"scripts/pack_exchange.py:27"}]}]},
-{"behavior":"Live report banner, record-mode counts, and no mixing of live with other answers","files":["docket/evaluation.py"],"docs":[
- {"path":"docs/rerecord.md","claims":[
-  {"claim":"A record report counts recorded_before_run and requests_to_send","at":"docket/evaluation.py:513"},
-  {"claim":"A report refuses to mix live answers with simulated or OpenRouter answers","at":"docket/evaluation.py:438"},
-  {"claim":"A live report opens with a line naming the model and the date or dates","at":"docket/evaluation.py:681"}]}]},
-{"behavior":"reproduce_eval replays a stored report under that report's own model and provider","files":["scripts/reproduce_eval.py"],"docs":[
- {"path":"docs/rerecord.md","claims":[
-  {"claim":"The replay check replays under the model and provider the report was measured with","at":"scripts/reproduce_eval.py:31"}]}]},
-{"behavior":"Spike: two calls, $0.05 on Anthropic writing ADR 008, $0.50 on OpenRouter writing ADR 001","files":["docket/llm/spike.py","docket/cli.py"],"docs":[
- {"path":"docs/operations.md","claims":[
-  {"claim":"The Anthropic spike has a $0.05 budget","at":"docket/llm/spike.py:17"},
-  {"claim":"It writes docs/adr/008-spike-result.json","at":"docket/cli.py:30"},
-  {"claim":"It writes the Spike section of ADR 008","at":"docket/llm/spike.py:125"},
-  {"claim":"The OpenRouter spike budget is $0.50","at":"docket/llm/spike.py:18"}]}]},
-{"behavior":"Secret scan skips only the root .env, verify.sh fails unless git ignores it, and the live exchange file is scanned","files":["verify.sh","scripts/check_secrets.py"],"docs":[
- {"path":"docs/operations.md","claims":[
-  {"claim":"verify.sh fails if git does not ignore .env","at":"verify.sh:34"},
-  {"claim":"The scan skips the local .env","at":"verify.sh:38"},
-  {"claim":"detect-secrets also scans the archives' contents, the live one included","at":"scripts/check_secrets.py:72"}]}]}
-]}
+{
+ "rows": [
+  {
+   "behavior": "Provider setting, defaults that replay the v0.1 answers, ANTHROPIC_API_KEY and per-provider saved-answer files",
+   "files": [
+    "docket/settings.py",
+    "compose.yaml",
+    ".env.example",
+    "docket/runtime.py",
+    "pyproject.toml",
+    "uv.lock"
+   ],
+   "docs": [
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "DOCKET_MODEL_PROVIDER is openrouter (the default) or anthropic",
+       "at": "docket/settings.py:25"
+      },
+      {
+       "claim": "The defaults, openrouter with openai/gpt-4o-mini, replay the saved v0.1 answers",
+       "at": "docket/settings.py:26"
+      },
+      {
+       "claim": "Live answers use anthropic with the key in ANTHROPIC_API_KEY; OpenRouter uses OPENROUTER_API_KEY",
+       "at": "docket/settings.py:51"
+      },
+      {
+       "claim": "The runtime picks the Anthropic transport when the provider is anthropic",
+       "at": "docket/runtime.py:62"
+      },
+      {
+       "claim": "Keys come from the environment or the gitignored .env",
+       "at": "docket/settings.py:13"
+      },
+      {
+       "claim": "Each provider has its own saved-answer file: evals/recordings/anthropic.jsonl or calls.jsonl",
+       "at": "docket/settings.py:7"
+      },
+      {
+       "claim": "An empty DOCKET_REPLAY_PATH resolves to the provider's file; a set one overrides it",
+       "at": "docket/settings.py:46"
+      },
+      {
+       "claim": "A saved answer's key includes the model name",
+       "at": "docket/llm/replay.py:32"
+      }
+     ]
+    },
+    {
+     "path": "docs/rerecord.md",
+     "claims": [
+      {
+       "claim": "Set ANTHROPIC_API_KEY, DOCKET_MODEL_PROVIDER=anthropic and DOCKET_MODEL=claude-haiku-5-5 for live answers",
+       "at": "docket/settings.py:50"
+      },
+      {
+       "claim": "Live answers then go to evals/recordings/anthropic.jsonl",
+       "at": "docket/settings.py:7"
+      }
+     ]
+    },
+    {
+     "path": ".env.example",
+     "claims": [
+      {
+       "claim": "An evaluation refuses a --budget above DOCKET_RUN_BUDGET_CAP_USD",
+       "at": "docket/evaluation.py:530"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Anthropic transport: structured output with JSON-in-prompt fallback, 15 s timeout, sent versus not-sent failures",
+   "files": [
+    "docket/llm/anthropic.py"
+   ],
+   "docs": [
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "Anthropic calls send the schema as structured output",
+       "at": "docket/llm/anthropic.py:126"
+      },
+      {
+       "claim": "If the API refuses the schema, the process asks for JSON in the prompt from then on",
+       "at": "docket/llm/anthropic.py:156"
+      },
+      {
+       "claim": "Each live answer records which output mode it used",
+       "at": "docket/llm/gateway.py:298"
+      },
+      {
+       "claim": "On Anthropic a rate limit or server error is treated as not sent",
+       "at": "docket/llm/anthropic.py:165"
+      },
+      {
+       "claim": "A refused connection is treated as not sent",
+       "at": "docket/llm/anthropic.py:168"
+      },
+      {
+       "claim": "A connection that fails after sending raises MaybeBilled",
+       "at": "docket/llm/anthropic.py:169"
+      },
+      {
+       "claim": "Each Anthropic request times out after 15 seconds",
+       "at": "docket/llm/anthropic.py:42"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Gateway retries, NoAnswer, MaybeBilled charge, unreadable answers and record mode replaying saved answers",
+   "files": [
+    "docket/llm/gateway.py",
+    "docket/llm/errors.py",
+    "docket/llm/replay.py"
+   ],
+   "docs": [
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "The gateway retries after 1, 2, 4 and 8 seconds",
+       "at": "docket/llm/gateway.py:35"
+      },
+      {
+       "claim": "After the fourth retry an Anthropic call raises NoAnswer",
+       "at": "docket/llm/gateway.py:232"
+      },
+      {
+       "claim": "MaybeBilled keeps its worst-case charge and is not resent",
+       "at": "docket/llm/gateway.py:223"
+      },
+      {
+       "claim": "Before each call Docket reserves the worst-case cost",
+       "at": "docket/llm/gateway.py:196"
+      },
+      {
+       "claim": "Unreadable answers are charged before parsing",
+       "at": "docket/llm/gateway.py:285"
+      },
+      {
+       "claim": "Refusal, cut, not JSON and schema failure are the unreadable reasons",
+       "at": "docket/llm/gateway.py:317"
+      },
+      {
+       "claim": "UnreadableAnswer is a kind of ParseError",
+       "at": "docket/llm/errors.py:36"
+      },
+      {
+       "claim": "Unreadable answers are saved with their raw text",
+       "at": "docket/llm/gateway.py:293"
+      },
+      {
+       "claim": "Replaying an unreadable answer raises the same error",
+       "at": "docket/llm/gateway.py:187"
+      },
+      {
+       "claim": "In record mode a request that already has a saved answer is replayed instead of sent",
+       "at": "docket/llm/gateway.py:182"
+      },
+      {
+       "claim": "None of the gateway errors is retried by Temporal",
+       "at": "docket/llm/errors.py:6"
+      }
+     ]
+    },
+    {
+     "path": "docs/rerecord.md",
+     "claims": [
+      {
+       "claim": "Record mode sends only requests with no saved answer",
+       "at": "docket/llm/gateway.py:182"
+      },
+      {
+       "claim": "Each live answer keeps its raw text, tokens, cost, latency and output mode",
+       "at": "docket/llm/replay.py:36"
+      },
+      {
+       "claim": "Record mode also writes each request to evals/pending/",
+       "at": "docket/llm/gateway.py:309"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Price snapshot, token-based cost with a long-prompt tier, and the run budget cap",
+   "files": [
+    "docket/llm/budget.py",
+    "config/model_prices.yaml"
+   ],
+   "docs": [
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "Anthropic costs are API tokens times the prices in config/model_prices.yaml",
+       "at": "docket/llm/budget.py:16"
+      },
+      {
+       "claim": "Prompts above the long-prompt line use the long prices",
+       "at": "docket/llm/budget.py:54"
+      },
+      {
+       "claim": "An evaluation refuses a run budget above DOCKET_RUN_BUDGET_CAP_USD",
+       "at": "docket/evaluation.py:531"
+      },
+      {
+       "claim": "DOCKET_RUN_BUDGET_CAP_USD defaults to $5.00",
+       "at": "docket/settings.py:41"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Model activity deadline and the no_answer and maybe_billed failure reasons",
+   "files": [
+    "docket/workflows.py"
+   ],
+   "docs": [
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "The classify and choose steps get 120 seconds in Temporal",
+       "at": "docket/workflows.py:31"
+      },
+      {
+       "claim": "A gateway call with every retry takes less than that deadline",
+       "at": "docket/llm/gateway.py:38"
+      },
+      {
+       "claim": "In choose, the workflow records no suggestion and the error reason",
+       "at": "docket/workflows.py:138"
+      },
+      {
+       "claim": "The reasons include no_answer and maybe_billed",
+       "at": "docket/workflows.py:18"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Live exchange file: pack_exchange --live packs the request behind each live answer, and --check verifies it",
+   "files": [
+    "docket/llm/archive.py",
+    "scripts/pack_exchange.py"
+   ],
+   "docs": [
+    {
+     "path": "docs/rerecord.md",
+     "claims": [
+      {
+       "claim": "pack_exchange.py --live packs requests into evals/recordings/anthropic-exchange.jsonl.gz",
+       "at": "scripts/pack_exchange.py:20"
+      },
+      {
+       "claim": "Each live recording must have its exact request in that file",
+       "at": "docket/llm/archive.py:152"
+      },
+      {
+       "claim": "--check also checks the live file against the live recordings when either exists",
+       "at": "scripts/pack_exchange.py:27"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Live report banner, record-mode counts, and no mixing of live with other answers",
+   "files": [
+    "docket/evaluation.py"
+   ],
+   "docs": [
+    {
+     "path": "docs/rerecord.md",
+     "claims": [
+      {
+       "claim": "A record report counts recorded_before_run and requests_to_send",
+       "at": "docket/evaluation.py:513"
+      },
+      {
+       "claim": "A report refuses to mix live answers with simulated or OpenRouter answers",
+       "at": "docket/evaluation.py:438"
+      },
+      {
+       "claim": "A live report opens with a line naming the model and the date or dates",
+       "at": "docket/evaluation.py:681"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "reproduce_eval replays a stored report under that report's own model and provider",
+   "files": [
+    "scripts/reproduce_eval.py"
+   ],
+   "docs": [
+    {
+     "path": "docs/rerecord.md",
+     "claims": [
+      {
+       "claim": "The replay check replays under the model and provider the report was measured with",
+       "at": "scripts/reproduce_eval.py:31"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Spike: two calls, $0.05 on Anthropic writing ADR 008, $0.50 on OpenRouter writing ADR 001",
+   "files": [
+    "docket/llm/spike.py",
+    "docket/cli.py"
+   ],
+   "docs": [
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "The Anthropic spike has a $0.05 budget",
+       "at": "docket/llm/spike.py:17"
+      },
+      {
+       "claim": "It writes docs/adr/008-spike-result.json",
+       "at": "docket/cli.py:30"
+      },
+      {
+       "claim": "It writes the Spike section of ADR 008",
+       "at": "docket/llm/spike.py:125"
+      },
+      {
+       "claim": "The OpenRouter spike budget is $0.50",
+       "at": "docket/llm/spike.py:18"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Secret scan skips only the root .env, verify.sh fails unless git ignores it, and the live exchange file is scanned",
+   "files": [
+    "verify.sh",
+    "scripts/check_secrets.py"
+   ],
+   "docs": [
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "verify.sh fails if git does not ignore .env",
+       "at": "verify.sh:34"
+      },
+      {
+       "claim": "The scan skips the local .env",
+       "at": "verify.sh:38"
+      },
+      {
+       "claim": "detect-secrets also scans the archives' contents, the live one included",
+       "at": "scripts/check_secrets.py:72"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "An unreadable category answer sends the document to review",
+   "files": [
+    "docket/activities.py"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "An unreadable category answer, such as a refusal, sends the document to review.",
+       "at": "docket/activities.py:123"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Cost summary rebuilt from the live recordings",
+   "files": [
+    "docket/cost_summary.py",
+    "scripts/cost_summary.py"
+   ],
+   "docs": [
+    {
+     "path": "docs/rerecord.md",
+     "claims": [
+      {
+       "claim": "scripts/cost_summary.py writes the cost summary from the recordings",
+       "at": "docket/cost_summary.py:34"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Regenerating a live report keeps its record-run evidence",
+   "files": [
+    "scripts/regenerate_live_report.py"
+   ],
+   "docs": [
+    {
+     "path": "docs/rerecord.md",
+     "claims": [
+      {
+       "claim": "regenerate_live_report.py replays a seed and carries the record runs forward",
+       "at": "docs/rerecord.md:46"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Live and simulated answer archives (data)",
+   "files": [
+    "evals/history/simulated/calls.jsonl",
+    "evals/history/simulated/exchange.jsonl.gz",
+    "evals/recordings/anthropic-exchange.jsonl.gz",
+    "evals/recordings/anthropic.jsonl",
+    "evals/recordings/calls.jsonl",
+    "evals/recordings/exchange.jsonl.gz"
+   ],
+   "none": "Recorded data, not behavior; the evidence archive README and docs/rerecord.md describe the archives."
+  }
+ ]
+}

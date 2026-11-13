@@ -199,6 +199,8 @@ class FileDocumentWorkflow:
             "record_id": stage.get("chosen"),
             "suggested_record_id": stage.get("suggested_record_id"),
             "suggestion_failure_reason": stage.get("suggestion_failure_reason"),
+            "category_failure_reason": stage.get("category_failure_reason"),
+            "refusal_category": stage.get("refusal_category"),
             "category": stage.get("category", "misc"),
             "score": stage.get("score", "0"),
             "tier": stage.get("tier", "none"),

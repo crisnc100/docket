@@ -36,18 +36,23 @@ UNREADABLE_REASONS = ("refusal", "cut", "not_json", "schema")
 class UnreadableAnswer(ParseError):
     """The API answered and billed, but Docket cannot use the answer.
 
-    It keeps the Temporal type ParseError, so workflows treat it like any other
-    parse failure: a failed category fails the document, a failed suggestion does not.
+    It keeps the Temporal type ParseError. The classify step catches it and sends the
+    document to review; a failed suggestion leaves no suggestion, as for any parse failure.
     """
 
-    def __init__(self, reason: str) -> None:
+    def __init__(self, reason: str, refusal_category: str | None = None) -> None:
         if reason not in UNREADABLE_REASONS:
             raise ValueError(f"Unknown unreadable reason: {reason}")
+        if refusal_category is not None and reason != "refusal":
+            raise ValueError("Only a refusal has a safety category")
         self.reason = reason
+        # The API's own label for why its safety filter refused, such as "bio".
+        self.refusal_category = refusal_category
         ApplicationError.__init__(
             self,
             f"Unreadable model answer: {reason}",
             reason,
+            refusal_category,
             type="ParseError",
             non_retryable=True,
         )

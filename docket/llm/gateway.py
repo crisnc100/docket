@@ -185,7 +185,7 @@ class Gateway:
                 entry = self.store.get(key)
                 self.used_recordings[key] = entry
                 if entry.outcome == "unreadable":
-                    raise UnreadableAnswer(entry.reason or "")
+                    raise UnreadableAnswer(entry.reason or "", entry.refusal_category)
                 return schema.model_validate(entry.output)
             except ValidationError as exc:
                 raise ParseError("Replay output does not match the per-call schema") from exc
@@ -284,6 +284,7 @@ class Gateway:
         # Charged before parsing: the API bills unreadable answers too.
         budget.settle(day, worst, cost)
         reason, output = read_reply(reply, schema)
+        refusal_category = reply.refusal_category if reason == "refusal" else None
         if source == "synthetic_corpus":
             entry = Recording(
                 key=key,
@@ -296,6 +297,7 @@ class Gateway:
                 output_tokens=reply.output_tokens,
                 latency_ms=reply.latency_ms,
                 output_mode=reply.output_mode,
+                refusal_category=refusal_category,
                 source=source,
                 provenance={
                     "provider": self.provider,
@@ -309,7 +311,7 @@ class Gateway:
                 self.exchange.export(pending())
                 self.store.append(entry)
         if reason:
-            raise UnreadableAnswer(reason)
+            raise UnreadableAnswer(reason, refusal_category)
         assert output is not None
         return output
 

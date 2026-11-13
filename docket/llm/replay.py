@@ -50,6 +50,7 @@ class Recording(BaseModel):
     output_tokens: int | None = Field(default=None, ge=0)
     latency_ms: int | None = Field(default=None, ge=0)
     output_mode: Literal["json_schema", "json_prompt"] | None = None
+    refusal_category: str | None = None
     source: str = Field(pattern=r"^synthetic_corpus$")
     provenance: dict[str, str] | None = None
 
@@ -57,6 +58,8 @@ class Recording(BaseModel):
     def consistent(self) -> "Recording":
         if self.outcome == "answer" and (self.output is None or self.reason is not None):
             raise ValueError("An answer needs an output and no reason")
+        if self.refusal_category is not None and self.reason != "refusal":
+            raise ValueError("Only a refusal has a safety category")
         if self.outcome == "unreadable" and (
             self.output is not None or self.reason not in UNREADABLE_REASONS
         ):
@@ -72,7 +75,10 @@ class Recording(BaseModel):
     def line(self) -> str:
         # Simulated entries keep their v0.1 shape; live entries always write every field.
         if self.live:
-            return self.model_dump_json()
+            # Entries without a refusal category keep the format they had before it existed.
+            return self.model_dump_json(
+                exclude={"refusal_category"} if self.refusal_category is None else None
+            )
         return self.model_dump_json(include=V01_FIELDS)
 
 

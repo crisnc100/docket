@@ -86,6 +86,8 @@ def test_live_measures_count_failures_spend_and_latency():
     assert measures["unreadable_count"] == 1
     assert measures["unreadable_by_reason"] == {"refusal": 1}
     assert measures["unreadable_by_activity"] == {"classify": 1}
+    assert measures["refusal_categories"] == {"unrecorded": 1}
+    assert measures["category_unreadable_to_review"] == 0
     assert measures["no_answer_count"] == 2
     assert measures["maybe_billed_count"] == 0
     assert measures["output_modes"] == {"json_schema": 4}
@@ -120,3 +122,21 @@ def test_a_retried_document_counts_its_request_once():
     )
     assert measures["requests_answered"] == 1
     assert measures["spend_usd"] == "0.0002"
+
+
+def test_refused_category_is_counted_by_safety_category_and_routed_to_review():
+    _, labels = corpus_labels(7)
+    a, b = labels[:2]
+    bio = answer("a-classify", "0.0003", 200, reason="refusal").model_copy(
+        update={"refusal_category": "bio"}
+    )
+    measures = live_measures(
+        [a, b],
+        [outcome(a, reason="category_unreadable", category="misc"), outcome(b)],
+        [outcome(a), outcome(b)],
+        {a.document_id: calls("a"), b.document_id: calls("b")},
+        [bio, answer("a-choose", "0.0001", 100), answer("b-classify", "0.0001", 100)],
+    )
+    assert measures["refusal_categories"] == {"bio": 1}
+    assert measures["category_unreadable_to_review"] == 1
+    assert measures["requests_not_asked"] == 1

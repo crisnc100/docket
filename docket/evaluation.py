@@ -37,6 +37,7 @@ class Outcome:
     score: str
     tier: str
     suggestion: dict[str, str | None] | None = None
+    category_failure: dict[str, str | None] | None = None
 
 
 def wilson(successes: int, total: int) -> list[float] | None:
@@ -262,6 +263,12 @@ async def model_outcomes(labels, folder: Path, settings: Settings, mode: str, bu
                         result["score"],
                         result["tier"],
                         suggestion,
+                        {
+                            "reason": result["category_failure_reason"],
+                            "refusal_category": result.get("refusal_category"),
+                        }
+                        if result.get("category_failure_reason")
+                        else None,
                     )
                 )
     finally:
@@ -510,6 +517,19 @@ def live_measures(
             sorted(Counter(activity.get(entry.key, "unknown") for entry in unreadable).items())
         ),
         "unreadable_wilson_95": wilson(len(unreadable), len(all_keys)),
+        # Refusals recorded before the category was kept show as "unrecorded".
+        "refusal_categories": dict(
+            sorted(
+                Counter(
+                    entry.refusal_category or "unrecorded"
+                    for entry in unreadable
+                    if entry.reason == "refusal"
+                ).items()
+            )
+        ),
+        "category_unreadable_to_review": sum(
+            result.reason == "category_unreadable" for result in outcomes
+        ),
         "no_answer_count": len(failed["no_answer"]),
         "maybe_billed_count": len(failed["maybe_billed"]),
         "output_modes": dict(sorted(Counter(entry.output_mode for entry in used.values()).items())),
@@ -853,6 +873,11 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
             f"Unreadable answers: {live['unreadable_count']}"
             + (f" ({by_reason})" if by_reason else "")
             + ".\n"
+            "Refusal safety categories: "
+            + (", ".join(f"{k}: {v}" for k, v in live["refusal_categories"].items()) or "none")
+            + ".\n"
+            "Documents sent to review because the category answer was unreadable: "
+            f"{live['category_unreadable_to_review']}.\n"
             f"Spend: ${live['spend_usd']} for {live['input_tokens']} input and "
             f"{live['output_tokens']} output tokens.\n"
             "Cost per document: "

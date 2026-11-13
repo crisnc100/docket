@@ -55,6 +55,7 @@ class Reply:
     output_tokens: int
     output_mode: OutputModeName
     latency_ms: int
+    refusal_category: str | None = None
 
 
 class OutputMode:
@@ -186,7 +187,22 @@ class AnthropicTransport:
             output_tokens=usage.output_tokens,
             output_mode=mode,
             latency_ms=latency_ms,
+            refusal_category=_refusal_category(message),
         )
+
+
+def _refusal_category(message: Any) -> str | None:
+    if message.stop_reason != "refusal":
+        return None
+    details = getattr(message, "stop_details", None)
+    if details is None:
+        # Older SDK models keep unknown response fields as extras.
+        details = (getattr(message, "model_extra", None) or {}).get("stop_details")
+    if isinstance(details, dict):
+        category = details.get("category")
+    else:
+        category = getattr(details, "category", None)
+    return str(category) if category else None
 
 
 def _message(exc: anthropic.APIStatusError) -> str:

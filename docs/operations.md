@@ -55,7 +55,10 @@ The workflow runs these steps:
 3. Ask the model for a category, then ask it to choose one shortlisted record or
    `none`. An empty shortlist skips both calls and the category is `misc`.
    A failed record-choice call leaves no suggestion. Its reason is saved in the
-   score event, and scoring continues. A failed category call still ends `failed`.
+   score event, and scoring continues. An unreadable category answer, such as a
+   refusal, sets the category to `misc`, records why in the classify event, and sends
+   the document to review with the reason `category_unreadable`, even when the rules
+   would file it. Any other failed category call, such as no answer, ends `failed`.
 4. Score every candidate and take the rules' highest score for the tier and filing
    decision. The model's record choice is a suggestion for the reviewer.
 5. File the document, or wait for a person. `POST /review/{id}/approve` with a
@@ -187,8 +190,10 @@ the model's record suggestion does not affect its score, tier or filing decision
   live answer records which of the two it used.
 - **Failures in the workflow.** None of these errors is retried by Temporal. In
   choose, the workflow records no suggestion and the error reason (`parse_error`,
-  `no_answer` or `maybe_billed`), then scores with rules. In classify, the document
-  ends failed.
+  `no_answer` or `maybe_billed`), then scores with rules. In classify, an unreadable
+  answer sends the document to review; `no_answer` or `maybe_billed` ends it failed.
+- **Refusal category.** When the API's safety filter refuses, it names a category,
+  such as `bio`. The recording, the classify event and the report keep it.
 
 `docket spike-models` checks that the configured model keeps to a different list
 of allowed ids on each call. It makes two real calls, so it needs the provider's

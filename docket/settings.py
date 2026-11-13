@@ -21,10 +21,9 @@ class Settings(BaseSettings):
     docket_review_token: SecretStr | None = None
     docket_webhook_secret: SecretStr = SecretStr("")
     docket_webhook_rate_limit: int = Field(default=60, gt=0)
-    # The defaults replay the recorded v0.1 answers. Anthropic is opt-in until its
-    # answers are recorded.
-    docket_model_provider: Literal["anthropic", "openrouter"] = "openrouter"
-    docket_model: str = "openai/gpt-4o-mini"
+    # The defaults replay the live answers recorded from Haiku 5.5 on the Anthropic API.
+    docket_model_provider: Literal["anthropic", "openrouter"] = "anthropic"
+    docket_model: str = "claude-haiku-5-5"
     docket_provider: str = "OpenAI"
     docket_daily_budget_usd: float = 1.50
 

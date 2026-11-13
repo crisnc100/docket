@@ -18,9 +18,11 @@ from docket.core.extraction import DocumentRejection, Rejected, extract_document
 from docket.core.scoring import load_scoring_config, score_choice
 from docket.corpus import Label
 from docket.ingress import Ingress
+from docket.llm.budget import PriceCeiling, load_prices
 from docket.llm.errors import ReplayMiss
 from docket.llm.exchange import Exchange, PendingRequest
-from docket.llm.replay import Recording, ReplayStore, replay_key
+from docket.llm.gateway import MAX_OUTPUT_TOKENS
+from docket.llm.replay import Recording, ReplayStore, canonical, replay_key
 from docket.prompts import choose_request, classify_request
 from docket.runtime import Runtime
 from docket.settings import Settings
@@ -37,6 +39,7 @@ class Outcome:
     score: str
     tier: str
     suggestion: dict[str, str | None] | None = None
+    category_failure: dict[str, str | None] | None = None
 
 
 def wilson(successes: int, total: int) -> list[float] | None:
@@ -262,6 +265,12 @@ async def model_outcomes(labels, folder: Path, settings: Settings, mode: str, bu
                         result["score"],
                         result["tier"],
                         suggestion,
+                        {
+                            "reason": result["category_failure_reason"],
+                            "refusal_category": result.get("refusal_category"),
+                        }
+                        if result.get("category_failure_reason")
+                        else None,
                     )
                 )
     finally:
@@ -440,6 +449,138 @@ def measurement_label(recordings: list[Recording]) -> str:
     return next(iter(kinds)) if len(kinds) == 1 else "mixed"
 
 
+def percentile(values: list[int], share: float) -> int | None:
+    """Nearest-rank percentile: the smallest value with at least `share` of values at or below."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    return ordered[max(0, math.ceil(share * len(ordered)) - 1)]
+
+
+def worst_case_charge(request: PendingRequest, prices: PriceCeiling) -> Decimal:
+    """What the gateway reserved, and kept, for this request before sending it."""
+    body: dict[str, Any] = {
+        "inputs": request.inputs,
+        "prompt": request.messages[0]["content"],
+        "schema": request.response_schema,
+    }
+    if request.system_prompt:
+        body["system_prompt"] = request.system_prompt
+    return prices.worst_case(canonical(body), MAX_OUTPUT_TOKENS)
+
+
+def live_measures(
+    labels: list[Label],
+    outcomes: list[Outcome],
+    legacy: list[Outcome],
+    requests: dict[str, dict[str, PendingRequest]],
+    recordings: list[Recording],
+    *,
+    prices: PriceCeiling | None = None,
+) -> dict[str, Any]:
+    """Measures that only live answers have: unreadable answers, spend and latency.
+
+    `requests` maps each document id to the model requests its text produces. Every
+    figure comes from the recordings, so replay reproduces it exactly.
+    """
+    activity = {
+        key: request.activity for keys in requests.values() for key, request in keys.items()
+    }
+    used = {entry.key: entry for entry in recordings}
+    unreadable = [entry for entry in used.values() if entry.outcome == "unreadable"]
+    # A failed call leaves no recording; its reason is on the workflow outcome instead.
+    failed: dict[str, set[str]] = {"no_answer": set(), "maybe_billed": set()}
+    for label, result in zip(labels, outcomes, strict=True):
+        keys = requests.get(label.document_id, {})
+        if result.status == "failed" and result.reason in failed:
+            failed[result.reason].update(k for k, r in keys.items() if r.activity == "classify")
+        reason = (result.suggestion or {}).get("suggestion_failure_reason")
+        if reason in failed:
+            failed[reason].update(k for k, r in keys.items() if r.activity == "choose")
+    charges = {entry.key: Decimal(entry.cost_usd or "0") for entry in used.values()}
+    # A call that failed after sending has no recording, but it keeps its worst-case
+    # charge, because the API may have billed it.
+    pending = {key: request for keys in requests.values() for key, request in keys.items()}
+    maybe_billed = Decimal(0)
+    for key in sorted(failed["maybe_billed"]):
+        if prices is None:
+            raise ValueError("A maybe-billed call needs the price snapshot to be counted")
+        charge = worst_case_charge(pending[key], prices)
+        charges[key] = charges.get(key, Decimal(0)) + charge
+        maybe_billed += charge
+    spend = sum(charges.values(), Decimal(0))
+    spend_by_activity: dict[str, Decimal] = {}
+    for key, charge in charges.items():
+        name = activity.get(key, "unknown")
+        spend_by_activity[name] = spend_by_activity.get(name, Decimal(0)) + charge
+    reached = [label for label in labels if requests.get(label.document_id)]
+    not_rejected = [result for result in legacy if result.status != "rejected"]
+    reached_ids = {label.document_id for label in reached}
+    reached_pairs = [
+        (label, result)
+        for label, result in zip(labels, outcomes, strict=True)
+        if label.document_id in reached_ids
+    ]
+    category_correct = sum(
+        label.category.value == result.category for label, result in reached_pairs
+    )
+    latencies = [entry.latency_ms for entry in used.values() if entry.latency_ms is not None]
+    all_keys = set(activity)
+
+    def per_document(count: int) -> str | None:
+        return str(spend / count) if count else None
+
+    return {
+        "requests": len(all_keys),
+        "requests_answered": len(used),
+        "requests_not_asked": len(
+            all_keys - set(used) - failed["no_answer"] - failed["maybe_billed"]
+        ),
+        "unreadable_count": len(unreadable),
+        "unreadable_by_reason": dict(sorted(Counter(entry.reason for entry in unreadable).items())),
+        "unreadable_by_activity": dict(
+            sorted(Counter(activity.get(entry.key, "unknown") for entry in unreadable).items())
+        ),
+        "unreadable_wilson_95": wilson(len(unreadable), len(all_keys)),
+        # Refusals recorded before the category was kept show as "unrecorded".
+        "refusal_categories": dict(
+            sorted(
+                Counter(
+                    entry.refusal_category or "unrecorded"
+                    for entry in unreadable
+                    if entry.reason == "refusal"
+                ).items()
+            )
+        ),
+        "category_unreadable_to_review": sum(
+            result.reason == "category_unreadable" for result in outcomes
+        ),
+        "no_answer_count": len(failed["no_answer"]),
+        "maybe_billed_count": len(failed["maybe_billed"]),
+        "maybe_billed_spend_usd": str(maybe_billed),
+        "output_modes": dict(sorted(Counter(entry.output_mode for entry in used.values()).items())),
+        "input_tokens": sum(entry.input_tokens or 0 for entry in used.values()),
+        "output_tokens": sum(entry.output_tokens or 0 for entry in used.values()),
+        "spend_usd": str(spend),
+        "spend_by_activity_usd": {
+            name: str(value) for name, value in sorted(spend_by_activity.items())
+        },
+        "documents": len(labels),
+        "documents_not_rejected": len(not_rejected),
+        "documents_reaching_model": len(reached),
+        "cost_per_document_reaching_model_usd": per_document(len(reached)),
+        "cost_per_document_not_rejected_usd": per_document(len(not_rejected)),
+        "cost_per_document_usd": per_document(len(labels)),
+        "category_correct_reaching_model": category_correct,
+        "category_accuracy_reaching_model": category_correct / len(reached_pairs)
+        if reached_pairs
+        else None,
+        "category_accuracy_reaching_model_wilson_95": wilson(category_correct, len(reached_pairs)),
+        "latency_ms_median": percentile(latencies, 0.5),
+        "latency_ms_p95": percentile(latencies, 0.95),
+    }
+
+
 def live_banner(report: dict) -> str:
     dates = sorted({entry["recorded"] for entry in report["provenance"]})
     models = ", ".join(sorted({entry["model"] for entry in report["provenance"]}))
@@ -595,6 +736,42 @@ async def evaluate(
         choice_comparison=compare_choices(outcomes, legacy),
         review_suggestion_comparison=compare_review_suggestions(labels, outcomes, legacy),
     )
+    if report["measurement"] == "anthropic":
+        report["live"] = live_measures(
+            labels,
+            outcomes,
+            legacy,
+            {label.document_id: pending_requests([label], folder, settings) for label in labels},
+            recordings,
+            prices=load_prices().ceiling(settings.docket_model),
+        )
+    return report
+
+
+RECORD_RUN_FIELDS = ("budget_usd", "live_run_cost_usd", "recorded_before_run", "requests_to_send")
+
+
+def with_record_runs(report: dict, runs: list[dict], sources: list[str]) -> dict:
+    """Carry the paid record runs' fields onto a report regenerated in replay.
+
+    Replay reproduces every figure from the recordings, but not the fact that live,
+    billed runs made them. The runs' own reports hold that, so it is copied forward.
+    """
+    for run in runs:
+        if run.get("mode") != "record":
+            raise ValueError("Only a record run's report can supply record-run fields")
+        if run.get("seed") != report["seed"] or run.get("model") != report["model"]:
+            raise ValueError("A record run must be for the same seed and model")
+    report = dict(report)
+    report["record_runs"] = [
+        {"source": source, "mode": "record", **{name: run.get(name) for name in RECORD_RUN_FIELDS}}
+        for run, source in zip(runs, sources, strict=True)
+    ]
+    report.update(
+        mode="record",
+        budget_usd=runs[-1]["budget_usd"],
+        live_run_cost_usd=str(sum((Decimal(run["live_run_cost_usd"]) for run in runs), Decimal(0))),
+    )
     return report
 
 
@@ -637,6 +814,13 @@ def simulation_summary(
 def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{report['date']}-seed-{report['seed']}.json"
+    if path.exists() and report.get("mode") != "record":
+        if json.loads(path.read_text()).get("mode") == "record":
+            # That report is the only place a paid run's budget and cost are kept.
+            raise ValueError(
+                f"{path} is a paid record run's report; regenerate it with "
+                "scripts/regenerate_live_report.py instead of a plain replay"
+            )
     text = f"# Docket eval — seed {report['seed']}\n\nStatus: **{report['status']}**\n\n"
     if report.get("measurement") in {"simulated", "mixed"}:
         seed_counts = report.get("simulation", {}).get("seed_request_counts", {})
@@ -679,6 +863,14 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
     if report.get("measurement") == "anthropic":
         report["banner"] = live_banner(report)
         text = report["banner"] + "\n\n" + text
+        runs = report.get("record_runs")
+        if runs:
+            plural = "s" if len(runs) > 1 else ""
+            text += (
+                f"Answers recorded by {len(runs)} live record run{plural}, "
+                f"model cost ${report['live_run_cost_usd']} in total; "
+                "this report replays them with no model call.\n\n"
+            )
     if report.get("measurement") == "no model calls":
         text = "No model calls. No model responses were used.\n\n" + text
     if report["status"].startswith("PENDING"):
@@ -707,14 +899,32 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
     )
     comparison = report.get("choice_comparison")
     if comparison:
+        changed = set(comparison["changed_document_ids"])
+        unreadable = sum(
+            result["document_id"] in changed and result.get("reason") == "category_unreadable"
+            for result in report.get("docket_results") or []
+        )
+        other = len(changed) - unreadable
+        # The record suggestion never decides filing, so a change has another cause.
+        cause = ""
+        if unreadable:
+            cause = (
+                f"{unreadable} of them went to review because the category answer was "
+                "unreadable; "
+                + (
+                    f"{other} changed for another reason.\n"
+                    if other
+                    else "the model's record suggestion changed none.\n"
+                )
+            )
         text += (
             "A filing decision is file versus review, including the record used for filing.\n"
             "A review proposal is a suggested record for a document sent to review.\n"
             "Category labels are compared separately from record choice.\n"
-            f"The model's choose step changes {comparison['filing_decision_changes']} filing "
-            "decisions versus the rules-only baseline "
-            f"across {comparison['documents']} documents.\n"
-            f"Routing changes: {comparison['routing_changes']}. "
+            "Docket's filing decisions differ from the rules-only baseline on "
+            f"{comparison['filing_decision_changes']} of {comparison['documents']} documents.\n"
+            + cause
+            + f"Routing changes: {comparison['routing_changes']}. "
             f"Filed-record changes: {comparison['filed_record_changes']}.\n"
             f"Review proposals differ on {comparison['review_proposal_changes']} documents. "
             f"Category labels differ on {comparison['category_changes']} documents.\n\n"
@@ -737,6 +947,35 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
                 {key: value for key, value in suggestions.items() if key != "documents"}, indent=2
             )
             + "\n```\n\n"
+        )
+    live = report.get("live")
+    if live:
+        by_reason = ", ".join(f"{k}: {v}" for k, v in live["unreadable_by_reason"].items())
+        text += (
+            "## Live answers, spend and latency\n\n"
+            f"Requests in this seed: {live['requests']}. Answered: {live['requests_answered']}. "
+            f"No answer: {live['no_answer_count']}. "
+            f"Maybe billed, no answer kept: {live['maybe_billed_count']}. "
+            f"Not asked because the category call failed first: {live['requests_not_asked']}.\n"
+            f"Unreadable answers: {live['unreadable_count']}"
+            + (f" ({by_reason})" if by_reason else "")
+            + ".\n"
+            "Refusal safety categories: "
+            + (", ".join(f"{k}: {v}" for k, v in live["refusal_categories"].items()) or "none")
+            + ".\n"
+            "Documents sent to review because the category answer was unreadable: "
+            f"{live['category_unreadable_to_review']}.\n"
+            f"Spend: ${live['spend_usd']} for {live['input_tokens']} input and "
+            f"{live['output_tokens']} output tokens.\n"
+            "Cost per document: "
+            f"${live['cost_per_document_reaching_model_usd']} per document that reached the "
+            f"model ({live['documents_reaching_model']}), "
+            f"${live['cost_per_document_not_rejected_usd']} per document not rejected "
+            f"({live['documents_not_rejected']}), "
+            f"${live['cost_per_document_usd']} per document overall ({live['documents']}).\n"
+            f"Latency per call: median {live['latency_ms_median']} ms, "
+            f"95th percentile {live['latency_ms_p95']} ms.\n\n"
+            "```json\n" + json.dumps(live, indent=2) + "\n```\n\n"
         )
     text += (
         "## Metrics\n\n```json\n"

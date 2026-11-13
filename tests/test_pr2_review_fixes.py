@@ -36,10 +36,10 @@ async def test_seed_import_without_working_folders_uses_saved_recordings(tmp_pat
     root = Path.cwd()
     for directory in ("corpus", "config"):
         (tmp_path / directory).symlink_to(root / directory, target_is_directory=True)
-    recordings = tmp_path / "evals/recordings"
+    recordings = tmp_path / "evals/history/simulated"
     recordings.mkdir(parents=True)
     for name in ("calls.jsonl", "manifest.json", "exchange.jsonl.gz"):
-        shutil.copyfile(root / "evals/recordings" / name, recordings / name)
+        shutil.copyfile(root / "evals/history/simulated" / name, recordings / name)
     monkeypatch.chdir(tmp_path)
 
     async def outcomes(*args, **kwargs):
@@ -141,8 +141,61 @@ async def test_replay_gate_rejects_unmeasured_or_pending_reports(
         return report
 
     monkeypatch.setattr(reproduce_eval, "evaluate", reproduce)
-    with pytest.raises(SystemExit, match="measured PASS"):
+    with pytest.raises(SystemExit, match="complete measured report"):
         await reproduce_eval.main()
+
+
+def measured_fail() -> dict:
+    return {
+        "date": "2026-11-13",
+        "status": "FAIL",
+        "measurement": "anthropic",
+        "model": "claude-haiku-5-5",
+        "docket": {"auto_file_recall": 0.7},
+        "docket_results": [{"document_id": "doc-0001"}],
+        "floors": {"recall_at_least_baseline": False, "wrong_file_count_zero": True},
+        "live": {"unreadable_count": 20},
+    }
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("status", "PASS"),
+        ("floors", {"recall_at_least_baseline": True, "wrong_file_count_zero": True}),
+        ("docket", {"auto_file_recall": 0.9}),
+        ("live", {"unreadable_count": 19}),
+    ],
+)
+async def test_replay_gate_refuses_a_measured_fail_that_does_not_reproduce(
+    tmp_path, monkeypatch, field, value
+):
+    monkeypatch.chdir(tmp_path)
+    folder = Path("evals/reports")
+    folder.mkdir(parents=True)
+    stored = measured_fail()
+    (folder / "2026-11-13-seed-11.json").write_text(json.dumps(stored))
+
+    async def reproduce(*args, **kwargs):
+        return {**measured_fail(), field: value}
+
+    monkeypatch.setattr(reproduce_eval, "evaluate", reproduce)
+    with pytest.raises(SystemExit, match=f"differs in {field}"):
+        await reproduce_eval.main()
+
+
+async def test_replay_gate_accepts_a_measured_fail_that_reproduces(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    folder = Path("evals/reports")
+    folder.mkdir(parents=True)
+    (folder / "2026-11-13-seed-11.json").write_text(json.dumps(measured_fail()))
+
+    async def reproduce(*args, **kwargs):
+        return measured_fail()
+
+    monkeypatch.setattr(reproduce_eval, "evaluate", reproduce)
+    await reproduce_eval.main()
+    assert "Replay report reproduced: FAIL" in capsys.readouterr().out
 
 
 def test_live_documents_have_separate_run_budgets_and_a_shared_daily_cap(

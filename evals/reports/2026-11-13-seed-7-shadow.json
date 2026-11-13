@@ -1,0 +1,774 @@
+{
+  "banner": "Model answers measured live from claude-haiku-5-5 on the Anthropic API on 2026-11-13.",
+  "disagreements": [
+    {
+      "baseline": {
+        "category": "notice",
+        "category_failure": null,
+        "document_id": "doc-0009",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": null,
+        "tier": "none"
+      },
+      "case_type": "no_record",
+      "classification": "both_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": null,
+        "document_id": "doc-0009",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null
+        },
+        "tier": "none"
+      },
+      "document_id": "doc-0009",
+      "gold": {
+        "case_type": "no_record",
+        "category": "notice",
+        "document_id": "doc-0009",
+        "duplicate_of": null,
+        "expected": "review",
+        "filename": "doc-0009-no_record.pdf",
+        "injected_record_id": null,
+        "record_id": null,
+        "subject": "Synthetic notice document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "inspection",
+        "category_failure": null,
+        "document_id": "doc-0017",
+        "reason": "threshold_met",
+        "record_id": "UNIT-0013",
+        "score": "0.9500000",
+        "status": "would_file",
+        "suggestion": null,
+        "tier": "strong"
+      },
+      "case_type": "very_long",
+      "classification": "baseline_only_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": {
+          "reason": "refusal",
+          "refusal_category": null
+        },
+        "document_id": "doc-0017",
+        "reason": "category_unreadable",
+        "record_id": "UNIT-0013",
+        "score": "0.9500000",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null,
+          "suggestion_failure_reason": "parse_error"
+        },
+        "tier": "strong"
+      },
+      "document_id": "doc-0017",
+      "gold": {
+        "case_type": "very_long",
+        "category": "inspection",
+        "document_id": "doc-0017",
+        "duplicate_of": null,
+        "expected": "filed",
+        "filename": "doc-0017-very_long.pdf",
+        "injected_record_id": null,
+        "record_id": "UNIT-0013",
+        "subject": "Synthetic inspection document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "invoice",
+        "category_failure": null,
+        "document_id": "doc-0034",
+        "reason": "threshold_met",
+        "record_id": "UNIT-0120",
+        "score": "0.9500000",
+        "status": "would_file",
+        "suggestion": null,
+        "tier": "strong"
+      },
+      "case_type": "very_long",
+      "classification": "baseline_only_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": {
+          "reason": "refusal",
+          "refusal_category": null
+        },
+        "document_id": "doc-0034",
+        "reason": "category_unreadable",
+        "record_id": "UNIT-0120",
+        "score": "0.9500000",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null,
+          "suggestion_failure_reason": "parse_error"
+        },
+        "tier": "strong"
+      },
+      "document_id": "doc-0034",
+      "gold": {
+        "case_type": "very_long",
+        "category": "invoice",
+        "document_id": "doc-0034",
+        "duplicate_of": null,
+        "expected": "filed",
+        "filename": "doc-0034-very_long.pdf",
+        "injected_record_id": null,
+        "record_id": "UNIT-0120",
+        "subject": "Synthetic invoice document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "lease",
+        "category_failure": null,
+        "document_id": "doc-0043",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": null,
+        "tier": "none"
+      },
+      "case_type": "no_record",
+      "classification": "both_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": null,
+        "document_id": "doc-0043",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null
+        },
+        "tier": "none"
+      },
+      "document_id": "doc-0043",
+      "gold": {
+        "case_type": "no_record",
+        "category": "lease",
+        "document_id": "doc-0043",
+        "duplicate_of": null,
+        "expected": "review",
+        "filename": "doc-0043-no_record.pdf",
+        "injected_record_id": null,
+        "record_id": null,
+        "subject": "Synthetic lease document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "notice",
+        "category_failure": null,
+        "document_id": "doc-0051",
+        "reason": "threshold_met",
+        "record_id": "UNIT-0081",
+        "score": "0.9500000",
+        "status": "would_file",
+        "suggestion": null,
+        "tier": "strong"
+      },
+      "case_type": "very_long",
+      "classification": "baseline_only_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": {
+          "reason": "refusal",
+          "refusal_category": null
+        },
+        "document_id": "doc-0051",
+        "reason": "category_unreadable",
+        "record_id": "UNIT-0081",
+        "score": "0.9500000",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null,
+          "suggestion_failure_reason": "parse_error"
+        },
+        "tier": "strong"
+      },
+      "document_id": "doc-0051",
+      "gold": {
+        "case_type": "very_long",
+        "category": "notice",
+        "document_id": "doc-0051",
+        "duplicate_of": null,
+        "expected": "filed",
+        "filename": "doc-0051-very_long.pdf",
+        "injected_record_id": null,
+        "record_id": "UNIT-0081",
+        "subject": "Synthetic notice document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "inspection",
+        "category_failure": null,
+        "document_id": "doc-0060",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": null,
+        "tier": "none"
+      },
+      "case_type": "no_record",
+      "classification": "both_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": null,
+        "document_id": "doc-0060",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null
+        },
+        "tier": "none"
+      },
+      "document_id": "doc-0060",
+      "gold": {
+        "case_type": "no_record",
+        "category": "inspection",
+        "document_id": "doc-0060",
+        "duplicate_of": null,
+        "expected": "review",
+        "filename": "doc-0060-no_record.pdf",
+        "injected_record_id": null,
+        "record_id": null,
+        "subject": "Synthetic inspection document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "misc",
+        "category_failure": null,
+        "document_id": "doc-0068",
+        "reason": "threshold_met",
+        "record_id": "UNIT-0197",
+        "score": "0.9500000",
+        "status": "would_file",
+        "suggestion": null,
+        "tier": "strong"
+      },
+      "case_type": "very_long",
+      "classification": "baseline_only_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": {
+          "reason": "refusal",
+          "refusal_category": null
+        },
+        "document_id": "doc-0068",
+        "reason": "category_unreadable",
+        "record_id": "UNIT-0197",
+        "score": "0.9500000",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null,
+          "suggestion_failure_reason": "parse_error"
+        },
+        "tier": "strong"
+      },
+      "document_id": "doc-0068",
+      "gold": {
+        "case_type": "very_long",
+        "category": "misc",
+        "document_id": "doc-0068",
+        "duplicate_of": null,
+        "expected": "filed",
+        "filename": "doc-0068-very_long.pdf",
+        "injected_record_id": null,
+        "record_id": "UNIT-0197",
+        "subject": "Synthetic misc document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "invoice",
+        "category_failure": null,
+        "document_id": "doc-0077",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": null,
+        "tier": "none"
+      },
+      "case_type": "no_record",
+      "classification": "both_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": null,
+        "document_id": "doc-0077",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null
+        },
+        "tier": "none"
+      },
+      "document_id": "doc-0077",
+      "gold": {
+        "case_type": "no_record",
+        "category": "invoice",
+        "document_id": "doc-0077",
+        "duplicate_of": null,
+        "expected": "review",
+        "filename": "doc-0077-no_record.pdf",
+        "injected_record_id": null,
+        "record_id": null,
+        "subject": "Synthetic invoice document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "lease",
+        "category_failure": null,
+        "document_id": "doc-0085",
+        "reason": "threshold_met",
+        "record_id": "UNIT-0068",
+        "score": "0.9500000",
+        "status": "would_file",
+        "suggestion": null,
+        "tier": "strong"
+      },
+      "case_type": "very_long",
+      "classification": "baseline_only_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": {
+          "reason": "refusal",
+          "refusal_category": null
+        },
+        "document_id": "doc-0085",
+        "reason": "category_unreadable",
+        "record_id": "UNIT-0068",
+        "score": "0.9500000",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null,
+          "suggestion_failure_reason": "parse_error"
+        },
+        "tier": "strong"
+      },
+      "document_id": "doc-0085",
+      "gold": {
+        "case_type": "very_long",
+        "category": "lease",
+        "document_id": "doc-0085",
+        "duplicate_of": null,
+        "expected": "filed",
+        "filename": "doc-0085-very_long.pdf",
+        "injected_record_id": null,
+        "record_id": "UNIT-0068",
+        "subject": "Synthetic lease document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "notice",
+        "category_failure": null,
+        "document_id": "doc-0094",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": null,
+        "tier": "none"
+      },
+      "case_type": "no_record",
+      "classification": "both_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": null,
+        "document_id": "doc-0094",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null
+        },
+        "tier": "none"
+      },
+      "document_id": "doc-0094",
+      "gold": {
+        "case_type": "no_record",
+        "category": "notice",
+        "document_id": "doc-0094",
+        "duplicate_of": null,
+        "expected": "review",
+        "filename": "doc-0094-no_record.pdf",
+        "injected_record_id": null,
+        "record_id": null,
+        "subject": "Synthetic notice document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "inspection",
+        "category_failure": null,
+        "document_id": "doc-0102",
+        "reason": "threshold_met",
+        "record_id": "UNIT-0088",
+        "score": "0.9500000",
+        "status": "would_file",
+        "suggestion": null,
+        "tier": "strong"
+      },
+      "case_type": "very_long",
+      "classification": "baseline_only_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": {
+          "reason": "refusal",
+          "refusal_category": null
+        },
+        "document_id": "doc-0102",
+        "reason": "category_unreadable",
+        "record_id": "UNIT-0088",
+        "score": "0.9500000",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null,
+          "suggestion_failure_reason": "parse_error"
+        },
+        "tier": "strong"
+      },
+      "document_id": "doc-0102",
+      "gold": {
+        "case_type": "very_long",
+        "category": "inspection",
+        "document_id": "doc-0102",
+        "duplicate_of": null,
+        "expected": "filed",
+        "filename": "doc-0102-very_long.pdf",
+        "injected_record_id": null,
+        "record_id": "UNIT-0088",
+        "subject": "Synthetic inspection document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "invoice",
+        "category_failure": null,
+        "document_id": "doc-0119",
+        "reason": "threshold_met",
+        "record_id": "UNIT-0190",
+        "score": "0.9500000",
+        "status": "would_file",
+        "suggestion": null,
+        "tier": "strong"
+      },
+      "case_type": "very_long",
+      "classification": "baseline_only_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": {
+          "reason": "refusal",
+          "refusal_category": null
+        },
+        "document_id": "doc-0119",
+        "reason": "category_unreadable",
+        "record_id": "UNIT-0190",
+        "score": "0.9500000",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null,
+          "suggestion_failure_reason": "parse_error"
+        },
+        "tier": "strong"
+      },
+      "document_id": "doc-0119",
+      "gold": {
+        "case_type": "very_long",
+        "category": "invoice",
+        "document_id": "doc-0119",
+        "duplicate_of": null,
+        "expected": "filed",
+        "filename": "doc-0119-very_long.pdf",
+        "injected_record_id": null,
+        "record_id": "UNIT-0190",
+        "subject": "Synthetic invoice document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "lease",
+        "category_failure": null,
+        "document_id": "doc-0128",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": null,
+        "tier": "none"
+      },
+      "case_type": "no_record",
+      "classification": "both_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": null,
+        "document_id": "doc-0128",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null
+        },
+        "tier": "none"
+      },
+      "document_id": "doc-0128",
+      "gold": {
+        "case_type": "no_record",
+        "category": "lease",
+        "document_id": "doc-0128",
+        "duplicate_of": null,
+        "expected": "review",
+        "filename": "doc-0128-no_record.pdf",
+        "injected_record_id": null,
+        "record_id": null,
+        "subject": "Synthetic lease document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "notice",
+        "category_failure": null,
+        "document_id": "doc-0136",
+        "reason": "threshold_met",
+        "record_id": "UNIT-0195",
+        "score": "0.9500000",
+        "status": "would_file",
+        "suggestion": null,
+        "tier": "strong"
+      },
+      "case_type": "very_long",
+      "classification": "baseline_only_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": {
+          "reason": "refusal",
+          "refusal_category": null
+        },
+        "document_id": "doc-0136",
+        "reason": "category_unreadable",
+        "record_id": "UNIT-0195",
+        "score": "0.9500000",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null,
+          "suggestion_failure_reason": "parse_error"
+        },
+        "tier": "strong"
+      },
+      "document_id": "doc-0136",
+      "gold": {
+        "case_type": "very_long",
+        "category": "notice",
+        "document_id": "doc-0136",
+        "duplicate_of": null,
+        "expected": "filed",
+        "filename": "doc-0136-very_long.pdf",
+        "injected_record_id": null,
+        "record_id": "UNIT-0195",
+        "subject": "Synthetic notice document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "inspection",
+        "category_failure": null,
+        "document_id": "doc-0145",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": null,
+        "tier": "none"
+      },
+      "case_type": "no_record",
+      "classification": "both_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": null,
+        "document_id": "doc-0145",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null
+        },
+        "tier": "none"
+      },
+      "document_id": "doc-0145",
+      "gold": {
+        "case_type": "no_record",
+        "category": "inspection",
+        "document_id": "doc-0145",
+        "duplicate_of": null,
+        "expected": "review",
+        "filename": "doc-0145-no_record.pdf",
+        "injected_record_id": null,
+        "record_id": null,
+        "subject": "Synthetic inspection document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "misc",
+        "category_failure": null,
+        "document_id": "doc-0153",
+        "reason": "threshold_met",
+        "record_id": "UNIT-0001",
+        "score": "0.9500000",
+        "status": "would_file",
+        "suggestion": null,
+        "tier": "strong"
+      },
+      "case_type": "very_long",
+      "classification": "baseline_only_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": {
+          "reason": "refusal",
+          "refusal_category": null
+        },
+        "document_id": "doc-0153",
+        "reason": "category_unreadable",
+        "record_id": "UNIT-0001",
+        "score": "0.9500000",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null,
+          "suggestion_failure_reason": "parse_error"
+        },
+        "tier": "strong"
+      },
+      "document_id": "doc-0153",
+      "gold": {
+        "case_type": "very_long",
+        "category": "misc",
+        "document_id": "doc-0153",
+        "duplicate_of": null,
+        "expected": "filed",
+        "filename": "doc-0153-very_long.pdf",
+        "injected_record_id": null,
+        "record_id": "UNIT-0001",
+        "subject": "Synthetic misc document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "invoice",
+        "category_failure": null,
+        "document_id": "doc-0162",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": null,
+        "tier": "none"
+      },
+      "case_type": "no_record",
+      "classification": "both_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": null,
+        "document_id": "doc-0162",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null
+        },
+        "tier": "none"
+      },
+      "document_id": "doc-0162",
+      "gold": {
+        "case_type": "no_record",
+        "category": "invoice",
+        "document_id": "doc-0162",
+        "duplicate_of": null,
+        "expected": "review",
+        "filename": "doc-0162-no_record.pdf",
+        "injected_record_id": null,
+        "record_id": null,
+        "subject": "Synthetic invoice document"
+      }
+    },
+    {
+      "baseline": {
+        "category": "lease",
+        "category_failure": null,
+        "document_id": "doc-0170",
+        "reason": "threshold_met",
+        "record_id": "UNIT-0153",
+        "score": "0.9500000",
+        "status": "would_file",
+        "suggestion": null,
+        "tier": "strong"
+      },
+      "case_type": "very_long",
+      "classification": "baseline_only_correct",
+      "docket": {
+        "category": "misc",
+        "category_failure": {
+          "reason": "refusal",
+          "refusal_category": null
+        },
+        "document_id": "doc-0170",
+        "reason": "category_unreadable",
+        "record_id": "UNIT-0153",
+        "score": "0.9500000",
+        "status": "would_review",
+        "suggestion": {
+          "record_id": null,
+          "suggestion_failure_reason": "parse_error"
+        },
+        "tier": "strong"
+      },
+      "document_id": "doc-0170",
+      "gold": {
+        "case_type": "very_long",
+        "category": "lease",
+        "document_id": "doc-0170",
+        "duplicate_of": null,
+        "expected": "filed",
+        "filename": "doc-0170-very_long.pdf",
+        "injected_record_id": null,
+        "record_id": "UNIT-0153",
+        "subject": "Synthetic lease document"
+      }
+    }
+  ],
+  "measurement": "anthropic",
+  "provenance": [
+    {
+      "model": "claude-haiku-5-5",
+      "provider": "anthropic",
+      "recorded": "2026-11-13"
+    }
+  ],
+  "status": "COMPLETE"
+}

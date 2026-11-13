@@ -20,6 +20,7 @@ from docket.core.scoring import load_scoring_config, score_choice
 from docket.core.storage import StorageConflict, build_key
 from docket.db import Document, FiledDocument
 from docket.failpoints import fire
+from docket.llm.errors import UnreadableAnswer
 from docket.prompts import choose_request, classify_request
 from docket.runtime import Runtime
 
@@ -114,10 +115,25 @@ class Activities:
     async def classify(self, stage: dict) -> dict:
         async with heartbeats():
             gateway = self.runtime.gateway(stage["request"])
-            result = await gateway.call(
-                **classify_request(stage["llm_text"]),
-                source=stage["request"]["source"],
-            )
+            try:
+                result = await gateway.call(
+                    **classify_request(stage["llm_text"]),
+                    source=stage["request"]["source"],
+                )
+            except UnreadableAnswer as exc:
+                # The API answered but the category cannot be used, so a person decides.
+                # Score sends the document to review whatever the rules say.
+                stage.update(
+                    category="misc",
+                    category_failure_reason=exc.reason,
+                    refusal_category=exc.refusal_category,
+                )
+                detail = {
+                    key: stage[key]
+                    for key in ("category", "category_failure_reason", "refusal_category")
+                }
+                await asyncio.to_thread(self.event, stage, "classify", detail)
+                return stage
             stage["category"] = result.category.value
             await asyncio.to_thread(self.event, stage, "classify", {"category": stage["category"]})
             return stage
@@ -130,10 +146,16 @@ class Activities:
                 return stage
             fire("choose.during")
             ids = [candidate["record_id"] for candidate in stage["candidates"]]
-            result = await self.runtime.gateway(stage["request"]).call(
-                **choose_request(stage["llm_text"], ids),
-                source=stage["request"]["source"],
-            )
+            try:
+                result = await self.runtime.gateway(stage["request"]).call(
+                    **choose_request(stage["llm_text"], ids),
+                    source=stage["request"]["source"],
+                )
+            except UnreadableAnswer as exc:
+                # The workflow records the failure and scores with rules; this keeps why.
+                detail = {"unreadable_reason": exc.reason, "refusal_category": exc.refusal_category}
+                await asyncio.to_thread(self.event, stage, "choose_unreadable", detail)
+                raise
             choice = result.model_dump(mode="json")["record_id"]
             stage["chosen"] = None if choice == "none" else choice
             await asyncio.to_thread(self.event, stage, "choose", {"record_id": stage["chosen"]})
@@ -181,6 +203,17 @@ class Activities:
                 decision=result.decision,
                 reason=result.reason,
             )
+            category_failure = {}
+            if stage.get("category_failure_reason"):
+                # Not a scoring rule: without a usable category the document cannot be filed
+                # correctly, so it waits for a person. Score, tier and threshold are unchanged.
+                category_failure = {
+                    "rules_decision": result.decision,
+                    "rules_reason": result.reason,
+                    "category_failure_reason": stage["category_failure_reason"],
+                    "refusal_category": stage.get("refusal_category"),
+                }
+                stage.update(decision="review", reason="category_unreadable")
             suggestion_failure = (
                 {"suggestion_failure_reason": stage["suggestion_failure_reason"]}
                 if "suggestion_failure_reason" in stage
@@ -195,6 +228,7 @@ class Activities:
                     "rules_top_record_id": result.record_id,
                     "suggested_record_id": stage["suggested_record_id"],
                     **suggestion_failure,
+                    **category_failure,
                     "candidates": candidate_scores,
                 },
             )

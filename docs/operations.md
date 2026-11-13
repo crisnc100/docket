@@ -55,7 +55,10 @@ The workflow runs these steps:
 3. Ask the model for a category, then ask it to choose one shortlisted record or
    `none`. An empty shortlist skips both calls and the category is `misc`.
    A failed record-choice call leaves no suggestion. Its reason is saved in the
-   score event, and scoring continues. A failed category call still ends `failed`.
+   score event, and scoring continues. An unreadable category answer, such as a
+   refusal, sets the category to `misc`, records why in the classify event, and sends
+   the document to review with the reason `category_unreadable`, even when the rules
+   would file it. Any other failed category call, such as no answer, ends `failed`.
 4. Score every candidate and take the rules' highest score for the tier and filing
    decision. The model's record choice is a suggestion for the reviewer.
 5. File the document, or wait for a person. `POST /review/{id}/approve` with a
@@ -148,13 +151,15 @@ picks among the shortlisted records. The response schema and import checks refus
 picks outside that shortlist. Automatic filing uses the rules' top candidate;
 the model's record suggestion does not affect its score, tier or filing decision.
 
-- **Provider.** `DOCKET_MODEL_PROVIDER` is `openrouter` (the default) or `anthropic`.
-  The defaults, `openrouter` with `openai/gpt-4o-mini`, replay the saved v0.1
-  answers. Live answers use `anthropic` with `DOCKET_MODEL=claude-haiku-5-5` and
-  the key in `ANTHROPIC_API_KEY`. OpenRouter uses `OPENROUTER_API_KEY`. Keys come
-  from the environment or the gitignored `.env`.
+- **Provider.** `DOCKET_MODEL_PROVIDER` is `anthropic` (the default) or `openrouter`.
+  The defaults, `anthropic` with `DOCKET_MODEL=claude-haiku-5-5`, replay the live
+  answers recorded on 2026-11-13. Live calls need the key in `ANTHROPIC_API_KEY`.
+  `openrouter` with `openai/gpt-4o-mini` replays the v0.1 simulated answers.
+  OpenRouter calls use `OPENROUTER_API_KEY`. Keys come from the environment or the
+  gitignored `.env`.
 - **Saved answers.** Each provider has its own file, so live and simulated answers
-  never share one: `evals/recordings/anthropic.jsonl` or `evals/recordings/calls.jsonl`.
+  never share one: `evals/recordings/anthropic.jsonl`, or for OpenRouter the v0.1
+  simulated answers in `evals/history/simulated/calls.jsonl`.
   `DOCKET_REPLAY_PATH` overrides it. A saved answer is found by a key that includes
   the model name, so answers replay only under the model they were saved for.
 - **Modes.** `live` calls the model. `record` calls it and saves the answer, and
@@ -187,8 +192,10 @@ the model's record suggestion does not affect its score, tier or filing decision
   live answer records which of the two it used.
 - **Failures in the workflow.** None of these errors is retried by Temporal. In
   choose, the workflow records no suggestion and the error reason (`parse_error`,
-  `no_answer` or `maybe_billed`), then scores with rules. In classify, the document
-  ends failed.
+  `no_answer` or `maybe_billed`), then scores with rules. In classify, an unreadable
+  answer sends the document to review; `no_answer` or `maybe_billed` ends it failed.
+- **Refusal category.** When the API's safety filter refuses, it names a category,
+  such as `bio`. The recording, the classify event and the report keep it.
 
 `docket spike-models` checks that the configured model keeps to a different list
 of allowed ids on each call. It makes two real calls, so it needs the provider's

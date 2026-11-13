@@ -39,7 +39,9 @@ Repeated steps use the same keys and database constraints to prevent duplicate f
 
 The model never decides whether or where to file automatically.
 Only the rules or an explicit human approval decide the record.
-The model still supplies the category used in the filing path; a category-call failure ends failed.
+The model still supplies the category used in the filing path. An unreadable category
+answer, such as a refusal, sends the document to review; a category call with no answer
+at all ends failed.
 
 Docket does not read page images with optical character recognition (OCR).
 It does not merge near-duplicates whose bytes differ.
@@ -58,29 +60,32 @@ Observe mode records what would happen without filing or waiting for a reviewer.
 The rules-only baseline takes the highest-scored candidate without the model.
 Both use the same filing policy.
 
-The [held-out report](../evals/reports/2026-11-11-seed-11.md) measures:
+The [held-out report](../evals/reports/2026-11-13-seed-11.md), from live
+claude-haiku-5-5 answers, measures:
 
-- Precision: correct filings divided by all automatic filings. Both systems reach 38/38.
-- Recall: correct filings divided by the 39 documents labelled for filing. Both reach 38/39.
-- Automatic filing and review rates: 38/180 and 102/180. The remaining 40 are rejected.
-- Pipeline category accuracy: Docket 124/140 versus the baseline's 132/140 among documents not rejected.
-- Correct record suggestions on review items: model 44/102 versus rules 62/102.
+- Precision: correct filings divided by all automatic filings. Docket 28/28; the baseline 38/38.
+- Recall: correct filings divided by the 39 documents labelled for filing. Docket 28/39;
+  the baseline 38/39.
+- Automatic filing and review rates: Docket 28/180 and 112/180. The remaining 40 are rejected.
+- Pipeline category accuracy: Docket 116/140 versus the baseline's 132/140 among documents not rejected.
+- Correct record suggestions on review items: model 43/102 versus rules 62/102.
 
-All 16 pipeline category misses have empty shortlists and receive misc without a classify call.
-Eight are no-record documents; eight have no text layer.
-The simulated classify answers are correct on all 120 documents with nonempty shortlists.
-These document counts include duplicates, not just unique model calls.
+The model's safety filter refused both calls on the ten `very_long` documents, which hold
+long runs of random synthetic words. They go to review instead of filing; that is the
+whole recall gap. [ADR 008](adr/008-real-model.md) records it as a missed gate.
+Sixteen more category misses have empty shortlists and receive misc without a model call.
 Failed suggestions are excluded from the suggestion comparison and counted separately.
-The saved seed-11 run has zero suggestion failures.
 
 The report includes 95% Wilson intervals, uncertainty ranges for each proportion,
 a threshold curve and results by case type.
-It passes four floors: zero wrong filings, at least 90% clean filing,
-zero filings to injected record ids and recall at least equal to the baseline.
+Three of its four floors pass: zero wrong filings, at least 90% clean filing and
+zero filings to injected record ids. Recall falls below the baseline's, because the
+refused documents wait for review.
 The model adds no measured filing gain on this sample.
 
-Model answers are simulated, with each answer's source saved.
-They do not measure the target provider's quality, output compliance or cost.
+Model answers are live, recorded once from claude-haiku-5-5 on the Anthropic API, with
+each answer's tokens, cost and latency saved. The whole pass cost $0.0293.
+They measure that model on synthetic documents, not on real incoming mail.
 Five [fault tests](adr/007-temporal-recovery.md) measure recovery after process exits and a storage outage.
 They check one document, one filing and a final filed status.
 [Replay instructions](rerecord.md) explain how to reproduce the evidence.

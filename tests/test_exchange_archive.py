@@ -20,7 +20,7 @@ def exchange_files(tmp_path):
     root = tmp_path / "evals"
     exchange = Exchange(root / "pending", root / "answers")
     exchange.answers.mkdir(parents=True)
-    store = ReplayStore(root / "recordings/calls.jsonl")
+    store = ReplayStore(root / "history/simulated/calls.jsonl")
     for text in ("synthetic café\r\n", "another synthetic request"):
         schema = {
             "type": "object",
@@ -54,7 +54,7 @@ def exchange_files(tmp_path):
             (json.dumps(answer, indent=4, ensure_ascii=False) + "\r\n").encode()
         )
     exchange.import_answers(sorted(path.stem for path in exchange.pending.glob("*.json")), store)
-    archive = root / "recordings/exchange.jsonl.gz"
+    archive = root / "history/simulated/exchange.jsonl.gz"
     return exchange, store, archive
 
 
@@ -170,7 +170,7 @@ def test_check_command_works_without_working_files(exchange_files, monkeypatch, 
     pack_exchange(exchange.pending, exchange.answers, archive)
     shutil.rmtree(exchange.pending)
     shutil.rmtree(exchange.answers)
-    monkeypatch.chdir(archive.parents[2])
+    monkeypatch.chdir(archive.parents[3])
     monkeypatch.setattr(sys, "argv", ["pack_exchange.py", "--check"])
     main()
     assert "PASS: 2 recordings match archived answers and provenance" in capsys.readouterr().out
@@ -203,7 +203,8 @@ def test_secret_scan_checks_decompressed_answer_content(exchange_files):
 def test_saved_exchange_covers_all_recordings():
     assert (
         check_archive(
-            Path("evals/recordings/exchange.jsonl.gz"), Path("evals/recordings/calls.jsonl")
+            Path("evals/history/simulated/exchange.jsonl.gz"),
+            Path("evals/history/simulated/calls.jsonl"),
         )
         == 444
     )

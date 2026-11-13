@@ -53,7 +53,7 @@ def test_mixed_review_suggestions_use_only_available_answers():
 
 
 def test_report_states_zero_and_nonzero_failure_counts(tmp_path):
-    report = json.loads(Path("evals/reports/2026-11-11-seed-11.json").read_text())
+    report = json.loads(Path("evals/history/simulated/reports/2026-11-11-seed-11.json").read_text())
     for count in (0, 2):
         if count:
             report["review_suggestion_comparison"]["excluded_suggestion_failures"] = count

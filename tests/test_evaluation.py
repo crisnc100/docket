@@ -108,7 +108,7 @@ async def test_export_and_pending_replay_reproduce_without_answers_or_network(
     assert exported["pending_requests"] > 0
     assert exported["pending_requests"] == replayed["pending_requests"]
     assert exported["docket"] is exported["floors"] is None
-    assert not Path("evals/answers").exists() and not Path("evals/recordings/calls.jsonl").exists()
+    assert not Path("evals/answers").exists() and not Path(settings.docket_replay_path).exists()
     manifest = json.loads(Path(exported["manifest"]).read_text())
     assert manifest["request_count"] == len(manifest["keys"]) == exported["pending_requests"]
     result = await asyncio.to_thread(

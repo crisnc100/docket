@@ -110,8 +110,8 @@ def test_original_payloads_labels_and_requests_remain_unchanged(seed):
         assert hashlib.sha256(content).hexdigest() == digest, name
     requests = pending_requests(labels[:170], folder, SIMULATED_TARGET)
     assert len(requests) == 200
-    store = ReplayStore(Path("evals/recordings/calls.jsonl"))
-    archived = load_archive(Path("evals/recordings/exchange.jsonl.gz"))
+    store = ReplayStore(Path("evals/history/simulated/calls.jsonl"))
+    archived = load_archive(Path("evals/history/simulated/exchange.jsonl.gz"))
     for key, request in requests.items():
         saved = archived[key].request()
         saved.verify_key()

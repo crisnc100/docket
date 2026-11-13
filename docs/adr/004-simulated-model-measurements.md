@@ -1,6 +1,8 @@
 # Decision 004: use operator-supplied simulated answers
 
-Status: imported and measured. Real-provider checks are deferred.
+Status: superseded as the source of Docket's figures by [ADR 008](008-real-model.md).
+Kept as history: the simulated answers and their reports are in
+[evals/history/simulated/](../../evals/history/simulated/README.md).
 
 ## Context
 
@@ -22,7 +24,7 @@ record choice can only name a shortlisted id or `none`. A request key binds the
 prompt, schema, input and target model, so a different answer cannot replace a
 saved one. Each answer's provenance names the model that gave it and the model it
 stands in for. The answer counts are in
-[evals/recordings/README.md](../../evals/recordings/README.md).
+[evals/history/simulated/README.md](../../evals/history/simulated/README.md).
 
 Reports start with a simulated banner and give their answer counts from saved
 provenance, not from the operator's totals. Method and fallback details are marked

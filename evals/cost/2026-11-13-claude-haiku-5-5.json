@@ -1,0 +1,67 @@
+{
+  "model": "claude-haiku-5-5",
+  "price_snapshot_date": "2026-11-12",
+  "price_source": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "prices_per_million_usd": {
+    "input": "0.10",
+    "output": "0.50"
+  },
+  "provider": "anthropic",
+  "recorded": [
+    "2026-11-13"
+  ],
+  "recordings": "evals/recordings/anthropic.jsonl",
+  "seeds": {
+    "11": {
+      "answered": 220,
+      "cost_per_document_not_rejected_usd": "0.000104750",
+      "cost_per_document_reaching_model_usd": "0.0001222083333333333333333333333",
+      "cost_per_document_usd": "0.00008147222222222222222222222222",
+      "documents": 180,
+      "documents_not_rejected": 140,
+      "documents_reaching_model": 120,
+      "input_tokens": 135080,
+      "output_tokens": 2314,
+      "requests": 220,
+      "spend_by_activity_usd": {
+        "choose": "0.007722000",
+        "classify": "0.006943000"
+      },
+      "spend_usd": "0.014665000"
+    },
+    "7": {
+      "answered": 220,
+      "cost_per_document_not_rejected_usd": "0.0001046328571428571428571428571",
+      "cost_per_document_reaching_model_usd": "0.0001220716666666666666666666667",
+      "cost_per_document_usd": "0.00008138111111111111111111111111",
+      "documents": 180,
+      "documents_not_rejected": 140,
+      "documents_reaching_model": 120,
+      "input_tokens": 135006,
+      "output_tokens": 2296,
+      "requests": 220,
+      "spend_by_activity_usd": {
+        "choose": "0.007709300",
+        "classify": "0.006939300"
+      },
+      "spend_usd": "0.014648600"
+    }
+  },
+  "total": {
+    "answered": 440,
+    "cost_per_document_not_rejected_usd": "0.0001046914285714285714285714286",
+    "cost_per_document_reaching_model_usd": "0.000122140",
+    "cost_per_document_usd": "0.00008142666666666666666666666667",
+    "documents": 360,
+    "documents_not_rejected": 280,
+    "documents_reaching_model": 240,
+    "input_tokens": 270086,
+    "output_tokens": 4610,
+    "requests": 440,
+    "spend_by_activity_usd": {
+      "choose": "0.015431300",
+      "classify": "0.013882300"
+    },
+    "spend_usd": "0.029313600"
+  }
+}

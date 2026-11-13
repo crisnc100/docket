@@ -880,6 +880,7 @@
   "baseline_results": [
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0001",
       "reason": "threshold_met",
       "record_id": "UNIT-0083",
@@ -890,6 +891,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0002",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0102",
@@ -900,6 +902,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0003",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0013",
@@ -910,6 +913,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0004",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0138",
@@ -920,6 +924,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0005",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0094",
@@ -930,6 +935,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0006",
       "reason": "conflicting_records",
       "record_id": "UNIT-0015",
@@ -940,6 +946,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0007",
       "reason": "conflicting_records",
       "record_id": "UNIT-0043",
@@ -950,6 +957,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0008",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0101",
@@ -960,6 +968,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0009",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -970,6 +979,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0010",
       "reason": "conflicting_records",
       "record_id": "UNIT-0143",
@@ -980,6 +990,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0011",
       "reason": "threshold_met",
       "record_id": "UNIT-0083",
@@ -990,6 +1001,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0012",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -1000,6 +1012,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0013",
       "reason": "corrupt",
       "record_id": null,
@@ -1010,6 +1023,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0014",
       "reason": "encrypted",
       "record_id": null,
@@ -1020,6 +1034,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0015",
       "reason": "zero_byte",
       "record_id": null,
@@ -1030,6 +1045,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0016",
       "reason": "unsupported_type",
       "record_id": null,
@@ -1040,6 +1056,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0017",
       "reason": "threshold_met",
       "record_id": "UNIT-0013",
@@ -1050,6 +1067,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0018",
       "reason": "threshold_met",
       "record_id": "UNIT-0012",
@@ -1060,6 +1078,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0019",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0035",
@@ -1070,6 +1089,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0020",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0108",
@@ -1080,6 +1100,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0021",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0139",
@@ -1090,6 +1111,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0022",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0147",
@@ -1100,6 +1122,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0023",
       "reason": "conflicting_records",
       "record_id": "UNIT-0144",
@@ -1110,6 +1133,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0024",
       "reason": "conflicting_records",
       "record_id": "UNIT-0060",
@@ -1120,6 +1144,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0025",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0141",
@@ -1130,6 +1155,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0026",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -1140,6 +1166,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0027",
       "reason": "conflicting_records",
       "record_id": "UNIT-0142",
@@ -1150,6 +1177,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0028",
       "reason": "threshold_met",
       "record_id": "UNIT-0012",
@@ -1160,6 +1188,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0029",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -1170,6 +1199,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0030",
       "reason": "corrupt",
       "record_id": null,
@@ -1180,6 +1210,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0031",
       "reason": "encrypted",
       "record_id": null,
@@ -1190,6 +1221,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0032",
       "reason": "zero_byte",
       "record_id": null,
@@ -1200,6 +1232,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0033",
       "reason": "unsupported_type",
       "record_id": null,
@@ -1210,6 +1243,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0034",
       "reason": "threshold_met",
       "record_id": "UNIT-0120",
@@ -1220,6 +1254,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0035",
       "reason": "threshold_met",
       "record_id": "UNIT-0117",
@@ -1230,6 +1265,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0036",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0077",
@@ -1240,6 +1276,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0037",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0047",
@@ -1250,6 +1287,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0038",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0200",
@@ -1260,6 +1298,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0039",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0021",
@@ -1270,6 +1309,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0040",
       "reason": "conflicting_records",
       "record_id": "UNIT-0077",
@@ -1280,6 +1320,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0041",
       "reason": "conflicting_records",
       "record_id": "UNIT-0136",
@@ -1290,6 +1331,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0042",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0061",
@@ -1300,6 +1342,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0043",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -1310,6 +1353,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0044",
       "reason": "conflicting_records",
       "record_id": "UNIT-0108",
@@ -1320,6 +1364,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0045",
       "reason": "threshold_met",
       "record_id": "UNIT-0117",
@@ -1330,6 +1375,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0046",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -1340,6 +1386,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0047",
       "reason": "corrupt",
       "record_id": null,
@@ -1350,6 +1397,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0048",
       "reason": "encrypted",
       "record_id": null,
@@ -1360,6 +1408,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0049",
       "reason": "zero_byte",
       "record_id": null,
@@ -1370,6 +1419,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0050",
       "reason": "unsupported_type",
       "record_id": null,
@@ -1380,6 +1430,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0051",
       "reason": "threshold_met",
       "record_id": "UNIT-0081",
@@ -1390,6 +1441,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0052",
       "reason": "threshold_met",
       "record_id": "UNIT-0178",
@@ -1400,6 +1452,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0053",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0153",
@@ -1410,6 +1463,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0054",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0149",
@@ -1420,6 +1474,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0055",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0018",
@@ -1430,6 +1485,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0056",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0070",
@@ -1440,6 +1496,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0057",
       "reason": "conflicting_records",
       "record_id": "UNIT-0171",
@@ -1450,6 +1507,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0058",
       "reason": "conflicting_records",
       "record_id": "UNIT-0010",
@@ -1460,6 +1518,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0059",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0161",
@@ -1470,6 +1529,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0060",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -1480,6 +1540,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0061",
       "reason": "conflicting_records",
       "record_id": "UNIT-0185",
@@ -1490,6 +1551,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0062",
       "reason": "threshold_met",
       "record_id": "UNIT-0178",
@@ -1500,6 +1562,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0063",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -1510,6 +1573,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0064",
       "reason": "corrupt",
       "record_id": null,
@@ -1520,6 +1584,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0065",
       "reason": "encrypted",
       "record_id": null,
@@ -1530,6 +1595,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0066",
       "reason": "zero_byte",
       "record_id": null,
@@ -1540,6 +1606,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0067",
       "reason": "unsupported_type",
       "record_id": null,
@@ -1550,6 +1617,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0068",
       "reason": "threshold_met",
       "record_id": "UNIT-0197",
@@ -1560,6 +1628,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0069",
       "reason": "threshold_met",
       "record_id": "UNIT-0034",
@@ -1570,6 +1639,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0070",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0064",
@@ -1580,6 +1650,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0071",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0101",
@@ -1590,6 +1661,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0072",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0021",
@@ -1600,6 +1672,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0073",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0115",
@@ -1610,6 +1683,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0074",
       "reason": "conflicting_records",
       "record_id": "UNIT-0072",
@@ -1620,6 +1694,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0075",
       "reason": "conflicting_records",
       "record_id": "UNIT-0039",
@@ -1630,6 +1705,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0076",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0061",
@@ -1640,6 +1716,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0077",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -1650,6 +1727,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0078",
       "reason": "conflicting_records",
       "record_id": "UNIT-0098",
@@ -1660,6 +1738,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0079",
       "reason": "threshold_met",
       "record_id": "UNIT-0034",
@@ -1670,6 +1749,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0080",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -1680,6 +1760,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0081",
       "reason": "corrupt",
       "record_id": null,
@@ -1690,6 +1771,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0082",
       "reason": "encrypted",
       "record_id": null,
@@ -1700,6 +1782,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0083",
       "reason": "zero_byte",
       "record_id": null,
@@ -1710,6 +1793,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0084",
       "reason": "unsupported_type",
       "record_id": null,
@@ -1720,6 +1804,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0085",
       "reason": "threshold_met",
       "record_id": "UNIT-0068",
@@ -1730,6 +1815,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0086",
       "reason": "threshold_met",
       "record_id": "UNIT-0002",
@@ -1740,6 +1826,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0087",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0108",
@@ -1750,6 +1837,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0088",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0095",
@@ -1760,6 +1848,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0089",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0145",
@@ -1770,6 +1859,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0090",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0033",
@@ -1780,6 +1870,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0091",
       "reason": "conflicting_records",
       "record_id": "UNIT-0132",
@@ -1790,6 +1881,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0092",
       "reason": "conflicting_records",
       "record_id": "UNIT-0162",
@@ -1800,6 +1892,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0093",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0101",
@@ -1810,6 +1903,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0094",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -1820,6 +1914,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0095",
       "reason": "conflicting_records",
       "record_id": "UNIT-0104",
@@ -1830,6 +1925,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0096",
       "reason": "threshold_met",
       "record_id": "UNIT-0002",
@@ -1840,6 +1936,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0097",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -1850,6 +1947,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0098",
       "reason": "corrupt",
       "record_id": null,
@@ -1860,6 +1958,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0099",
       "reason": "encrypted",
       "record_id": null,
@@ -1870,6 +1969,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0100",
       "reason": "zero_byte",
       "record_id": null,
@@ -1880,6 +1980,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0101",
       "reason": "unsupported_type",
       "record_id": null,
@@ -1890,6 +1991,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0102",
       "reason": "threshold_met",
       "record_id": "UNIT-0088",
@@ -1900,6 +2002,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0103",
       "reason": "threshold_met",
       "record_id": "UNIT-0014",
@@ -1910,6 +2013,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0104",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0001",
@@ -1920,6 +2024,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0105",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0039",
@@ -1930,6 +2035,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0106",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0026",
@@ -1940,6 +2046,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0107",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0158",
@@ -1950,6 +2057,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0108",
       "reason": "conflicting_records",
       "record_id": "UNIT-0019",
@@ -1960,6 +2068,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0109",
       "reason": "conflicting_records",
       "record_id": "UNIT-0145",
@@ -1970,6 +2079,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0110",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0161",
@@ -1980,6 +2090,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0111",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -1990,6 +2101,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0112",
       "reason": "conflicting_records",
       "record_id": "UNIT-0123",
@@ -2000,6 +2112,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0113",
       "reason": "threshold_met",
       "record_id": "UNIT-0014",
@@ -2010,6 +2123,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0114",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -2020,6 +2134,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0115",
       "reason": "corrupt",
       "record_id": null,
@@ -2030,6 +2145,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0116",
       "reason": "encrypted",
       "record_id": null,
@@ -2040,6 +2156,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0117",
       "reason": "zero_byte",
       "record_id": null,
@@ -2050,6 +2167,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0118",
       "reason": "unsupported_type",
       "record_id": null,
@@ -2060,6 +2178,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0119",
       "reason": "threshold_met",
       "record_id": "UNIT-0190",
@@ -2070,6 +2189,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0120",
       "reason": "threshold_met",
       "record_id": "UNIT-0123",
@@ -2080,6 +2200,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0121",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0042",
@@ -2090,6 +2211,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0122",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0006",
@@ -2100,6 +2222,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0123",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0136",
@@ -2110,6 +2233,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0124",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0038",
@@ -2120,6 +2244,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0125",
       "reason": "conflicting_records",
       "record_id": "UNIT-0007",
@@ -2130,6 +2255,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0126",
       "reason": "conflicting_records",
       "record_id": "UNIT-0190",
@@ -2140,6 +2266,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0127",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0161",
@@ -2150,6 +2277,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0128",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -2160,6 +2288,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0129",
       "reason": "conflicting_records",
       "record_id": "UNIT-0094",
@@ -2170,6 +2299,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0130",
       "reason": "threshold_met",
       "record_id": "UNIT-0123",
@@ -2180,6 +2310,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0131",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -2190,6 +2321,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0132",
       "reason": "corrupt",
       "record_id": null,
@@ -2200,6 +2332,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0133",
       "reason": "encrypted",
       "record_id": null,
@@ -2210,6 +2343,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0134",
       "reason": "zero_byte",
       "record_id": null,
@@ -2220,6 +2354,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0135",
       "reason": "unsupported_type",
       "record_id": null,
@@ -2230,6 +2365,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0136",
       "reason": "threshold_met",
       "record_id": "UNIT-0195",
@@ -2240,6 +2376,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0137",
       "reason": "threshold_met",
       "record_id": "UNIT-0062",
@@ -2250,6 +2387,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0138",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0190",
@@ -2260,6 +2398,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0139",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0052",
@@ -2270,6 +2409,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0140",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0127",
@@ -2280,6 +2420,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0141",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0188",
@@ -2290,6 +2431,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0142",
       "reason": "conflicting_records",
       "record_id": "UNIT-0008",
@@ -2300,6 +2442,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0143",
       "reason": "conflicting_records",
       "record_id": "UNIT-0128",
@@ -2310,6 +2453,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0144",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0161",
@@ -2320,6 +2464,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0145",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -2330,6 +2475,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0146",
       "reason": "conflicting_records",
       "record_id": "UNIT-0090",
@@ -2340,6 +2486,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0147",
       "reason": "threshold_met",
       "record_id": "UNIT-0062",
@@ -2350,6 +2497,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0148",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -2360,6 +2508,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0149",
       "reason": "corrupt",
       "record_id": null,
@@ -2370,6 +2519,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0150",
       "reason": "encrypted",
       "record_id": null,
@@ -2380,6 +2530,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0151",
       "reason": "zero_byte",
       "record_id": null,
@@ -2390,6 +2541,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0152",
       "reason": "unsupported_type",
       "record_id": null,
@@ -2400,6 +2552,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0153",
       "reason": "threshold_met",
       "record_id": "UNIT-0001",
@@ -2410,6 +2563,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0154",
       "reason": "threshold_met",
       "record_id": "UNIT-0168",
@@ -2420,6 +2574,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0155",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0165",
@@ -2430,6 +2585,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0156",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0170",
@@ -2440,6 +2596,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0157",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0100",
@@ -2450,6 +2607,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0158",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0193",
@@ -2460,6 +2618,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0159",
       "reason": "conflicting_records",
       "record_id": "UNIT-0046",
@@ -2470,6 +2629,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0160",
       "reason": "conflicting_records",
       "record_id": "UNIT-0111",
@@ -2480,6 +2640,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0161",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0021",
@@ -2490,6 +2651,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0162",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -2500,6 +2662,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0163",
       "reason": "conflicting_records",
       "record_id": "UNIT-0192",
@@ -2510,6 +2673,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0164",
       "reason": "threshold_met",
       "record_id": "UNIT-0168",
@@ -2520,6 +2684,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0165",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -2530,6 +2695,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0166",
       "reason": "corrupt",
       "record_id": null,
@@ -2540,6 +2706,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0167",
       "reason": "encrypted",
       "record_id": null,
@@ -2550,6 +2717,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0168",
       "reason": "zero_byte",
       "record_id": null,
@@ -2560,6 +2728,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0169",
       "reason": "unsupported_type",
       "record_id": null,
@@ -2570,6 +2739,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0170",
       "reason": "threshold_met",
       "record_id": "UNIT-0153",
@@ -2580,6 +2750,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0171",
       "reason": "threshold_met",
       "record_id": "UNIT-0083",
@@ -2590,6 +2761,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0172",
       "reason": "threshold_met",
       "record_id": "UNIT-0039",
@@ -2600,6 +2772,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0173",
       "reason": "threshold_met",
       "record_id": "UNIT-0102",
@@ -2610,6 +2783,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0174",
       "reason": "threshold_met",
       "record_id": "UNIT-0167",
@@ -2620,6 +2794,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0175",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0013",
@@ -2630,6 +2805,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0176",
       "reason": "threshold_met",
       "record_id": "UNIT-0019",
@@ -2640,6 +2816,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0177",
       "reason": "threshold_met",
       "record_id": "UNIT-0138",
@@ -2650,6 +2827,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0178",
       "reason": "threshold_met",
       "record_id": "UNIT-0025",
@@ -2660,6 +2838,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0179",
       "reason": "threshold_met",
       "record_id": "UNIT-0094",
@@ -2670,6 +2849,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0180",
       "reason": "threshold_met",
       "record_id": "UNIT-0150",
@@ -2679,7 +2859,7 @@
       "tier": "strong"
     }
   ],
-  "budget_usd": "2.00",
+  "budget_usd": "1.98",
   "calibration": "seed7_threshold_weights_and_tiers_untuned",
   "choice_comparison": {
     "category_changes": 16,
@@ -2737,10 +2917,9 @@
         "correct_file_count": 29,
         "documents": 180,
         "outcomes": {
-          "failed": 10,
           "rejected": 40,
           "would_file": 29,
-          "would_review": 101
+          "would_review": 111
         },
         "precision_wilson_95": [
           0.8830302015002593,
@@ -2750,10 +2929,10 @@
           0.5891834407831603,
           0.8543121945900741
         ],
-        "review_rate": 0.5611111111111111,
+        "review_rate": 0.6166666666666667,
         "review_rate_wilson_95": [
-          0.48808829710728535,
-          0.6315800309245176
+          0.5439052747311439,
+          0.6845524424204796
         ],
         "threshold": "0.5500000",
         "wrong_file_count": 0
@@ -2776,10 +2955,9 @@
         "correct_file_count": 28,
         "documents": 180,
         "outcomes": {
-          "failed": 10,
           "rejected": 40,
           "would_file": 29,
-          "would_review": 101
+          "would_review": 111
         },
         "precision_wilson_95": [
           0.8793566952341543,
@@ -2789,10 +2967,10 @@
           0.5622468051697918,
           0.8345650791115233
         ],
-        "review_rate": 0.5666666666666667,
+        "review_rate": 0.6222222222222222,
         "review_rate_wilson_95": [
-          0.4936290513862009,
-          0.6369182155575839
+          0.5495380618647218,
+          0.6897985941988839
         ],
         "threshold": "0.6142857",
         "wrong_file_count": 0
@@ -2815,10 +2993,9 @@
         "correct_file_count": 25,
         "documents": 180,
         "outcomes": {
-          "failed": 10,
           "rejected": 40,
           "would_file": 29,
-          "would_review": 101
+          "would_review": 111
         },
         "precision_wilson_95": [
           0.8668077490609515,
@@ -2828,10 +3005,10 @@
           0.4841814855954854,
           0.7725791454100714
         ],
-        "review_rate": 0.5833333333333334,
+        "review_rate": 0.6388888888888888,
         "review_rate_wilson_95": [
-          0.510305304279413,
-          0.6528787794003181
+          0.566494145176867,
+          0.7054793276226847
         ],
         "threshold": "0.6785714",
         "wrong_file_count": 0
@@ -2854,10 +3031,9 @@
         "correct_file_count": 25,
         "documents": 180,
         "outcomes": {
-          "failed": 10,
           "rejected": 40,
           "would_file": 29,
-          "would_review": 101
+          "would_review": 111
         },
         "precision_wilson_95": [
           0.8668077490609515,
@@ -2867,10 +3043,10 @@
           0.4841814855954854,
           0.7725791454100714
         ],
-        "review_rate": 0.5833333333333334,
+        "review_rate": 0.6388888888888888,
         "review_rate_wilson_95": [
-          0.510305304279413,
-          0.6528787794003181
+          0.566494145176867,
+          0.7054793276226847
         ],
         "threshold": "0.7428571",
         "wrong_file_count": 0
@@ -2893,10 +3069,9 @@
         "correct_file_count": 25,
         "documents": 180,
         "outcomes": {
-          "failed": 10,
           "rejected": 40,
           "would_file": 29,
-          "would_review": 101
+          "would_review": 111
         },
         "precision_wilson_95": [
           0.8668077490609515,
@@ -2906,10 +3081,10 @@
           0.4841814855954854,
           0.7725791454100714
         ],
-        "review_rate": 0.5833333333333334,
+        "review_rate": 0.6388888888888888,
         "review_rate_wilson_95": [
-          0.510305304279413,
-          0.6528787794003181
+          0.566494145176867,
+          0.7054793276226847
         ],
         "threshold": "0.8071429",
         "wrong_file_count": 0
@@ -2932,10 +3107,9 @@
         "correct_file_count": 22,
         "documents": 180,
         "outcomes": {
-          "failed": 10,
           "rejected": 40,
           "would_file": 29,
-          "would_review": 101
+          "would_review": 111
         },
         "precision_wilson_95": [
           0.8513451253913791,
@@ -2945,10 +3119,10 @@
           0.40975691648669477,
           0.7069524612431037
         ],
-        "review_rate": 0.6,
+        "review_rate": 0.6555555555555556,
         "review_rate_wilson_95": [
-          0.5270635327059384,
-          0.6687573677097388
+          0.5835387271294007,
+          0.7210715624060974
         ],
         "threshold": "0.8714286",
         "wrong_file_count": 0
@@ -2971,10 +3145,9 @@
         "correct_file_count": 21,
         "documents": 180,
         "outcomes": {
-          "failed": 10,
           "rejected": 40,
           "would_file": 29,
-          "would_review": 101
+          "would_review": 111
         },
         "precision_wilson_95": [
           0.8453609810751531,
@@ -2984,10 +3157,10 @@
           0.3856944827051576,
           0.6843311439327215
         ],
-        "review_rate": 0.6055555555555555,
+        "review_rate": 0.6611111111111111,
         "review_rate_wilson_95": [
-          0.5326680819105162,
-          0.6740317574171432
+          0.5892403973636117,
+          0.7262488310838685
         ],
         "threshold": "0.9357143",
         "wrong_file_count": 0
@@ -3010,20 +3183,19 @@
         "correct_file_count": 0,
         "documents": 180,
         "outcomes": {
-          "failed": 10,
           "rejected": 40,
           "would_file": 29,
-          "would_review": 101
+          "would_review": 111
         },
         "precision_wilson_95": null,
         "recall_wilson_95": [
           0.0,
           0.08966685370757144
         ],
-        "review_rate": 0.7222222222222222,
+        "review_rate": 0.7777777777777778,
         "review_rate_wilson_95": [
-          0.652666840879483,
-          0.7824907155998001
+          0.7115975049125901,
+          0.8323494406865138
         ],
         "threshold": "1.0000000",
         "wrong_file_count": 0
@@ -3031,10 +3203,9 @@
     ],
     "documents": 180,
     "outcomes": {
-      "failed": 10,
       "rejected": 40,
       "would_file": 29,
-      "would_review": 101
+      "would_review": 111
     },
     "per_case_type": {
       "address_only": {
@@ -3529,17 +3700,17 @@
         "correct_file_count": 0,
         "documents": 10,
         "outcomes": {
-          "failed": 10
+          "would_review": 10
         },
         "precision_wilson_95": null,
         "recall_wilson_95": [
           0.0,
           0.2775327998628892
         ],
-        "review_rate": 0.0,
+        "review_rate": 1.0,
         "review_rate_wilson_95": [
-          0.0,
-          0.2775327998628892
+          0.7224672001371107,
+          1.0
         ],
         "wrong_file_count": 0
       },
@@ -3578,16 +3749,17 @@
       0.5891834407831603,
       0.8543121945900741
     ],
-    "review_rate": 0.5611111111111111,
+    "review_rate": 0.6166666666666667,
     "review_rate_wilson_95": [
-      0.48808829710728535,
-      0.6315800309245176
+      0.5439052747311439,
+      0.6845524424204796
     ],
     "wrong_file_count": 0
   },
   "docket_results": [
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0001",
       "reason": "threshold_met",
       "record_id": "UNIT-0083",
@@ -3600,6 +3772,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0002",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0102",
@@ -3612,6 +3785,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0003",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0013",
@@ -3624,6 +3798,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0004",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0138",
@@ -3636,6 +3811,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0005",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0094",
@@ -3648,6 +3824,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0006",
       "reason": "conflicting_records",
       "record_id": "UNIT-0015",
@@ -3660,6 +3837,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0007",
       "reason": "conflicting_records",
       "record_id": "UNIT-0043",
@@ -3672,6 +3850,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0008",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0101",
@@ -3684,6 +3863,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0009",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -3696,6 +3876,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0010",
       "reason": "conflicting_records",
       "record_id": "UNIT-0143",
@@ -3708,6 +3889,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0011",
       "reason": "threshold_met",
       "record_id": "UNIT-0083",
@@ -3720,6 +3902,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0012",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -3732,6 +3915,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0013",
       "reason": "corrupt",
       "record_id": null,
@@ -3744,6 +3928,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0014",
       "reason": "encrypted",
       "record_id": null,
@@ -3756,6 +3941,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0015",
       "reason": "zero_byte",
       "record_id": null,
@@ -3768,6 +3954,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0016",
       "reason": "unsupported_type",
       "record_id": null,
@@ -3780,18 +3967,24 @@
     },
     {
       "category": "misc",
-      "document_id": "doc-0017",
-      "reason": "parse_error",
-      "record_id": null,
-      "score": "0",
-      "status": "failed",
-      "suggestion": {
-        "record_id": null
+      "category_failure": {
+        "reason": "refusal",
+        "refusal_category": null
       },
-      "tier": "none"
+      "document_id": "doc-0017",
+      "reason": "category_unreadable",
+      "record_id": "UNIT-0013",
+      "score": "0.9500000",
+      "status": "would_review",
+      "suggestion": {
+        "record_id": null,
+        "suggestion_failure_reason": "parse_error"
+      },
+      "tier": "strong"
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0018",
       "reason": "threshold_met",
       "record_id": "UNIT-0012",
@@ -3804,6 +3997,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0019",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0035",
@@ -3816,6 +4010,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0020",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0108",
@@ -3828,6 +4023,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0021",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0139",
@@ -3840,6 +4036,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0022",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0147",
@@ -3852,6 +4049,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0023",
       "reason": "conflicting_records",
       "record_id": "UNIT-0144",
@@ -3864,6 +4062,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0024",
       "reason": "conflicting_records",
       "record_id": "UNIT-0060",
@@ -3876,6 +4075,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0025",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0141",
@@ -3888,6 +4088,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0026",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -3900,6 +4101,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0027",
       "reason": "conflicting_records",
       "record_id": "UNIT-0142",
@@ -3912,6 +4114,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0028",
       "reason": "threshold_met",
       "record_id": "UNIT-0012",
@@ -3924,6 +4127,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0029",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -3936,6 +4140,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0030",
       "reason": "corrupt",
       "record_id": null,
@@ -3948,6 +4153,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0031",
       "reason": "encrypted",
       "record_id": null,
@@ -3960,6 +4166,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0032",
       "reason": "zero_byte",
       "record_id": null,
@@ -3972,6 +4179,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0033",
       "reason": "unsupported_type",
       "record_id": null,
@@ -3984,18 +4192,24 @@
     },
     {
       "category": "misc",
-      "document_id": "doc-0034",
-      "reason": "parse_error",
-      "record_id": null,
-      "score": "0",
-      "status": "failed",
-      "suggestion": {
-        "record_id": null
+      "category_failure": {
+        "reason": "refusal",
+        "refusal_category": null
       },
-      "tier": "none"
+      "document_id": "doc-0034",
+      "reason": "category_unreadable",
+      "record_id": "UNIT-0120",
+      "score": "0.9500000",
+      "status": "would_review",
+      "suggestion": {
+        "record_id": null,
+        "suggestion_failure_reason": "parse_error"
+      },
+      "tier": "strong"
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0035",
       "reason": "threshold_met",
       "record_id": "UNIT-0117",
@@ -4008,6 +4222,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0036",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0077",
@@ -4020,6 +4235,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0037",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0047",
@@ -4032,6 +4248,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0038",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0200",
@@ -4044,6 +4261,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0039",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0021",
@@ -4056,6 +4274,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0040",
       "reason": "conflicting_records",
       "record_id": "UNIT-0077",
@@ -4068,6 +4287,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0041",
       "reason": "conflicting_records",
       "record_id": "UNIT-0136",
@@ -4080,6 +4300,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0042",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0061",
@@ -4092,6 +4313,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0043",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -4104,6 +4326,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0044",
       "reason": "conflicting_records",
       "record_id": "UNIT-0108",
@@ -4116,6 +4339,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0045",
       "reason": "threshold_met",
       "record_id": "UNIT-0117",
@@ -4128,6 +4352,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0046",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -4140,6 +4365,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0047",
       "reason": "corrupt",
       "record_id": null,
@@ -4152,6 +4378,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0048",
       "reason": "encrypted",
       "record_id": null,
@@ -4164,6 +4391,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0049",
       "reason": "zero_byte",
       "record_id": null,
@@ -4176,6 +4404,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0050",
       "reason": "unsupported_type",
       "record_id": null,
@@ -4188,18 +4417,24 @@
     },
     {
       "category": "misc",
-      "document_id": "doc-0051",
-      "reason": "parse_error",
-      "record_id": null,
-      "score": "0",
-      "status": "failed",
-      "suggestion": {
-        "record_id": null
+      "category_failure": {
+        "reason": "refusal",
+        "refusal_category": null
       },
-      "tier": "none"
+      "document_id": "doc-0051",
+      "reason": "category_unreadable",
+      "record_id": "UNIT-0081",
+      "score": "0.9500000",
+      "status": "would_review",
+      "suggestion": {
+        "record_id": null,
+        "suggestion_failure_reason": "parse_error"
+      },
+      "tier": "strong"
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0052",
       "reason": "threshold_met",
       "record_id": "UNIT-0178",
@@ -4212,6 +4447,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0053",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0153",
@@ -4224,6 +4460,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0054",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0149",
@@ -4236,6 +4473,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0055",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0018",
@@ -4248,6 +4486,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0056",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0070",
@@ -4260,6 +4499,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0057",
       "reason": "conflicting_records",
       "record_id": "UNIT-0171",
@@ -4272,6 +4512,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0058",
       "reason": "conflicting_records",
       "record_id": "UNIT-0010",
@@ -4284,6 +4525,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0059",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0161",
@@ -4296,6 +4538,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0060",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -4308,6 +4551,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0061",
       "reason": "conflicting_records",
       "record_id": "UNIT-0185",
@@ -4320,6 +4564,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0062",
       "reason": "threshold_met",
       "record_id": "UNIT-0178",
@@ -4332,6 +4577,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0063",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -4344,6 +4590,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0064",
       "reason": "corrupt",
       "record_id": null,
@@ -4356,6 +4603,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0065",
       "reason": "encrypted",
       "record_id": null,
@@ -4368,6 +4616,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0066",
       "reason": "zero_byte",
       "record_id": null,
@@ -4380,6 +4629,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0067",
       "reason": "unsupported_type",
       "record_id": null,
@@ -4392,18 +4642,24 @@
     },
     {
       "category": "misc",
-      "document_id": "doc-0068",
-      "reason": "parse_error",
-      "record_id": null,
-      "score": "0",
-      "status": "failed",
-      "suggestion": {
-        "record_id": null
+      "category_failure": {
+        "reason": "refusal",
+        "refusal_category": null
       },
-      "tier": "none"
+      "document_id": "doc-0068",
+      "reason": "category_unreadable",
+      "record_id": "UNIT-0197",
+      "score": "0.9500000",
+      "status": "would_review",
+      "suggestion": {
+        "record_id": null,
+        "suggestion_failure_reason": "parse_error"
+      },
+      "tier": "strong"
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0069",
       "reason": "threshold_met",
       "record_id": "UNIT-0034",
@@ -4416,6 +4672,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0070",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0064",
@@ -4428,6 +4685,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0071",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0101",
@@ -4440,6 +4698,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0072",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0021",
@@ -4452,6 +4711,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0073",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0115",
@@ -4464,6 +4724,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0074",
       "reason": "conflicting_records",
       "record_id": "UNIT-0072",
@@ -4476,6 +4737,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0075",
       "reason": "conflicting_records",
       "record_id": "UNIT-0039",
@@ -4488,6 +4750,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0076",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0061",
@@ -4500,6 +4763,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0077",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -4512,6 +4776,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0078",
       "reason": "conflicting_records",
       "record_id": "UNIT-0098",
@@ -4524,6 +4789,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0079",
       "reason": "threshold_met",
       "record_id": "UNIT-0034",
@@ -4536,6 +4802,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0080",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -4548,6 +4815,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0081",
       "reason": "corrupt",
       "record_id": null,
@@ -4560,6 +4828,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0082",
       "reason": "encrypted",
       "record_id": null,
@@ -4572,6 +4841,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0083",
       "reason": "zero_byte",
       "record_id": null,
@@ -4584,6 +4854,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0084",
       "reason": "unsupported_type",
       "record_id": null,
@@ -4596,18 +4867,24 @@
     },
     {
       "category": "misc",
-      "document_id": "doc-0085",
-      "reason": "parse_error",
-      "record_id": null,
-      "score": "0",
-      "status": "failed",
-      "suggestion": {
-        "record_id": null
+      "category_failure": {
+        "reason": "refusal",
+        "refusal_category": null
       },
-      "tier": "none"
+      "document_id": "doc-0085",
+      "reason": "category_unreadable",
+      "record_id": "UNIT-0068",
+      "score": "0.9500000",
+      "status": "would_review",
+      "suggestion": {
+        "record_id": null,
+        "suggestion_failure_reason": "parse_error"
+      },
+      "tier": "strong"
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0086",
       "reason": "threshold_met",
       "record_id": "UNIT-0002",
@@ -4620,6 +4897,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0087",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0108",
@@ -4632,6 +4910,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0088",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0095",
@@ -4644,6 +4923,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0089",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0145",
@@ -4656,6 +4936,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0090",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0033",
@@ -4668,6 +4949,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0091",
       "reason": "conflicting_records",
       "record_id": "UNIT-0132",
@@ -4680,6 +4962,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0092",
       "reason": "conflicting_records",
       "record_id": "UNIT-0162",
@@ -4692,6 +4975,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0093",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0101",
@@ -4704,6 +4988,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0094",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -4716,6 +5001,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0095",
       "reason": "conflicting_records",
       "record_id": "UNIT-0104",
@@ -4728,6 +5014,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0096",
       "reason": "threshold_met",
       "record_id": "UNIT-0002",
@@ -4740,6 +5027,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0097",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -4752,6 +5040,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0098",
       "reason": "corrupt",
       "record_id": null,
@@ -4764,6 +5053,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0099",
       "reason": "encrypted",
       "record_id": null,
@@ -4776,6 +5066,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0100",
       "reason": "zero_byte",
       "record_id": null,
@@ -4788,6 +5079,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0101",
       "reason": "unsupported_type",
       "record_id": null,
@@ -4800,18 +5092,24 @@
     },
     {
       "category": "misc",
-      "document_id": "doc-0102",
-      "reason": "parse_error",
-      "record_id": null,
-      "score": "0",
-      "status": "failed",
-      "suggestion": {
-        "record_id": null
+      "category_failure": {
+        "reason": "refusal",
+        "refusal_category": null
       },
-      "tier": "none"
+      "document_id": "doc-0102",
+      "reason": "category_unreadable",
+      "record_id": "UNIT-0088",
+      "score": "0.9500000",
+      "status": "would_review",
+      "suggestion": {
+        "record_id": null,
+        "suggestion_failure_reason": "parse_error"
+      },
+      "tier": "strong"
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0103",
       "reason": "threshold_met",
       "record_id": "UNIT-0014",
@@ -4824,6 +5122,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0104",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0001",
@@ -4836,6 +5135,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0105",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0039",
@@ -4848,6 +5148,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0106",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0026",
@@ -4860,6 +5161,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0107",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0158",
@@ -4872,6 +5174,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0108",
       "reason": "conflicting_records",
       "record_id": "UNIT-0019",
@@ -4884,6 +5187,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0109",
       "reason": "conflicting_records",
       "record_id": "UNIT-0145",
@@ -4896,6 +5200,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0110",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0161",
@@ -4908,6 +5213,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0111",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -4920,6 +5226,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0112",
       "reason": "conflicting_records",
       "record_id": "UNIT-0123",
@@ -4932,6 +5239,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0113",
       "reason": "threshold_met",
       "record_id": "UNIT-0014",
@@ -4944,6 +5252,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0114",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -4956,6 +5265,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0115",
       "reason": "corrupt",
       "record_id": null,
@@ -4968,6 +5278,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0116",
       "reason": "encrypted",
       "record_id": null,
@@ -4980,6 +5291,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0117",
       "reason": "zero_byte",
       "record_id": null,
@@ -4992,6 +5304,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0118",
       "reason": "unsupported_type",
       "record_id": null,
@@ -5004,18 +5317,24 @@
     },
     {
       "category": "misc",
-      "document_id": "doc-0119",
-      "reason": "parse_error",
-      "record_id": null,
-      "score": "0",
-      "status": "failed",
-      "suggestion": {
-        "record_id": null
+      "category_failure": {
+        "reason": "refusal",
+        "refusal_category": null
       },
-      "tier": "none"
+      "document_id": "doc-0119",
+      "reason": "category_unreadable",
+      "record_id": "UNIT-0190",
+      "score": "0.9500000",
+      "status": "would_review",
+      "suggestion": {
+        "record_id": null,
+        "suggestion_failure_reason": "parse_error"
+      },
+      "tier": "strong"
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0120",
       "reason": "threshold_met",
       "record_id": "UNIT-0123",
@@ -5028,6 +5347,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0121",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0042",
@@ -5040,6 +5360,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0122",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0006",
@@ -5052,6 +5373,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0123",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0136",
@@ -5064,6 +5386,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0124",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0038",
@@ -5076,6 +5399,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0125",
       "reason": "conflicting_records",
       "record_id": "UNIT-0007",
@@ -5088,6 +5412,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0126",
       "reason": "conflicting_records",
       "record_id": "UNIT-0190",
@@ -5100,6 +5425,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0127",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0161",
@@ -5112,6 +5438,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0128",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -5124,6 +5451,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0129",
       "reason": "conflicting_records",
       "record_id": "UNIT-0094",
@@ -5136,6 +5464,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0130",
       "reason": "threshold_met",
       "record_id": "UNIT-0123",
@@ -5148,6 +5477,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0131",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -5160,6 +5490,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0132",
       "reason": "corrupt",
       "record_id": null,
@@ -5172,6 +5503,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0133",
       "reason": "encrypted",
       "record_id": null,
@@ -5184,6 +5516,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0134",
       "reason": "zero_byte",
       "record_id": null,
@@ -5196,6 +5529,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0135",
       "reason": "unsupported_type",
       "record_id": null,
@@ -5208,18 +5542,24 @@
     },
     {
       "category": "misc",
-      "document_id": "doc-0136",
-      "reason": "parse_error",
-      "record_id": null,
-      "score": "0",
-      "status": "failed",
-      "suggestion": {
-        "record_id": null
+      "category_failure": {
+        "reason": "refusal",
+        "refusal_category": null
       },
-      "tier": "none"
+      "document_id": "doc-0136",
+      "reason": "category_unreadable",
+      "record_id": "UNIT-0195",
+      "score": "0.9500000",
+      "status": "would_review",
+      "suggestion": {
+        "record_id": null,
+        "suggestion_failure_reason": "parse_error"
+      },
+      "tier": "strong"
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0137",
       "reason": "threshold_met",
       "record_id": "UNIT-0062",
@@ -5232,6 +5572,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0138",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0190",
@@ -5244,6 +5585,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0139",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0052",
@@ -5256,6 +5598,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0140",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0127",
@@ -5268,6 +5611,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0141",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0188",
@@ -5280,6 +5624,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0142",
       "reason": "conflicting_records",
       "record_id": "UNIT-0008",
@@ -5292,6 +5637,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0143",
       "reason": "conflicting_records",
       "record_id": "UNIT-0128",
@@ -5304,6 +5650,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0144",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0161",
@@ -5316,6 +5663,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0145",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -5328,6 +5676,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0146",
       "reason": "conflicting_records",
       "record_id": "UNIT-0090",
@@ -5340,6 +5689,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0147",
       "reason": "threshold_met",
       "record_id": "UNIT-0062",
@@ -5352,6 +5702,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0148",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -5364,6 +5715,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0149",
       "reason": "corrupt",
       "record_id": null,
@@ -5376,6 +5728,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0150",
       "reason": "encrypted",
       "record_id": null,
@@ -5388,6 +5741,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0151",
       "reason": "zero_byte",
       "record_id": null,
@@ -5400,6 +5754,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0152",
       "reason": "unsupported_type",
       "record_id": null,
@@ -5412,18 +5767,24 @@
     },
     {
       "category": "misc",
-      "document_id": "doc-0153",
-      "reason": "parse_error",
-      "record_id": null,
-      "score": "0",
-      "status": "failed",
-      "suggestion": {
-        "record_id": null
+      "category_failure": {
+        "reason": "refusal",
+        "refusal_category": null
       },
-      "tier": "none"
+      "document_id": "doc-0153",
+      "reason": "category_unreadable",
+      "record_id": "UNIT-0001",
+      "score": "0.9500000",
+      "status": "would_review",
+      "suggestion": {
+        "record_id": null,
+        "suggestion_failure_reason": "parse_error"
+      },
+      "tier": "strong"
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0154",
       "reason": "threshold_met",
       "record_id": "UNIT-0168",
@@ -5436,6 +5797,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0155",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0165",
@@ -5448,6 +5810,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0156",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0170",
@@ -5460,6 +5823,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0157",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0100",
@@ -5472,6 +5836,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0158",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0193",
@@ -5484,6 +5849,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0159",
       "reason": "conflicting_records",
       "record_id": "UNIT-0046",
@@ -5496,6 +5862,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0160",
       "reason": "conflicting_records",
       "record_id": "UNIT-0111",
@@ -5508,6 +5875,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0161",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0021",
@@ -5520,6 +5888,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0162",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -5532,6 +5901,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0163",
       "reason": "conflicting_records",
       "record_id": "UNIT-0192",
@@ -5544,6 +5914,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0164",
       "reason": "threshold_met",
       "record_id": "UNIT-0168",
@@ -5556,6 +5927,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0165",
       "reason": "no_candidate_chosen",
       "record_id": null,
@@ -5568,6 +5940,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0166",
       "reason": "corrupt",
       "record_id": null,
@@ -5580,6 +5953,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0167",
       "reason": "encrypted",
       "record_id": null,
@@ -5592,6 +5966,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0168",
       "reason": "zero_byte",
       "record_id": null,
@@ -5604,6 +5979,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0169",
       "reason": "unsupported_type",
       "record_id": null,
@@ -5616,18 +5992,24 @@
     },
     {
       "category": "misc",
-      "document_id": "doc-0170",
-      "reason": "parse_error",
-      "record_id": null,
-      "score": "0",
-      "status": "failed",
-      "suggestion": {
-        "record_id": null
+      "category_failure": {
+        "reason": "refusal",
+        "refusal_category": null
       },
-      "tier": "none"
+      "document_id": "doc-0170",
+      "reason": "category_unreadable",
+      "record_id": "UNIT-0153",
+      "score": "0.9500000",
+      "status": "would_review",
+      "suggestion": {
+        "record_id": null,
+        "suggestion_failure_reason": "parse_error"
+      },
+      "tier": "strong"
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0171",
       "reason": "threshold_met",
       "record_id": "UNIT-0083",
@@ -5640,6 +6022,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0172",
       "reason": "threshold_met",
       "record_id": "UNIT-0039",
@@ -5652,6 +6035,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0173",
       "reason": "threshold_met",
       "record_id": "UNIT-0102",
@@ -5664,6 +6048,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0174",
       "reason": "threshold_met",
       "record_id": "UNIT-0167",
@@ -5676,6 +6061,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0175",
       "reason": "insufficient_corroboration",
       "record_id": "UNIT-0013",
@@ -5688,6 +6074,7 @@
     },
     {
       "category": "lease",
+      "category_failure": null,
       "document_id": "doc-0176",
       "reason": "threshold_met",
       "record_id": "UNIT-0019",
@@ -5700,6 +6087,7 @@
     },
     {
       "category": "inspection",
+      "category_failure": null,
       "document_id": "doc-0177",
       "reason": "threshold_met",
       "record_id": "UNIT-0138",
@@ -5712,6 +6100,7 @@
     },
     {
       "category": "invoice",
+      "category_failure": null,
       "document_id": "doc-0178",
       "reason": "threshold_met",
       "record_id": "UNIT-0025",
@@ -5724,6 +6113,7 @@
     },
     {
       "category": "notice",
+      "category_failure": null,
       "document_id": "doc-0179",
       "reason": "threshold_met",
       "record_id": "UNIT-0094",
@@ -5736,6 +6126,7 @@
     },
     {
       "category": "misc",
+      "category_failure": null,
       "document_id": "doc-0180",
       "reason": "threshold_met",
       "record_id": "UNIT-0150",
@@ -5753,13 +6144,61 @@
     "recall_at_least_baseline": false,
     "wrong_file_count_zero": true
   },
-  "live_run_cost_usd": "0.011928600",
+  "live": {
+    "category_accuracy_reaching_model": 0.9333333333333333,
+    "category_accuracy_reaching_model_wilson_95": [
+      0.8739486959646967,
+      0.9658346931390938
+    ],
+    "category_correct_reaching_model": 112,
+    "category_unreadable_to_review": 10,
+    "cost_per_document_not_rejected_usd": "0.0001046328571428571428571428571",
+    "cost_per_document_reaching_model_usd": "0.0001220716666666666666666666667",
+    "cost_per_document_usd": "0.00008138111111111111111111111111",
+    "documents": 180,
+    "documents_not_rejected": 140,
+    "documents_reaching_model": 120,
+    "input_tokens": 135006,
+    "latency_ms_median": 1363,
+    "latency_ms_p95": 2447,
+    "maybe_billed_count": 0,
+    "no_answer_count": 0,
+    "output_modes": {
+      "json_schema": 220
+    },
+    "output_tokens": 2296,
+    "refusal_categories": {
+      "bio": 10,
+      "unrecorded": 10
+    },
+    "requests": 220,
+    "requests_answered": 220,
+    "requests_not_asked": 0,
+    "spend_by_activity_usd": {
+      "choose": "0.007709300",
+      "classify": "0.006939300"
+    },
+    "spend_usd": "0.014648600",
+    "unreadable_by_activity": {
+      "choose": 10,
+      "classify": 10
+    },
+    "unreadable_by_reason": {
+      "refusal": 20
+    },
+    "unreadable_count": 20,
+    "unreadable_wilson_95": [
+      0.05962049253575119,
+      0.1362389298057234
+    ]
+  },
+  "live_run_cost_usd": "0.002720000",
   "manifest": "evals/manifests/seed-7.json",
   "measurement": "anthropic",
   "mode": "record",
   "model": "claude-haiku-5-5",
-  "model_cost_usd": "0.011928600",
-  "pending_requests": 220,
+  "model_cost_usd": "0.014648600",
+  "pending_requests": 10,
   "provenance": [
     {
       "model": "claude-haiku-5-5",
@@ -5767,8 +6206,8 @@
       "recorded": "2026-11-13"
     }
   ],
-  "recorded_before_run": 0,
-  "requests_to_send": 220,
+  "recorded_before_run": 210,
+  "requests_to_send": 10,
   "review_suggestion_comparison": {
     "documents": [
       {
@@ -6580,6 +7019,7 @@
         "suggestion_correct": true
       }
     ],
+    "excluded_suggestion_failures": 10,
     "null_gold_means_no_record": true,
     "review_documents": 101,
     "rules_accuracy": 0.6039603960396039,
@@ -6601,6 +7041,7 @@
       {
         "baseline": {
           "category": "notice",
+          "category_failure": null,
           "document_id": "doc-0009",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -6613,6 +7054,7 @@
         "classification": "both_correct",
         "docket": {
           "category": "misc",
+          "category_failure": null,
           "document_id": "doc-0009",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -6639,6 +7081,7 @@
       {
         "baseline": {
           "category": "inspection",
+          "category_failure": null,
           "document_id": "doc-0017",
           "reason": "threshold_met",
           "record_id": "UNIT-0013",
@@ -6651,15 +7094,20 @@
         "classification": "baseline_only_correct",
         "docket": {
           "category": "misc",
-          "document_id": "doc-0017",
-          "reason": "parse_error",
-          "record_id": null,
-          "score": "0",
-          "status": "failed",
-          "suggestion": {
-            "record_id": null
+          "category_failure": {
+            "reason": "refusal",
+            "refusal_category": null
           },
-          "tier": "none"
+          "document_id": "doc-0017",
+          "reason": "category_unreadable",
+          "record_id": "UNIT-0013",
+          "score": "0.9500000",
+          "status": "would_review",
+          "suggestion": {
+            "record_id": null,
+            "suggestion_failure_reason": "parse_error"
+          },
+          "tier": "strong"
         },
         "document_id": "doc-0017",
         "gold": {
@@ -6677,6 +7125,7 @@
       {
         "baseline": {
           "category": "invoice",
+          "category_failure": null,
           "document_id": "doc-0034",
           "reason": "threshold_met",
           "record_id": "UNIT-0120",
@@ -6689,15 +7138,20 @@
         "classification": "baseline_only_correct",
         "docket": {
           "category": "misc",
-          "document_id": "doc-0034",
-          "reason": "parse_error",
-          "record_id": null,
-          "score": "0",
-          "status": "failed",
-          "suggestion": {
-            "record_id": null
+          "category_failure": {
+            "reason": "refusal",
+            "refusal_category": null
           },
-          "tier": "none"
+          "document_id": "doc-0034",
+          "reason": "category_unreadable",
+          "record_id": "UNIT-0120",
+          "score": "0.9500000",
+          "status": "would_review",
+          "suggestion": {
+            "record_id": null,
+            "suggestion_failure_reason": "parse_error"
+          },
+          "tier": "strong"
         },
         "document_id": "doc-0034",
         "gold": {
@@ -6715,6 +7169,7 @@
       {
         "baseline": {
           "category": "lease",
+          "category_failure": null,
           "document_id": "doc-0043",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -6727,6 +7182,7 @@
         "classification": "both_correct",
         "docket": {
           "category": "misc",
+          "category_failure": null,
           "document_id": "doc-0043",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -6753,6 +7209,7 @@
       {
         "baseline": {
           "category": "notice",
+          "category_failure": null,
           "document_id": "doc-0051",
           "reason": "threshold_met",
           "record_id": "UNIT-0081",
@@ -6765,15 +7222,20 @@
         "classification": "baseline_only_correct",
         "docket": {
           "category": "misc",
-          "document_id": "doc-0051",
-          "reason": "parse_error",
-          "record_id": null,
-          "score": "0",
-          "status": "failed",
-          "suggestion": {
-            "record_id": null
+          "category_failure": {
+            "reason": "refusal",
+            "refusal_category": null
           },
-          "tier": "none"
+          "document_id": "doc-0051",
+          "reason": "category_unreadable",
+          "record_id": "UNIT-0081",
+          "score": "0.9500000",
+          "status": "would_review",
+          "suggestion": {
+            "record_id": null,
+            "suggestion_failure_reason": "parse_error"
+          },
+          "tier": "strong"
         },
         "document_id": "doc-0051",
         "gold": {
@@ -6791,6 +7253,7 @@
       {
         "baseline": {
           "category": "inspection",
+          "category_failure": null,
           "document_id": "doc-0060",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -6803,6 +7266,7 @@
         "classification": "both_correct",
         "docket": {
           "category": "misc",
+          "category_failure": null,
           "document_id": "doc-0060",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -6829,6 +7293,7 @@
       {
         "baseline": {
           "category": "misc",
+          "category_failure": null,
           "document_id": "doc-0068",
           "reason": "threshold_met",
           "record_id": "UNIT-0197",
@@ -6841,15 +7306,20 @@
         "classification": "baseline_only_correct",
         "docket": {
           "category": "misc",
-          "document_id": "doc-0068",
-          "reason": "parse_error",
-          "record_id": null,
-          "score": "0",
-          "status": "failed",
-          "suggestion": {
-            "record_id": null
+          "category_failure": {
+            "reason": "refusal",
+            "refusal_category": null
           },
-          "tier": "none"
+          "document_id": "doc-0068",
+          "reason": "category_unreadable",
+          "record_id": "UNIT-0197",
+          "score": "0.9500000",
+          "status": "would_review",
+          "suggestion": {
+            "record_id": null,
+            "suggestion_failure_reason": "parse_error"
+          },
+          "tier": "strong"
         },
         "document_id": "doc-0068",
         "gold": {
@@ -6867,6 +7337,7 @@
       {
         "baseline": {
           "category": "invoice",
+          "category_failure": null,
           "document_id": "doc-0077",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -6879,6 +7350,7 @@
         "classification": "both_correct",
         "docket": {
           "category": "misc",
+          "category_failure": null,
           "document_id": "doc-0077",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -6905,6 +7377,7 @@
       {
         "baseline": {
           "category": "lease",
+          "category_failure": null,
           "document_id": "doc-0085",
           "reason": "threshold_met",
           "record_id": "UNIT-0068",
@@ -6917,15 +7390,20 @@
         "classification": "baseline_only_correct",
         "docket": {
           "category": "misc",
-          "document_id": "doc-0085",
-          "reason": "parse_error",
-          "record_id": null,
-          "score": "0",
-          "status": "failed",
-          "suggestion": {
-            "record_id": null
+          "category_failure": {
+            "reason": "refusal",
+            "refusal_category": null
           },
-          "tier": "none"
+          "document_id": "doc-0085",
+          "reason": "category_unreadable",
+          "record_id": "UNIT-0068",
+          "score": "0.9500000",
+          "status": "would_review",
+          "suggestion": {
+            "record_id": null,
+            "suggestion_failure_reason": "parse_error"
+          },
+          "tier": "strong"
         },
         "document_id": "doc-0085",
         "gold": {
@@ -6943,6 +7421,7 @@
       {
         "baseline": {
           "category": "notice",
+          "category_failure": null,
           "document_id": "doc-0094",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -6955,6 +7434,7 @@
         "classification": "both_correct",
         "docket": {
           "category": "misc",
+          "category_failure": null,
           "document_id": "doc-0094",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -6981,6 +7461,7 @@
       {
         "baseline": {
           "category": "inspection",
+          "category_failure": null,
           "document_id": "doc-0102",
           "reason": "threshold_met",
           "record_id": "UNIT-0088",
@@ -6993,15 +7474,20 @@
         "classification": "baseline_only_correct",
         "docket": {
           "category": "misc",
-          "document_id": "doc-0102",
-          "reason": "parse_error",
-          "record_id": null,
-          "score": "0",
-          "status": "failed",
-          "suggestion": {
-            "record_id": null
+          "category_failure": {
+            "reason": "refusal",
+            "refusal_category": null
           },
-          "tier": "none"
+          "document_id": "doc-0102",
+          "reason": "category_unreadable",
+          "record_id": "UNIT-0088",
+          "score": "0.9500000",
+          "status": "would_review",
+          "suggestion": {
+            "record_id": null,
+            "suggestion_failure_reason": "parse_error"
+          },
+          "tier": "strong"
         },
         "document_id": "doc-0102",
         "gold": {
@@ -7019,6 +7505,7 @@
       {
         "baseline": {
           "category": "invoice",
+          "category_failure": null,
           "document_id": "doc-0119",
           "reason": "threshold_met",
           "record_id": "UNIT-0190",
@@ -7031,15 +7518,20 @@
         "classification": "baseline_only_correct",
         "docket": {
           "category": "misc",
-          "document_id": "doc-0119",
-          "reason": "parse_error",
-          "record_id": null,
-          "score": "0",
-          "status": "failed",
-          "suggestion": {
-            "record_id": null
+          "category_failure": {
+            "reason": "refusal",
+            "refusal_category": null
           },
-          "tier": "none"
+          "document_id": "doc-0119",
+          "reason": "category_unreadable",
+          "record_id": "UNIT-0190",
+          "score": "0.9500000",
+          "status": "would_review",
+          "suggestion": {
+            "record_id": null,
+            "suggestion_failure_reason": "parse_error"
+          },
+          "tier": "strong"
         },
         "document_id": "doc-0119",
         "gold": {
@@ -7057,6 +7549,7 @@
       {
         "baseline": {
           "category": "lease",
+          "category_failure": null,
           "document_id": "doc-0128",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -7069,6 +7562,7 @@
         "classification": "both_correct",
         "docket": {
           "category": "misc",
+          "category_failure": null,
           "document_id": "doc-0128",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -7095,6 +7589,7 @@
       {
         "baseline": {
           "category": "notice",
+          "category_failure": null,
           "document_id": "doc-0136",
           "reason": "threshold_met",
           "record_id": "UNIT-0195",
@@ -7107,15 +7602,20 @@
         "classification": "baseline_only_correct",
         "docket": {
           "category": "misc",
-          "document_id": "doc-0136",
-          "reason": "parse_error",
-          "record_id": null,
-          "score": "0",
-          "status": "failed",
-          "suggestion": {
-            "record_id": null
+          "category_failure": {
+            "reason": "refusal",
+            "refusal_category": null
           },
-          "tier": "none"
+          "document_id": "doc-0136",
+          "reason": "category_unreadable",
+          "record_id": "UNIT-0195",
+          "score": "0.9500000",
+          "status": "would_review",
+          "suggestion": {
+            "record_id": null,
+            "suggestion_failure_reason": "parse_error"
+          },
+          "tier": "strong"
         },
         "document_id": "doc-0136",
         "gold": {
@@ -7133,6 +7633,7 @@
       {
         "baseline": {
           "category": "inspection",
+          "category_failure": null,
           "document_id": "doc-0145",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -7145,6 +7646,7 @@
         "classification": "both_correct",
         "docket": {
           "category": "misc",
+          "category_failure": null,
           "document_id": "doc-0145",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -7171,6 +7673,7 @@
       {
         "baseline": {
           "category": "misc",
+          "category_failure": null,
           "document_id": "doc-0153",
           "reason": "threshold_met",
           "record_id": "UNIT-0001",
@@ -7183,15 +7686,20 @@
         "classification": "baseline_only_correct",
         "docket": {
           "category": "misc",
-          "document_id": "doc-0153",
-          "reason": "parse_error",
-          "record_id": null,
-          "score": "0",
-          "status": "failed",
-          "suggestion": {
-            "record_id": null
+          "category_failure": {
+            "reason": "refusal",
+            "refusal_category": null
           },
-          "tier": "none"
+          "document_id": "doc-0153",
+          "reason": "category_unreadable",
+          "record_id": "UNIT-0001",
+          "score": "0.9500000",
+          "status": "would_review",
+          "suggestion": {
+            "record_id": null,
+            "suggestion_failure_reason": "parse_error"
+          },
+          "tier": "strong"
         },
         "document_id": "doc-0153",
         "gold": {
@@ -7209,6 +7717,7 @@
       {
         "baseline": {
           "category": "invoice",
+          "category_failure": null,
           "document_id": "doc-0162",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -7221,6 +7730,7 @@
         "classification": "both_correct",
         "docket": {
           "category": "misc",
+          "category_failure": null,
           "document_id": "doc-0162",
           "reason": "no_candidate_chosen",
           "record_id": null,
@@ -7247,6 +7757,7 @@
       {
         "baseline": {
           "category": "lease",
+          "category_failure": null,
           "document_id": "doc-0170",
           "reason": "threshold_met",
           "record_id": "UNIT-0153",
@@ -7259,15 +7770,20 @@
         "classification": "baseline_only_correct",
         "docket": {
           "category": "misc",
-          "document_id": "doc-0170",
-          "reason": "parse_error",
-          "record_id": null,
-          "score": "0",
-          "status": "failed",
-          "suggestion": {
-            "record_id": null
+          "category_failure": {
+            "reason": "refusal",
+            "refusal_category": null
           },
-          "tier": "none"
+          "document_id": "doc-0170",
+          "reason": "category_unreadable",
+          "record_id": "UNIT-0153",
+          "score": "0.9500000",
+          "status": "would_review",
+          "suggestion": {
+            "record_id": null,
+            "suggestion_failure_reason": "parse_error"
+          },
+          "tier": "strong"
         },
         "document_id": "doc-0170",
         "gold": {

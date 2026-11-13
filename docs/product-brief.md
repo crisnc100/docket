@@ -76,12 +76,14 @@ Failed suggestions are excluded from the suggestion comparison and counted separ
 
 The report includes 95% Wilson intervals, uncertainty ranges for each proportion,
 a threshold curve and results by case type.
-It passes four floors: zero wrong filings, at least 90% clean filing,
-zero filings to injected record ids and recall at least equal to the baseline.
+Three of its four floors pass: zero wrong filings, at least 90% clean filing and
+zero filings to injected record ids. Recall falls below the baseline's, because the
+refused documents wait for review.
 The model adds no measured filing gain on this sample.
 
-Model answers are simulated, with each answer's source saved.
-They do not measure the target provider's quality, output compliance or cost.
+Model answers are live, recorded once from claude-haiku-5-5 on the Anthropic API, with
+each answer's tokens, cost and latency saved. The whole pass cost $0.0293.
+They measure that model on synthetic documents, not on real incoming mail.
 Five [fault tests](adr/007-temporal-recovery.md) measure recovery after process exits and a storage outage.
 They check one document, one filing and a final filed status.
 [Replay instructions](rerecord.md) explain how to reproduce the evidence.

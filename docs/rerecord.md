@@ -15,6 +15,20 @@ Docket's figures come from live answers (see [Live Anthropic answers](#live-anth
 Export and import are how the v0.1 simulated answers were made. They work for any
 model whose answers an operator supplies.
 
+The commands below use the v0.1 simulated setting, which keeps simulated answers in
+`evals/history/simulated/calls.jsonl`. Without it, the defaults would import a
+simulated answer into the live archive, `evals/recordings/anthropic.jsonl`, and the
+live archive check would then reject it.
+
+```sh
+export DOCKET_MODEL_PROVIDER=openrouter DOCKET_MODEL=openai/gpt-4o-mini
+```
+
+Every `docket eval` run rewrites `evals/manifests/seed-N.json` for the model in use, and
+replay writes a new report to `evals/reports/`. The committed manifests and reports are
+the live pass's, so run the simulation in a separate checkout, or restore those files
+before committing.
+
 ## Export requests
 
 ```sh
@@ -118,10 +132,15 @@ uv run python scripts/pack_exchange.py --live
 uv run docket shadow-diff
 uv run docket shadow-diff --report evals/reports/2026-11-13-seed-7.json
 uv run python scripts/cost_summary.py
-uv run docket eval --seed 11 --mode replay --budget 0
+uv run python scripts/reproduce_eval.py
 ```
 
-A record run's report holds the paid run's budget and cost. When a report must be
+`scripts/reproduce_eval.py` replays seed 11 with no model call and checks it against the
+saved report without writing anything.
+
+A record run's report holds the paid run's budget and cost. A plain
+`docket eval --mode replay` on the same date would replace it, so `write_report` refuses
+to overwrite a record run's report with one that is not. When a report must be
 regenerated later, for new report text say, `scripts/regenerate_live_report.py` replays
 the seed with no model call and copies each record run's fields forward. It takes the
 record runs' reports, kept in git, in the order the runs happened. The report keeps

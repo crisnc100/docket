@@ -814,6 +814,13 @@ def simulation_summary(
 def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{report['date']}-seed-{report['seed']}.json"
+    if path.exists() and report.get("mode") != "record":
+        if json.loads(path.read_text()).get("mode") == "record":
+            # That report is the only place a paid run's budget and cost are kept.
+            raise ValueError(
+                f"{path} is a paid record run's report; regenerate it with "
+                "scripts/regenerate_live_report.py instead of a plain replay"
+            )
     text = f"# Docket eval — seed {report['seed']}\n\nStatus: **{report['status']}**\n\n"
     if report.get("measurement") in {"simulated", "mixed"}:
         seed_counts = report.get("simulation", {}).get("seed_request_counts", {})

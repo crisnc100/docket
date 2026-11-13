@@ -15,7 +15,9 @@ The rules-only baseline assigns notice.
 
 The workflow gives every empty shortlist category misc.
 Classification is skipped along with record choice, even when the PDF contains useful category text.
-Eight no-record documents account for the pipeline's eight additional category misses versus the baseline.
+Eight no-record documents account for eight of the pipeline's sixteen additional category
+misses versus the baseline. The other eight are refused `very_long` documents
+([0017](0017-very-long-refusal.md)).
 This is workflow policy, not a bad model response.
 
 ## What would fix it

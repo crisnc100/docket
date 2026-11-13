@@ -748,6 +748,33 @@ async def evaluate(
     return report
 
 
+RECORD_RUN_FIELDS = ("budget_usd", "live_run_cost_usd", "recorded_before_run", "requests_to_send")
+
+
+def with_record_runs(report: dict, runs: list[dict], sources: list[str]) -> dict:
+    """Carry the paid record runs' fields onto a report regenerated in replay.
+
+    Replay reproduces every figure from the recordings, but not the fact that live,
+    billed runs made them. The runs' own reports hold that, so it is copied forward.
+    """
+    for run in runs:
+        if run.get("mode") != "record":
+            raise ValueError("Only a record run's report can supply record-run fields")
+        if run.get("seed") != report["seed"] or run.get("model") != report["model"]:
+            raise ValueError("A record run must be for the same seed and model")
+    report = dict(report)
+    report["record_runs"] = [
+        {"source": source, "mode": "record", **{name: run.get(name) for name in RECORD_RUN_FIELDS}}
+        for run, source in zip(runs, sources, strict=True)
+    ]
+    report.update(
+        mode="record",
+        budget_usd=runs[-1]["budget_usd"],
+        live_run_cost_usd=str(sum((Decimal(run["live_run_cost_usd"]) for run in runs), Decimal(0))),
+    )
+    return report
+
+
 def simulation_summary(
     recordings, store: ReplayStore, request_keys: set[str] | None = None
 ) -> dict:
@@ -829,6 +856,14 @@ def write_report(report: dict, directory: Path = Path("evals/reports")) -> Path:
     if report.get("measurement") == "anthropic":
         report["banner"] = live_banner(report)
         text = report["banner"] + "\n\n" + text
+        runs = report.get("record_runs")
+        if runs:
+            plural = "s" if len(runs) > 1 else ""
+            text += (
+                f"Answers recorded by {len(runs)} live record run{plural}, "
+                f"model cost ${report['live_run_cost_usd']} in total; "
+                "this report replays them with no model call.\n\n"
+            )
     if report.get("measurement") == "no model calls":
         text = "No model calls. No model responses were used.\n\n" + text
     if report["status"].startswith("PENDING"):

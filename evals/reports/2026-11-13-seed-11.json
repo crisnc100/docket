@@ -2859,7 +2859,7 @@
       "tier": "strong"
     }
   ],
-  "budget_usd": "0",
+  "budget_usd": "1.98",
   "calibration": "seed7_threshold_weights_and_tiers_untuned",
   "choice_comparison": {
     "category_changes": 16,
@@ -6192,10 +6192,10 @@
       0.1362389298057234
     ]
   },
-  "live_run_cost_usd": "0",
+  "live_run_cost_usd": "0.014665000",
   "manifest": "evals/manifests/seed-11.json",
   "measurement": "anthropic",
-  "mode": "replay",
+  "mode": "record",
   "model": "claude-haiku-5-5",
   "model_cost_usd": "0.014665000",
   "pending_requests": 0,
@@ -6204,6 +6204,16 @@
       "model": "claude-haiku-5-5",
       "provider": "anthropic",
       "recorded": "2026-11-13"
+    }
+  ],
+  "record_runs": [
+    {
+      "budget_usd": "1.98",
+      "live_run_cost_usd": "0.014665000",
+      "mode": "record",
+      "recorded_before_run": 0,
+      "requests_to_send": 220,
+      "source": "git 3b692f1:evals/reports/2026-11-13-seed-11.json"
     }
   ],
   "review_suggestion_comparison": {

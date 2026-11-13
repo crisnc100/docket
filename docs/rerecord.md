@@ -121,6 +121,13 @@ uv run python scripts/cost_summary.py
 uv run docket eval --seed 11 --mode replay --budget 0
 ```
 
+A record run's report holds the paid run's budget and cost. When a report must be
+regenerated later, for new report text say, `scripts/regenerate_live_report.py` replays
+the seed with no model call and copies each record run's fields forward. It takes the
+record runs' reports, kept in git, in the order the runs happened. The report keeps
+`mode: record`, the last budget, `live_run_cost_usd` summed over the runs, and a
+`record_runs` list naming where each run's report is kept.
+
 `scripts/cost_summary.py` writes `evals/cost/<date>-claude-haiku-5-5.json`. It rebuilds
 each answer's cost from its tokens and [the price snapshot](../config/model_prices.yaml),
 and refuses a recording whose saved cost differs.

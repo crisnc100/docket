@@ -18,7 +18,7 @@ Review is required here; the missing suggestion is the error.
 The shortlist reads the filename.
 The model's choose request includes the extracted body text and candidate ids, not the filename evidence.
 The single candidate's presence does not tell the model why it was selected.
-The saved answer says none; the simulator's internal reason is not recorded.
+The live answer is none. The schema allows only an id, so the model gives no reason.
 This input gap is a possible explanation, not a proven account of its reasoning.
 
 ## What would fix it

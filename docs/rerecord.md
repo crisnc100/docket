@@ -1,4 +1,4 @@
-# Importing and replaying evaluation
+# Recording, importing and replaying evaluation
 
 Run commands from the repository root.
 Start services with `docker compose up -d --wait`.
@@ -10,6 +10,10 @@ Evaluation uses observe mode.
 This mode checks decisions without filing documents.
 It stores raw inputs only and does not wait for review.
 Each run gets a fresh run ID.
+
+Docket's figures come from live answers (see [Live Anthropic answers](#live-anthropic-answers)).
+Export and import are how the v0.1 simulated answers were made. They work for any
+model whose answers an operator supplies.
 
 ## Export requests
 
@@ -65,22 +69,23 @@ It reads the newest seed-11 report unless you pass `--report`.
 A review decision can be correct even when its proposed record or category differs.
 Category accuracy is reported separately.
 
-Import checks all supplied answers before saving any to `evals/recordings/calls.jsonl`.
+Import checks all supplied answers before saving any to the provider's archive: for
+`openrouter`, `evals/history/simulated/calls.jsonl`.
 Replay reads that file. It uses JSON Lines (JSONL): one JSON object per line.
 Bad fields, values, request keys or model provenance cause an error.
 Missing answers leave the report pending.
 A saved answer is never overwritten.
 Repack after importing answers, while both working folders are present.
-The durable evidence is `evals/recordings/exchange.jsonl.gz`.
+The durable evidence is `evals/history/simulated/exchange.jsonl.gz`.
 It keeps the exact request and answer text, file hashes and provenance.
 A file hash is a digest used to check file integrity.
 The check command compares that evidence with every replay recording.
 Replay and verification work without the untracked working folders.
 
-## Current simulation
+## The v0.1 simulation
 
-[evals/recordings/README.md](../evals/recordings/README.md) gives the current answer
-counts and the archive format.
+[evals/history/simulated/README.md](../evals/history/simulated/README.md) gives the
+simulated answer counts and the archive format.
 [Decision 004](adr/004-simulated-model-measurements.md) explains how the answers were
 made.
 
@@ -97,19 +102,32 @@ Tune on seed 7 only. Do not tune on seed 11.
 ## Live Anthropic answers
 
 Set `ANTHROPIC_API_KEY` in the environment or gitignored `.env`. Never commit it.
-Set `DOCKET_MODEL_PROVIDER=anthropic` and `DOCKET_MODEL=claude-haiku-5-5`.
-Live answers then go to `evals/recordings/anthropic.jsonl`, apart from the simulated ones.
+The defaults are `DOCKET_MODEL_PROVIDER=anthropic` and `DOCKET_MODEL=claude-haiku-5-5`.
+Live answers go to `evals/recordings/anthropic.jsonl`, apart from the simulated ones.
 [Operations](operations.md#model-gateway) explains the budgets, retries and unreadable answers.
+[evals/recordings/README.md](../evals/recordings/README.md) gives the recorded pass.
+
+The 2026-11-13 pass ran these, with the daily cap raised to $5 for the run
+(`DOCKET_DAILY_BUDGET_USD=5`). Seed 11's budget was what was left of $2.00 after seed 7.
 
 ```sh
 uv run docket spike-models
-uv run docket eval --seed 11 --mode record --budget 2.00
+uv run docket eval --seed 7 --mode record --budget 2.00
+uv run docket eval --seed 11 --mode record --budget 1.98
 uv run python scripts/pack_exchange.py --live
+uv run docket shadow-diff
+uv run docket shadow-diff --report evals/reports/2026-11-13-seed-7.json
+uv run python scripts/cost_summary.py
 uv run docket eval --seed 11 --mode replay --budget 0
 ```
 
+`scripts/cost_summary.py` writes `evals/cost/<date>-claude-haiku-5-5.json`. It rebuilds
+each answer's cost from its tokens and [the price snapshot](../config/model_prices.yaml),
+and refuses a recording whose saved cost differs.
+
 Record mode accepts only the synthetic corpus.
-It sends only requests with no saved answer. A rerun never resends an answered request.
+It sends only requests with no saved answer. A rerun never resends an answered request,
+even one that was refused or otherwise unreadable: that answer replays as the same error.
 Its report counts `recorded_before_run` and `requests_to_send`.
 Each live answer keeps its raw text, tokens, cost, latency and output mode.
 Record mode also writes each request to `evals/pending/`.

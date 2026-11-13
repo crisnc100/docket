@@ -11,7 +11,9 @@ Both the rules and the model name `UNIT-0131`.
 Docket assigns category lease and a strong score of 0.5842105.
 It ends `would_review`, reason `insufficient_corroboration`.
 That means observe mode would send it to a person without filing.
-The selected threshold is 0.5857142, so this is the one missed expected filing.
+The selected threshold is 0.5857142, so this expected filing is missed.
+It is the only missed filing the rules-only baseline shares. The other ten live misses
+are the refused very_long documents ([0017](0017-very-long-refusal.md)).
 
 ## Why
 

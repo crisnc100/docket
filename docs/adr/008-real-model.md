@@ -1,7 +1,7 @@
 # ADR 008: real model answers from Claude Haiku 5.5
 
-Status: accepted; predictions committed on 2026-11-12, before any live call.
-The Result section stays empty until the live pass runs (v0.2 PR2).
+Status: accepted; measured. Predictions committed on 2026-11-12, before any live call.
+The live pass ran on 2026-11-13 and missed gates G1 and G3. See Result.
 
 ## Context
 
@@ -69,6 +69,7 @@ Written before any live call. The Result section marks each one right or wrong.
 
 ## Spike
 
+Run on 2026-11-12. The API accepted both enum schemas as structured output.
 Measured by `uv run docket spike-models`:
 
 ```json
@@ -102,4 +103,45 @@ Measured by `uv run docket spike-models`:
 
 ## Result
 
-Pending the live pass.
+One live pass on 2026-11-13 over seeds 7 and 11: 440 requests, each asked once, in
+`evals/recordings/anthropic.jsonl`. The [seed-11 report](../../evals/reports/2026-11-13-seed-11.md)
+and the [cost summary](../../evals/cost/2026-11-13-claude-haiku-5-5.json) hold every figure.
+
+### Gates
+
+| Gate | Result |
+| --- | --- |
+| G1 | **Missed.** 40 of 440 answers unreadable (9.1%), all refusals. |
+| G2 | Passed. No request went unanswered. |
+| G3 | **Missed on recall.** Seed 11 filed 28 of 39 expected documents; the rules-only baseline filed 38. No wrong filings, all 10 clean documents filed, no filing to an injected id. |
+| G4 | Passed. The pass cost $0.0293; all of v0.2 PR2 cost $0.0320. |
+
+Every refusal is on a `very_long` test document: both calls, on all 20 of them in the
+two seeds. These documents hold about 8,000 characters of random synthetic words. The
+API returned no text and `stop_details.category: "bio"`. A resend of the first ten was
+refused again. No other case type was refused, including all 20 injection documents.
+[Failure 0017](../failures/0017-very-long-refusal.md) gives the evidence.
+
+The gates were not tuned and the pass was not repeated to improve them. One change was
+made after the first refusals, by decision: an unreadable category answer now sends the
+document to review instead of failing it. The rules, scores and threshold are unchanged.
+Both seeds were then recorded. The ten seed-7 category refusals replayed from the archive,
+as every answered request does; the record-suggestion calls they had blocked were asked
+for the first time. The recall miss comes from that routing: the ten refused documents on
+seed 11 wait for a person instead of filing.
+
+### Predictions
+
+| # | Result | Right? |
+| --- | --- | --- |
+| P1 | All 440 answers used structured output; no fallback. | Right |
+| P2 | 40 unreadable, all 40 refusals. | Wrong |
+| P3 | The pass cost $0.0293. | Right |
+| P4 | $0.000122 per document that reached the model. | Right |
+| P5 | Category right on 112 of 120. Every readable answer was right (110 of 110); the 10 refused fell back to misc, right on 2. | Wrong |
+| P6 | Suggestion right on 43 of 102 review documents; rules right on 62 of 102. The 10 refused suggestions are excluded. | Right |
+| P7 | Filing decisions differ from the baseline on 10 documents, all refused `very_long` documents sent to review. The recall floor fails. | Wrong |
+| P8 | Median 1.33 s, 95th percentile 2.56 s over all 440 calls. | Right |
+
+P2's stated risk is what happened. The v0.1 simulation's refusals were on the same
+synthetic filler text, and the direct API refuses it too.

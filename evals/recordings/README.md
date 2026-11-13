@@ -1,44 +1,55 @@
 # Saved model answers
 
-All 444 operator answers passed their saved response schemas.
-A schema lists the allowed fields, types and values.
-Replay reads `calls.jsonl`.
+`anthropic.jsonl` holds the live answers from claude-haiku-5-5 on the Anthropic API,
+recorded on 2026-11-13. Default replay reads it.
 JSON Lines (JSONL) stores one JSON object on each line.
-Each entry keeps the answer, request key and model provenance.
-Provenance names the simulator and the target model.
 
-The saved answer mix is 425 from claude-haiku-5-5 and 19 from claude-opus-5-5.
-Current seed requests use 440 answers. Four older answers remain as evidence.
-The operator reports that Haiku's safety filter falsely blocked 19 requests.
-Those requests contained synthetic filler text.
-The operator reran them on Opus.
-Each call saw only its own prompt, messages and schema.
-It saw no expected labels, code or other answers.
+One pass over seeds 7 and 11 asked each of their 440 requests once:
 
-These are simulated answers, not an OpenRouter measurement.
-Provider cost is unknown and stays null.
-`exchange.jsonl.gz` is the durable record of all 444 request and answer pairs.
-It is gzip-compressed JSONL, sorted by request key.
-`request_json` and `answer_json` hold the original UTF-8 file text.
-Encoding that text as UTF-8 restores the exact file bytes.
-Each entry includes both file SHA-256 hashes and the answer provenance.
-SHA-256 is a digest used to check file integrity.
-The gzip timestamp is fixed, so packing unchanged files gives identical bytes.
-`evals/pending/` and `evals/answers/` are untracked working folders.
-They are needed for export and import, but not replay or verification.
+| | Seed 7 | Seed 11 | Total |
+| --- | --- | --- | --- |
+| Requests | 220 | 220 | 440 |
+| Answers | 200 | 200 | 400 |
+| Unreadable: refusal | 20 | 20 | 40 |
+| No answer | 0 | 0 | 0 |
+| Spend | $0.0146486 | $0.014665 | $0.0293136 |
+
+Every refusal is on a `very_long` test document, on both the category and the
+suggestion call. [Failure 0017](../../docs/failures/0017-very-long-refusal.md) explains
+them. Ten seed-7 refusals were recorded before Docket kept the API's refusal category,
+so they have no `refusal_category`; the other 30 say `bio`. A diagnostic resend of the
+ten, outside this archive, also returned `bio`.
+
+Each entry keeps:
+
+- the request key, which binds the activity, prompt version, model and input;
+- the outcome, `answer` or `unreadable`, with the reason for an unreadable one
+  (`refusal`, `cut`, `not_json` or `schema`) and, for a refusal, its category;
+- the parsed output and the raw answer text;
+- input and output tokens, the cost, the latency and the output mode
+  (`json_schema` for all 440);
+- provenance: `{provider: anthropic, model: claude-haiku-5-5, recorded: <date>}`.
+
+A request with a saved entry is never sent again, even when its answer was unreadable.
+Replaying an unreadable entry raises the same error it raised live.
+
+`anthropic-exchange.jsonl.gz` keeps the exact request behind each answer: system
+prompt, messages, schema and inputs. It is gzip-compressed JSONL, sorted by request
+key, with a fixed gzip timestamp so packing unchanged files gives identical bytes.
+Record mode writes each request to the untracked `evals/pending/` folder, and packing
+moves them into the archive:
 
 ```sh
-uv run python scripts/pack_exchange.py
+uv run python scripts/pack_exchange.py --live
 uv run python scripts/pack_exchange.py --check
 ```
 
-Pack after importing answers, while both working folders are present.
-Packing merges working pairs into the saved archive and keeps all saved keys.
-Answers must match their replay recordings before the archive is replaced.
-The check command needs only the archive and `calls.jsonl`.
-It checks file hashes, request keys, answer schemas and provenance.
-It also checks that every recording has the same archived answer and provenance.
-See `docs/rerecord.md` for import and replay commands.
+The check needs only the archives and the recordings. It checks that every live
+recording has its archived request, and it checks the simulated history archive too.
+[evals/cost/](../cost/) holds the cost summary rebuilt from these recordings.
+See [docs/rerecord.md](../../docs/rerecord.md) for the record and replay commands.
+
+The v0.1 simulated answers are in [evals/history/simulated/](../history/simulated/README.md).
 
 Tests use separate inputs under `tests/`.
 They do not supply evaluation results.

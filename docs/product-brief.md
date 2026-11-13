@@ -58,20 +58,21 @@ Observe mode records what would happen without filing or waiting for a reviewer.
 The rules-only baseline takes the highest-scored candidate without the model.
 Both use the same filing policy.
 
-The [held-out report](../evals/reports/2026-11-11-seed-11.md) measures:
+The [held-out report](../evals/reports/2026-11-13-seed-11.md), from live
+claude-haiku-5-5 answers, measures:
 
-- Precision: correct filings divided by all automatic filings. Both systems reach 38/38.
-- Recall: correct filings divided by the 39 documents labelled for filing. Both reach 38/39.
-- Automatic filing and review rates: 38/180 and 102/180. The remaining 40 are rejected.
-- Pipeline category accuracy: Docket 124/140 versus the baseline's 132/140 among documents not rejected.
-- Correct record suggestions on review items: model 44/102 versus rules 62/102.
+- Precision: correct filings divided by all automatic filings. Docket 28/28; the baseline 38/38.
+- Recall: correct filings divided by the 39 documents labelled for filing. Docket 28/39;
+  the baseline 38/39.
+- Automatic filing and review rates: Docket 28/180 and 112/180. The remaining 40 are rejected.
+- Pipeline category accuracy: Docket 116/140 versus the baseline's 132/140 among documents not rejected.
+- Correct record suggestions on review items: model 43/102 versus rules 62/102.
 
-All 16 pipeline category misses have empty shortlists and receive misc without a classify call.
-Eight are no-record documents; eight have no text layer.
-The simulated classify answers are correct on all 120 documents with nonempty shortlists.
-These document counts include duplicates, not just unique model calls.
+The model's safety filter refused both calls on the ten `very_long` documents, which hold
+long runs of random synthetic words. They go to review instead of filing; that is the
+whole recall gap. [ADR 008](adr/008-real-model.md) records it as a missed gate.
+Sixteen more category misses have empty shortlists and receive misc without a model call.
 Failed suggestions are excluded from the suggestion comparison and counted separately.
-The saved seed-11 run has zero suggestion failures.
 
 The report includes 95% Wilson intervals, uncertainty ranges for each proportion,
 a threshold curve and results by case type.

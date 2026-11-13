@@ -151,13 +151,15 @@ picks among the shortlisted records. The response schema and import checks refus
 picks outside that shortlist. Automatic filing uses the rules' top candidate;
 the model's record suggestion does not affect its score, tier or filing decision.
 
-- **Provider.** `DOCKET_MODEL_PROVIDER` is `openrouter` (the default) or `anthropic`.
-  The defaults, `openrouter` with `openai/gpt-4o-mini`, replay the saved v0.1
-  answers. Live answers use `anthropic` with `DOCKET_MODEL=claude-haiku-5-5` and
-  the key in `ANTHROPIC_API_KEY`. OpenRouter uses `OPENROUTER_API_KEY`. Keys come
-  from the environment or the gitignored `.env`.
+- **Provider.** `DOCKET_MODEL_PROVIDER` is `anthropic` (the default) or `openrouter`.
+  The defaults, `anthropic` with `DOCKET_MODEL=claude-haiku-5-5`, replay the live
+  answers recorded on 2026-11-13. Live calls need the key in `ANTHROPIC_API_KEY`.
+  `openrouter` with `openai/gpt-4o-mini` replays the v0.1 simulated answers.
+  OpenRouter calls use `OPENROUTER_API_KEY`. Keys come from the environment or the
+  gitignored `.env`.
 - **Saved answers.** Each provider has its own file, so live and simulated answers
-  never share one: `evals/recordings/anthropic.jsonl` or `evals/recordings/calls.jsonl`.
+  never share one: `evals/recordings/anthropic.jsonl`, or for OpenRouter the v0.1
+  simulated answers in `evals/history/simulated/calls.jsonl`.
   `DOCKET_REPLAY_PATH` overrides it. A saved answer is found by a key that includes
   the model name, so answers replay only under the model they were saved for.
 - **Modes.** `live` calls the model. `record` calls it and saves the answer, and

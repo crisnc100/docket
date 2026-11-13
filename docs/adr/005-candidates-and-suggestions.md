@@ -19,7 +19,7 @@ Category classification remains a separate model call and can still fail the wor
 
 ## Measurement
 
-The [held-out seed-11 report](../../evals/reports/2026-11-11-seed-11.json)
+The [held-out seed-11 report](../../evals/history/simulated/reports/2026-11-11-seed-11.json)
 uses saved simulated answers.
 The model's choose step changes zero filing decisions and zero filed records across 180 documents.
 Both Docket and the rules-only baseline file 38 correctly, with zero wrong filings.

@@ -29,3 +29,5 @@ builds/**/*.err
 /.impeccable/review/
 /.impeccable/mocks/
 /.impeccable/config.local.json
+/.impeccable/hook.cache.json
+/.impeccable/questions/

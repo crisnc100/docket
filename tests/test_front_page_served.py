@@ -1,6 +1,7 @@
 """The front page at "/" is public; the review page and every other route need the token."""
 
 import asyncio
+from html.parser import HTMLParser
 from pathlib import Path
 
 import httpx
@@ -67,11 +68,36 @@ def raw_status(path: str) -> int:
     return next(m["status"] for m in messages if m["type"] == "http.response.start")
 
 
+class _Headline(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.depth, self.parts = 0, []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "h1" or self.depth:
+            self.depth += 1
+
+    def handle_endtag(self, tag):
+        if self.depth:
+            self.depth -= 1
+
+    def handle_data(self, data):
+        if self.depth:
+            self.parts.append(data)
+
+
+def headline(html: str) -> str:
+    parser = _Headline()
+    parser.feed(html)
+    return " ".join("".join(parser.parts).replace("\u00a0", " ").split())
+
+
 def test_front_page_is_served_at_root_without_a_token():
     response = request("GET", "/")
     assert response.status_code == 200
-    assert '<h1 id="title">' in response.text
-    assert "or held for a person." in response.text
+    assert headline(response.text) == (
+        "Property documents filed to the right unit, or held for a person."
+    )
     assert response.headers["content-type"].startswith("text/html")
     assert "default-src 'self'" in response.headers["content-security-policy"]
     assert response.headers["x-content-type-options"] == "nosniff"

@@ -264,6 +264,5 @@ fetch('/home/demo.json', { cache: 'no-cache' })
     setup(data);
   })
   .catch(() => {
-    const foot = document.querySelector('.demo-foot span');
-    if (foot) foot.textContent = 'The recorded results did not load. Reload the page to try again.';
+    document.querySelector('[data-demo-error]').hidden = false;
   });

@@ -160,7 +160,7 @@ A near-monochrome ink-on-white palette with two muted decision hues and one blue
 - **Held Amber** (held, with held-bg ground and held-text for supporting lines): only the "waits for a person" outcome box and the step markers once a document is held.
 
 ### Tertiary
-- **Focus Blue** (focus): the 2px focus outline on every interactive element. Its pale relatives, **Clue Mark** (clue-mark, edged with clue-mark-edge), highlight the phrases in the document text that produced a clue; text selection uses the same family.
+- **Focus Blue** (focus): the 2px focus outline on every interactive element. Its pale relatives, **Clue Mark** (clue-mark, edged with clue-mark-edge), highlight the phrases in the document text that produced a clue; text selection uses Clue Mark too.
 
 ### Neutral
 - **Paper** (paper): the page ground and the demo panel body.
@@ -191,10 +191,10 @@ A near-monochrome ink-on-white palette with two muted decision hues and one blue
 - **Body** (400, 16px, line-height 1.55): base text, with tabular figures on everywhere so numbers align. Prose bands step up to 17px in Second Ink with bold phrases in Ledger Ink, capped at 66ch.
 - **Title** (600, 15px, tracking -0.01em): step names, outcome headings, buttons, table captions, the fold summary.
 - **Label** (400 to 500, 13px, Second Ink): captions, table header cells, meter labels, the demo footer.
-- **Data** (Geist Mono 400 to 500, 13px, line-height 1.65): document text, file names, unit ids, clue weights, scores.
+- **Data** (Geist Mono 400 to 500, 13px, line-height 1.65): document text, file names, unit ids, scores.
 
 ### Named Rules
-**The Machine Voice Rule.** Geist Mono is for data the pipeline read, produced or weighs: document text, unit ids, scores, weights, file names. Explanation, labels and headings are always Geist.
+**The Machine Voice Rule.** Geist Mono is for data the pipeline read or produced: document text, unit ids, scores, file names. Fixed settings such as the clue weights, explanation, labels and headings are always Geist, with tabular figures where numbers line up.
 
 **The Bold Figure Rule.** In running text, emphasis goes on the number or the condition that matters ("28 of 28", "at least two different clues"), set in 600 Ledger Ink against Second Ink prose. No italics, no colour emphasis.
 
@@ -247,7 +247,7 @@ The page's one raised object: Paper ground, 1px Strong Hairline border, 8px radi
 - **Not-built slot:** a small square tag with a 1px dashed Strong Hairline border in the footer, labelling the planned "try your own PDF" mode. Dashed borders mean "planned, not built" and are used nowhere else.
 
 ### Tables
-Full width, hairline under every row, left-aligned, no fills or zebra stripes. Header cells at 13px in Second Ink; row headers in Second Ink at weight 400. Numeric columns in Geist Mono align right; comparison figures set at 600 with a small Second Ink note under them.
+Full width, hairline under every row, left-aligned, no fills or zebra stripes. Header cells at 13px in Second Ink; row headers in Second Ink at weight 400. Numeric columns align right in Geist with tabular figures; comparison figures set at 600 with a small Second Ink note under them.
 
 ### Fold
 A `details` block under a hairline for research terms and method. The summary is a 600 title with a small drawn chevron that rotates over 150ms. Its contents are a two-column definition list that collapses to one column on narrow screens.
@@ -260,7 +260,7 @@ Short lines of plain text, each with a hairline above it, the real figure bolded
 ### Do:
 - **Do** take every figure from the recorded data and bold the figure, not the claim around it.
 - **Do** use Filed Green and Held Amber only for a decision, and show who decided (rules, model, person) beside it.
-- **Do** set pipeline output (document text, unit ids, scores, weights) in Geist Mono at 13px; everything else in Geist.
+- **Do** set pipeline output (document text, unit ids, scores) in Geist Mono at 13px; everything else, fixed settings included, in Geist.
 - **Do** separate content with 1px hairlines and the Soft Grey recess before reaching for a box or a shadow.
 - **Do** keep the 8px radius for the operated panel and buttons; leave everything else square.
 - **Do** give every animated step a static, readable final state, shown at once under reduced motion.

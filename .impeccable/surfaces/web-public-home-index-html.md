@@ -21,7 +21,7 @@ Chosen: the standing exit, Plain Standard, picked by Cristian on 2026-11-18. Cra
 
 THESIS: A plain product page whose craft is exactness: the demo is the hero, and every figure is the real one. It refuses the AI-startup split hero with a glowing screenshot, gradient text and logo row.
 
-OWN-WORLD: White ground, near-black ink, one deep green for "filed", one amber-brown for "waits for a person"; hairline 1px rules, 8px radii only on the demo panel and buttons; Geist for text, Geist Mono only for data the pipeline produced (unit ids, scores, extracted text).
+OWN-WORLD: White ground, near-black ink, one deep green for "filed", one amber-brown for "waits for a person", and one blue kept for focus rings, clue highlights and text selection; hairline 1px rules, 8px radii only on the demo panel and buttons, and one soft ink-tinted shadow on the demo panel alone; Geist for text and fixed settings, Geist Mono only for data the pipeline produced (unit ids, scores, extracted text).
 
 STORY: The visitor learns that Docket files a document only when two clues agree, watches three real test documents get decided (one filed, two held), sees that the model suggests but never decides and was less accurate than the rules, and leaves knowing the data is synthetic and two gates were missed.
 

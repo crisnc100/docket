@@ -291,7 +291,7 @@
       },
       "data": {
         "displayName": "Data",
-        "purpose": "Geist Mono for pipeline output: document text, unit ids, scores, weights, file names."
+        "purpose": "Geist Mono for pipeline output: document text, unit ids, scores, file names. Fixed settings such as clue weights stay in Geist with tabular figures."
       }
     },
     "shadows": [
@@ -432,7 +432,7 @@
       },
       {
         "name": "The Machine Voice Rule",
-        "body": "Geist Mono is for data the pipeline read, produced or weighs: document text, unit ids, scores, weights, file names. Explanation, labels and headings are always Geist.",
+        "body": "Geist Mono is for data the pipeline read or produced: document text, unit ids, scores, file names. Fixed settings such as the clue weights, explanation, labels and headings are always Geist, with tabular figures where numbers line up.",
         "section": "typography"
       },
       {
@@ -449,7 +449,7 @@
     "dos": [
       "**Do** take every figure from the recorded data and bold the figure, not the claim around it.",
       "**Do** use Filed Green and Held Amber only for a decision, and show who decided (rules, model, person) beside it.",
-      "**Do** set pipeline output (document text, unit ids, scores, weights) in Geist Mono at 13px; everything else in Geist.",
+      "**Do** set pipeline output (document text, unit ids, scores) in Geist Mono at 13px; everything else, fixed settings included, in Geist.",
       "**Do** separate content with 1px hairlines and the Soft Grey recess before reaching for a box or a shadow.",
       "**Do** keep the 8px radius for the operated panel and buttons; leave everything else square.",
       "**Do** give every animated step a static, readable final state, shown at once under reduced motion.",

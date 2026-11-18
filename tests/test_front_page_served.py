@@ -1,9 +1,10 @@
-"""The front page is public; every reviewer route still needs the token."""
+"""The front page at "/" is public; the review page and every other route need the token."""
 
 import asyncio
 from pathlib import Path
 
 import httpx
+import pytest
 from fastapi import FastAPI
 from pydantic import SecretStr
 
@@ -14,7 +15,7 @@ from docket.settings import Settings
 HOME = Path("web/public/home")
 
 
-def request(method: str, path: str, **kwargs) -> httpx.Response:
+def guarded_app():
     app = FastAPI()
     serve_home(app, HOME)
 
@@ -22,18 +23,52 @@ def request(method: str, path: str, **kwargs) -> httpx.Response:
     def queue():
         return {"items": []}
 
-    guarded = ReviewerAccess(app, lambda: Settings(docket_review_token=SecretStr("secret")))
+    @app.get("/reviewer")
+    def reviewer():
+        return {"page": "review"}
 
+    return ReviewerAccess(app, lambda: Settings(docket_review_token=SecretStr("secret")))
+
+
+def request(method: str, path: str, **kwargs) -> httpx.Response:
     async def send():
-        transport = httpx.ASGITransport(guarded)
+        transport = httpx.ASGITransport(guarded_app())
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             return await client.request(method, path, **kwargs)
 
     return asyncio.run(send())
 
 
-def test_front_page_needs_no_token_and_carries_its_own_headers():
-    response = request("GET", "/home/")
+def raw_status(path: str) -> int:
+    """Send a path exactly as given; httpx would normalise dot segments before sending."""
+    messages = []
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message):
+        messages.append(message)
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"host", b"test")],
+        "client": ("127.0.0.1", 1),
+        "server": ("test", 80),
+    }
+    asyncio.run(guarded_app()(scope, receive, send))
+    return next(m["status"] for m in messages if m["type"] == "http.response.start")
+
+
+def test_front_page_is_served_at_root_without_a_token():
+    response = request("GET", "/")
     assert response.status_code == 200
     assert "Property documents filed to the right unit" in response.text
     assert response.headers["content-type"].startswith("text/html")
@@ -51,30 +86,54 @@ def test_front_page_files_are_public():
         assert request("GET", path).status_code == 200, path
 
 
-def test_bare_home_redirects_to_the_page():
-    response = request("GET", "/home")
-    assert response.status_code == 308
-    assert response.headers["location"] == "/home/"
+def test_the_page_has_one_address():
+    for path in ("/home/", "/home/index.html"):
+        response = request("GET", path)
+        assert response.status_code == 308, path
+        assert response.headers["location"] == "/", path
 
 
 def test_front_page_never_serves_files_outside_its_folder():
     assert request("GET", "/home/missing.html").status_code == 404
-    assert request("GET", "/home/%2e%2e/login.html").status_code == 404
-    assert request("GET", "/home/..%2f..%2fpyproject.toml").status_code == 404
 
 
-def test_reviewer_routes_still_need_the_token():
-    assert request("GET", "/review").status_code == 401
-    assert request("POST", "/home/").status_code == 401
-    assert request("GET", "/homepage").status_code == 401
-    authorized = request("GET", "/review", headers={"Authorization": "Bearer secret"})
-    assert authorized.status_code == 200
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/reviewer",
+        "/review",
+        "/home",
+        "/homepage",
+        "/home/../review",
+        "/home/../reviewer",
+        "/home/./../review",
+        "/home/..",
+        "/home/..\\review",
+        "//",
+    ],
+)
+def test_paths_that_only_look_public_still_need_the_token(path):
+    assert raw_status(path) == 401
 
 
-def test_only_reads_under_home_are_public():
-    assert public("GET", "/home/")
-    assert public("HEAD", "/home/home.css")
-    assert not public("POST", "/home/")
-    assert not public("GET", "/homepage")
-    assert not public("GET", "/")
+def test_only_get_is_public_on_the_front_page():
+    assert request("POST", "/").status_code == 401
+    assert request("HEAD", "/").status_code == 401
+    assert request("POST", "/home/demo.json").status_code == 401
+
+
+def test_reviewer_routes_work_with_the_token():
+    headers = {"Authorization": "Bearer secret"}
+    assert request("GET", "/review", headers=headers).status_code == 200
+    assert request("GET", "/reviewer", headers=headers).status_code == 200
+
+
+def test_public_paths_are_exactly_the_front_page_its_files_and_the_two_service_routes():
+    assert public("GET", "/")
+    assert public("GET", "/home/home.css")
     assert public("POST", "/inbound") and public("GET", "/healthz")
+    assert not public("GET", "/reviewer")
+    assert not public("GET", "/home")
+    assert not public("GET", "/home/../review")
+    assert not public("HEAD", "/home/home.css")
+    assert not public("POST", "/")

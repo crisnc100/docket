@@ -101,7 +101,7 @@ from a different message also return the existing document. A NUL character in
 
 Set `DOCKET_REVIEW_TOKEN` to a long random secret in the API environment.
 The CLI reads the same variable.
-Every route except `POST /inbound` and `GET /healthz` requires this header:
+Every route except `POST /inbound`, `GET /healthz`, `GET /` and `GET /home/{file}` requires this header:
 
 ```http
 Authorization: Bearer <the value of DOCKET_REVIEW_TOKEN>
@@ -109,14 +109,16 @@ Authorization: Bearer <the value of DOCKET_REVIEW_TOKEN>
 
 An unset, empty or whitespace-only token makes protected routes return 503.
 A missing or invalid Bearer token returns 401.
-The root page presents token entry after a 401.
+The review page at `/reviewer` presents token entry after a 401.
 It keeps the token in session storage for that browser tab.
 The page fetches scripts, styles and PDF previews with the authorization header.
 A 401 clears its saved token; a server or network failure keeps it for retry.
 
 | Route | Purpose |
 | --- | --- |
-| `GET /` | Open the review page |
+| `GET /` | Open the public front page; no token needed |
+| `GET /home/{file}` | Read the front page's own files; no token needed |
+| `GET /reviewer` | Open the review page |
 | `GET /review` | List act-mode documents waiting for review, oldest first |
 | `GET /documents/{id}` | Read status, reason and the event trace |
 | `GET /documents/{id}/file` | Read the PDF preview with reviewer authorization |

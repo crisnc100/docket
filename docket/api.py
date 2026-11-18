@@ -235,7 +235,7 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
     app.mount("/assets", StaticFiles(directory=static / "assets", check_dir=False), name="assets")
     serve_home(app, static / "home")
 
-    @app.get("/", include_in_schema=False)
+    @app.get("/reviewer", include_in_schema=False)
     def review_page():
         return reviewer_page()
 
@@ -252,17 +252,19 @@ HOME_HEADERS = {
 
 
 def serve_home(app: FastAPI, home: Path) -> None:
-    """The public front page and its files. ReviewerAccess lets GET and HEAD under /home
-    through without a token; nothing here reads the database or the review queue."""
+    """The public front page at "/" and its files under /home/. ReviewerAccess lets exactly
+    these GETs through without a token; nothing here reads the database or the review queue."""
     root = home.resolve()
 
-    @app.get("/home", include_in_schema=False)
-    def home_redirect():
-        return RedirectResponse("/home/", 308)
+    @app.get("/", include_in_schema=False)
+    def front_page():
+        return FileResponse(root / "index.html", headers=HOME_HEADERS)
 
     @app.get("/home/{path:path}", include_in_schema=False)
     def home_file(path: str):
-        target = (root / (path or "index.html")).resolve()
+        if path in {"", "index.html"}:
+            return RedirectResponse("/", 308)
+        target = (root / path).resolve()
         if root not in target.parents or not target.is_file():
             raise HTTPException(404, "Not found")
         return FileResponse(target, headers=HOME_HEADERS)

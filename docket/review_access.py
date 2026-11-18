@@ -39,10 +39,15 @@ def reviewer_page(status_code: int = 200):
 
 
 def public(method: str, path: str) -> bool:
-    """Routes that need no reviewer token: the webhook, the health check and the front page."""
-    if (method, path) in {("POST", "/inbound"), ("GET", "/healthz")}:
+    """Routes that need no reviewer token: the webhook, the health check, the front page at
+    exactly "/" and its static files under /home/."""
+    if (method, path) in {("POST", "/inbound"), ("GET", "/healthz"), ("GET", "/")}:
         return True
-    return method in {"GET", "HEAD"} and (path == "/home" or path.startswith("/home/"))
+    if method != "GET" or not path.startswith("/home/") or "\\" in path:
+        return False
+    # ASGI paths arrive percent-decoded but not dot-normalised, so /home/../review must not
+    # count as a front-page file.
+    return all(part not in {".", ".."} for part in path.split("/"))
 
 
 class ReviewerAccess:
@@ -66,7 +71,7 @@ class ReviewerAccess:
         if scheme.lower() != b"bearer" or not valid:
             response = (
                 reviewer_page(401)
-                if (scope["method"], scope["path"]) == ("GET", "/")
+                if (scope["method"], scope["path"]) == ("GET", "/reviewer")
                 else PlainTextResponse(
                     "A valid reviewer Bearer token is required.",
                     401,

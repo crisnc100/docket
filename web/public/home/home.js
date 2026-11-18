@@ -36,11 +36,12 @@ function readStep(doc) {
 }
 
 function clueChips(candidate) {
-  return Object.entries(candidate.signals).map(([name, strength]) =>
+  const chips = Object.entries(candidate.signals).map(([name, strength]) =>
     strength < 1
-      ? el('span', { class: 'clue part' }, `${CLUE_NAMES[name]}, close (${short(strength)})`)
+      ? el('span', { class: 'clue part' }, `${CLUE_NAMES[name]}, close match (${short(strength)})`)
       : el('span', { class: 'clue' }, CLUE_NAMES[name]),
   );
+  return chips.flatMap((chip, index) => (index ? [' · ', chip] : [chip]));
 }
 
 function findStep(doc) {
@@ -105,36 +106,44 @@ const HELD_BECAUSE = {
   category_unreadable: 'The model could not label the document, so a person looks at it.',
 };
 
-function modelLine(doc) {
+function rulesValue(doc) {
   const r = doc.recorded;
-  if (!r.model_called) return 'The model was not asked: there was no candidate to suggest.';
-  if (!r.model_suggestion) return 'The model suggested no unit.';
-  return r.model_suggestion === doc.rules.record_id
-    ? `The model also suggested ${r.model_suggestion}. A suggestion is shown to the reviewer, never used to file.`
-    : `The model suggested ${r.model_suggestion}. A suggestion is shown to the reviewer, never used to file.`;
+  if (r.status === 'would_file') return ['Filed to ', unit(r.record_id)];
+  if (!doc.rules.record_id) return ['Held; no candidate unit'];
+  return ['Held; top pick ', unit(doc.rules.record_id)];
 }
 
-function labelLine(doc) {
+function modelValue(doc) {
+  const r = doc.recorded;
+  if (!r.model_called) return ['Not asked: no candidate to suggest'];
+  if (!r.model_suggestion) return ['None'];
+  return [unit(r.model_suggestion)];
+}
+
+function labelValue(doc) {
   const expected = doc.expected.record_id;
   const comparison = doc.review_comparison;
-  if (doc.recorded.status === 'would_file') return `The test label agrees: ${expected}.`;
-  if (!expected) return 'The test label names no unit, so waiting is the right outcome.';
+  if (!expected) return ['No unit, so waiting is right'];
+  if (doc.recorded.status === 'would_file') return [unit(expected), ', so the filing is right'];
   if (comparison && !comparison.rules_correct && !comparison.suggestion_correct) {
-    return `The test label says ${expected}. The rules' top pick and the model's suggestion were both wrong; holding the document kept it from being filed to the neighbour.`;
+    return [unit(expected), '. Both picks were wrong; holding it kept the neighbour from getting the lease.'];
   }
-  if (doc.expected.decision === 'filed') {
-    return `The test label expected it to file to ${expected}. Both the rules and the model found it, so a reviewer only has to approve.`;
-  }
-  return `The test label says ${expected}.`;
+  if (doc.expected.decision === 'filed') return [unit(expected), '. Both picks found it, so a reviewer only approves.'];
+  return [unit(expected)];
 }
 
 function decideStep(doc) {
   const r = doc.recorded;
   const filed = r.status === 'would_file';
   const box = filed
-    ? el('div', { class: 'outcome filed' }, el('strong', {}, `Filed to ${r.record_id}`), el('p', {}, `The rules decided: enough clues agree, and nothing points at another unit.`))
+    ? el('div', { class: 'outcome filed' }, el('strong', {}, `Filed to ${r.record_id}`), el('p', {}, 'Enough clues agree, and nothing points at another unit.'))
     : el('div', { class: 'outcome held' }, el('strong', {}, 'Waits for a person'), el('p', {}, HELD_BECAUSE[r.reason] ?? 'A person decides.'));
-  return [box, el('p', { class: 'who-decided' }, modelLine(doc)), el('p', { class: 'who-decided' }, labelLine(doc))];
+  const ledger = el('dl', { class: 'ledger' },
+    el('dt', {}, 'Rules decided'), el('dd', {}, ...rulesValue(doc)),
+    el('dt', {}, 'Model suggested (not used to file)'), el('dd', {}, ...modelValue(doc)),
+    el('dt', {}, 'Test label'), el('dd', {}, ...labelValue(doc)),
+  );
+  return [box, ledger];
 }
 
 function markClues(pre, doc) {
@@ -163,6 +172,7 @@ function setup(data) {
   const panel = document.getElementById('run');
   const pre = panel.querySelector('[data-field="text"]');
   const filename = panel.querySelector('[data-field="filename"]');
+  const track = panel.querySelector('[data-steps]');
   const steps = [...panel.querySelectorAll('[data-step]')];
   let timers = [];
   let current = 'doc-0001';
@@ -183,6 +193,11 @@ function setup(data) {
       decide: decideStep(doc),
     };
     const instant = !animate || reducedMotion.matches;
+    const outcome = doc.recorded.status === 'would_file' ? 'filed' : 'held';
+    delete track.dataset.outcome;
+    const settle = () => { track.dataset.outcome = outcome; };
+    if (instant) settle();
+    else timers.push(setTimeout(settle, STEP_MS * (steps.length + 1)));
     steps.forEach((step, index) => {
       step.querySelector('.detail').replaceChildren(...content[step.dataset.step]);
       step.classList.remove('done', 'reveal');
@@ -208,25 +223,15 @@ function setup(data) {
   for (const tab of tabs) {
     tab.addEventListener('click', () => select(tab));
     tab.addEventListener('keydown', event => {
-      const visible = tabs.filter(t => !t.hidden);
-      const index = visible.indexOf(tab);
+      const index = tabs.indexOf(tab);
       const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
       if (!step) return;
       event.preventDefault();
-      const next = visible[(index + step + visible.length) % visible.length];
+      const next = tabs[(index + step + tabs.length) % tabs.length];
       next.focus();
       select(next);
     });
   }
-
-  const more = document.querySelector('[data-more]');
-  more.addEventListener('click', () => {
-    const hidden = tabs.find(tab => tab.hidden);
-    hidden.hidden = false;
-    more.remove();
-    hidden.focus();
-    select(hidden);
-  });
 
   document.querySelector('[data-replay]').addEventListener('click', () => play(current, true));
   document.querySelector('[data-start-demo]').addEventListener('click', event => {

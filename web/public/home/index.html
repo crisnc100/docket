@@ -26,17 +26,12 @@
   <main>
     <section class="hero" aria-labelledby="title">
       <div class="pitch">
-        <h1 id="title">Property documents filed to the right unit, or held for a person.</h1>
+        <h1 id="title"><span>Property&nbsp;documents filed to&nbsp;the&nbsp;right&nbsp;unit,</span> <span>or held for a person.</span></h1>
         <p class="lede">Docket reads incoming leases, invoices and notices, and matches each one to a known unit. It files a document on its own only when two independent clues agree. A language model can suggest a unit to a reviewer; it never decides.</p>
         <p class="actions">
           <a class="button" href="#demo" data-start-demo>Try a test document</a>
           <a class="button quiet" href="#results">See the held-out results</a>
         </p>
-        <ul class="facts">
-          <li><b><span data-fact="results.auto_filed_correct">28</span> of <span data-fact="results.auto_filed">28</span></b> automatic filings were correct in the held-out test.</li>
-          <li>On documents held for a person, the model's suggestion was right on <b><span data-fact="results.model_suggestions_correct">43</span> of <span data-fact="results.review_documents">102</span></b>; the rules' top pick on <b><span data-fact="results.rules_top_pick_correct">62</span></b>.</li>
-          <li>All data is synthetic: <span data-fact="results.units">200</span> units and <span data-fact="results.documents">180</span> held-out test documents. The live test missed <span data-fact="gates.missed">2</span> of its <span data-fact="gates.total">4</span> gates. <a href="#missed">What it missed</a></li>
-        </ul>
       </div>
 
       <div class="demo" id="demo" tabindex="-1" aria-labelledby="demo-title">
@@ -45,9 +40,7 @@
           <button role="tab" id="tab-doc-0001" aria-controls="run" aria-selected="true" data-doc="doc-0001">A clean lease</button>
           <button role="tab" id="tab-doc-0075" aria-controls="run" aria-selected="false" tabindex="-1" data-doc="doc-0075">A near-miss address</button>
           <button role="tab" id="tab-doc-0012" aria-controls="run" aria-selected="false" tabindex="-1" data-doc="doc-0012">A page with no text</button>
-          <button role="tab" id="tab-doc-0176" aria-controls="run" aria-selected="false" tabindex="-1" data-doc="doc-0176" hidden>Just below the line</button>
-          <button class="more" type="button" data-more>One more</button>
-          <span class="own" aria-disabled="true" title="Planned for a hosted beta; not built yet">Your own PDF: later</span>
+          <button role="tab" id="tab-doc-0176" aria-controls="run" aria-selected="false" tabindex="-1" data-doc="doc-0176">Just below the line</button>
         </div>
 
         <div class="run" id="run" role="tabpanel" aria-labelledby="tab-doc-0001" aria-live="polite">
@@ -69,8 +62,14 @@ Tend tax sit later talk couple sound little pass control land.</pre>
             <li data-step="decide"><h3>Decide</h3><div class="detail"></div></li>
           </ol>
         </div>
-        <p class="demo-foot"><span>Recorded results from the held-out test, played back in your browser. Nothing is uploaded.</span><button type="button" class="replay" data-replay>Replay</button></p>
+        <div class="demo-foot"><p>Recorded results from the held-out test, played back in your browser. Nothing is uploaded.</p><span class="own" title="Planned for a hosted beta; not built yet">Your own PDF: later</span><button type="button" class="replay" data-replay>Replay</button></div>
       </div>
+
+      <ul class="facts">
+        <li><b><span data-fact="results.auto_filed_correct">28</span> of <span data-fact="results.auto_filed">28</span></b> automatic filings were correct in the held-out test.</li>
+        <li>On documents held for a person, the model's suggestion was right on <b><span data-fact="results.model_suggestions_correct">43</span> of <span data-fact="results.review_documents">102</span></b>; the rules' top pick on <b><span data-fact="results.rules_top_pick_correct">62</span></b>.</li>
+        <li>All data is synthetic: <span data-fact="results.units">200</span> units and <span data-fact="results.documents">180</span> held-out test documents. The live test missed <span data-fact="gates.missed">2</span> of its <span data-fact="gates.total">4</span> gates. <a href="#missed">What it missed</a></li>
+      </ul>
     </section>
 
     <section class="band" id="how" aria-labelledby="how-title">

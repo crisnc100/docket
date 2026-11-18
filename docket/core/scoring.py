@@ -12,6 +12,8 @@ from docket.core.candidates import Candidate, CandidateResult
 
 type UnitDecimal = Annotated[Decimal, Field(ge=0, le=1, allow_inf_nan=False)]
 QUANTUM = Decimal("0.0000001")
+# Automatic filing needs at least this many independent signals, however strong one is.
+CLUES_REQUIRED = 2
 
 
 class Weights(BaseModel):
@@ -133,9 +135,9 @@ def score_choice(
     value = raw_score
     # Cap the number too, so a caller that only checks the threshold cannot treat one signal
     # as strong.
-    if len(independent) < 2:
+    if len(independent) < CLUES_REQUIRED:
         value = min(value, config.strong_threshold - QUANTUM)
-    if value >= config.strong_threshold and len(independent) >= 2:
+    if value >= config.strong_threshold and len(independent) >= CLUES_REQUIRED:
         tier = Tier.STRONG
     elif value >= config.medium_threshold:
         tier = Tier.MEDIUM

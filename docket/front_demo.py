@@ -15,7 +15,12 @@ from pathlib import Path
 from docket.config import Record, Signal, load_records
 from docket.core.candidates import address_strength, name_strength, normalize_text, shortlist
 from docket.core.extraction import Extracted, extract_document
-from docket.core.scoring import load_scoring_config, score_choice, weighted_evidence
+from docket.core.scoring import (
+    CLUES_REQUIRED,
+    load_scoring_config,
+    score_choice,
+    weighted_evidence,
+)
 
 HELD_OUT = Path("evals/reports/2026-11-13-seed-11.json")
 TUNING = Path("evals/reports/2026-11-13-seed-7.json")
@@ -186,7 +191,7 @@ def _document(
     }
 
 
-def _held_breakdown(report: dict) -> dict:
+def held_rows(report: dict) -> dict[str, list[dict]]:
     """Every held document in exactly one row, so each suggestion figure has its own
     denominator. The report's own comparison counts documents the model was never asked
     about (no candidate) as correct abstentions; these rows keep them apart."""
@@ -194,13 +199,25 @@ def _held_breakdown(report: dict) -> dict:
     held = [row for row in report["docket_results"] if row["status"] == "would_review"]
     failed = [row for row in held if (row["suggestion"] or {}).get("suggestion_failure_reason")]
     answered = [compared[row["document_id"]] for row in held if row not in failed]
-    not_asked = [row for row in answered if row["rules_top_record_id"] is None]
     asked = [row for row in answered if row["rules_top_record_id"] is not None]
-    with_unit = [row for row in asked if row["gold_record_id"] is not None]
-    no_unit = [row for row in asked if row["gold_record_id"] is None]
     return {
-        "held": len(held),
-        "held_failed": len(failed),
+        "failed": failed,
+        "not_asked": [row for row in answered if row["rules_top_record_id"] is None],
+        "asked_with_unit": [row for row in asked if row["gold_record_id"] is not None],
+        "asked_without_unit": [row for row in asked if row["gold_record_id"] is None],
+    }
+
+
+def _held_breakdown(report: dict) -> dict:
+    rows = held_rows(report)
+    with_unit, no_unit, not_asked = (
+        rows["asked_with_unit"],
+        rows["asked_without_unit"],
+        rows["not_asked"],
+    )
+    return {
+        "held": sum(len(members) for members in rows.values()),
+        "held_failed": len(rows["failed"]),
         "held_not_asked": len(not_asked),
         "asked_with_unit": len(with_unit),
         "model_right_unit": sum(row["suggestion_correct"] for row in with_unit),
@@ -265,7 +282,8 @@ def build() -> dict:
             "strong_threshold": str(config.strong_threshold),
             "auto_file_threshold": str(config.auto_file_threshold),
             "auto_file_threshold_short": f"{config.auto_file_threshold:.3f}",
-            "clues_required": 2,
+            "auto_file_threshold_exact": f"{config.auto_file_threshold:.4f}",
+            "clues_required": CLUES_REQUIRED,
         },
         "results": {
             "documents": report["docket"]["documents"],

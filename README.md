@@ -61,6 +61,10 @@ The page shows the PDF, why it needs review, candidate scores, the rules' top pi
 and the model's suggestion. Approve either, choose another candidate, or dismiss.
 `uv run docket status <document-id>` prints the trace.
 
+The public front page is at [/home/](http://127.0.0.1:8010/home/) and needs no token.
+It plays back recorded seed-11 results for four test documents; nothing is uploaded.
+`uv run python -m docket.front_demo` rebuilds its data, and a test fails if it drifts.
+
 Upload with `POST /documents`, or send a signed email payload to `POST /inbound`.
 Both have a **10 MB limit (10 MiB, 10 × 1,024 × 1,024 bytes)** on the whole request,
 including upload or encoding overhead. Oversize requests return 413.

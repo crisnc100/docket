@@ -38,15 +38,19 @@ def reviewer_page(status_code: int = 200):
     )
 
 
+def public(method: str, path: str) -> bool:
+    """Routes that need no reviewer token: the webhook, the health check and the front page."""
+    if (method, path) in {("POST", "/inbound"), ("GET", "/healthz")}:
+        return True
+    return method in {"GET", "HEAD"} and (path == "/home" or path.startswith("/home/"))
+
+
 class ReviewerAccess:
     def __init__(self, app: ASGIApp, settings: Callable[[], Settings]):
         self.app, self.settings = app, settings
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if scope["type"] != "http" or (scope["method"], scope["path"]) in {
-            ("POST", "/inbound"),
-            ("GET", "/healthz"),
-        }:
+        if scope["type"] != "http" or public(scope["method"], scope["path"]):
             return await self.app(scope, receive, send)
         configured = self.settings().docket_review_token
         expected = configured.get_secret_value() if configured is not None else ""

@@ -70,7 +70,8 @@ def raw_status(path: str) -> int:
 def test_front_page_is_served_at_root_without_a_token():
     response = request("GET", "/")
     assert response.status_code == 200
-    assert "Property documents filed to the right unit" in response.text
+    assert '<h1 id="title">' in response.text
+    assert "or held for a person." in response.text
     assert response.headers["content-type"].startswith("text/html")
     assert "default-src 'self'" in response.headers["content-security-policy"]
     assert response.headers["x-content-type-options"] == "nosniff"

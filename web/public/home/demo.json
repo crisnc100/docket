@@ -4,7 +4,9 @@
     "tuning_report": "evals/reports/2026-11-13-seed-7.json",
     "model": "claude-haiku-5-5",
     "recorded_on": "2026-11-13",
-    "seed": 11
+    "seed": 11,
+    "tuning_documents": 180,
+    "confidence_percent": 95
   },
   "policy": {
     "weights": {
@@ -33,9 +35,18 @@
     "rules_only_filed": 38,
     "rules_only_filed_correct": 38,
     "rules_only_filed_wrong": 0,
+    "held": 112,
+    "rejected": 40,
+    "suggestion_failures": 10,
     "review_documents": 102,
     "model_suggestions_correct": 43,
     "rules_top_pick_correct": 62,
+    "held_with_unit": 62,
+    "held_without_unit": 40,
+    "model_right_unit": 3,
+    "rules_right_unit": 42,
+    "model_right_no_unit": 40,
+    "rules_right_no_unit": 20,
     "units": 200
   },
   "gates": {
@@ -49,6 +60,7 @@
       "spend_under_5_dollars": true
     },
     "requests": 440,
+    "answer_limit_percent": 2,
     "unreadable_answers": 40,
     "spend_usd": "0.029313600",
     "missed_floor": [
@@ -121,6 +133,48 @@
           "clue_count": 1
         }
       ],
+      "clue_spans": [
+        {
+          "text": "UNIT-0116",
+          "signal": "explicit_id",
+          "record_id": "UNIT-0116"
+        },
+        {
+          "text": "1510 Birch Street Apt 16",
+          "signal": "address",
+          "record_id": "UNIT-0116"
+        },
+        {
+          "text": "Paul Logan",
+          "signal": "tenant_name",
+          "record_id": "UNIT-0116"
+        },
+        {
+          "text": "BIRCH_06",
+          "signal": "building",
+          "record_id": "UNIT-0116"
+        },
+        {
+          "text": "BIRCH_06",
+          "signal": "building",
+          "record_id": "UNIT-0101"
+        },
+        {
+          "text": "BIRCH_06",
+          "signal": "building",
+          "record_id": "UNIT-0102"
+        },
+        {
+          "text": "BIRCH_06",
+          "signal": "building",
+          "record_id": "UNIT-0103"
+        },
+        {
+          "text": "BIRCH_06",
+          "signal": "building",
+          "record_id": "UNIT-0104"
+        }
+      ],
       "conflict": false,
       "rules": {
         "record_id": "UNIT-0116",
@@ -178,6 +232,23 @@
           "clue_count": 2
         }
       ],
+      "clue_spans": [
+        {
+          "text": "1110 Maple Street Apt 20",
+          "signal": "address",
+          "record_id": "UNIT-0040"
+        },
+        {
+          "text": "1110 Maple Streeet Apt 4",
+          "signal": "address",
+          "record_id": "UNIT-0024"
+        },
+        {
+          "text": "Michael Ryan",
+          "signal": "tenant_name",
+          "record_id": "UNIT-0024"
+        }
+      ],
       "conflict": true,
       "rules": {
         "record_id": "UNIT-0040",
@@ -220,6 +291,7 @@
       "text": "",
       "pages": 1,
       "candidates": [],
+      "clue_spans": [],
       "conflict": false,
       "rules": {
         "record_id": null,
@@ -272,6 +344,18 @@
           },
           "evidence_score": "0.5842105",
           "clue_count": 2
+        }
+      ],
+      "clue_spans": [
+        {
+          "text": "UNIT-0131",
+          "signal": "explicit_id",
+          "record_id": "UNIT-0131"
+        },
+        {
+          "text": "1610 zlm Street Apt 11",
+          "signal": "address",
+          "record_id": "UNIT-0131"
         }
       ],
       "conflict": false,

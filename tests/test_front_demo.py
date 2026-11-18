@@ -3,6 +3,7 @@
 import json
 import re
 from decimal import Decimal
+from html.parser import HTMLParser
 from pathlib import Path
 
 from docket import front_demo
@@ -79,3 +80,68 @@ def test_every_number_written_into_the_page_matches_demo_json():
             assert Decimal(shown) == Decimal(value), path
         else:
             assert shown == str(value), path
+
+
+def test_clue_spans_are_real_text_and_cover_every_clue_the_page_marks():
+    for document in front_demo.build()["documents"]:
+        for span in document["clue_spans"]:
+            assert span["text"] in document["text"], (document["id"], span)
+        marked = {(span["record_id"], span["signal"]) for span in document["clue_spans"]}
+        for candidate in document["candidates"]:
+            for signal in candidate["signals"]:
+                assert (candidate["record_id"], signal) in marked, (document["id"], signal)
+
+
+def test_close_spellings_are_marked_where_the_matcher_found_them():
+    documents = {doc["id"]: doc for doc in front_demo.build()["documents"]}
+    spans = {span["text"] for span in documents["doc-0075"]["clue_spans"]}
+    assert "1110 Maple Streeet Apt 4" in spans
+    assert "1110 Maple Street Apt 20" in spans
+
+
+def test_suggestion_split_adds_up_to_the_report_totals():
+    results = front_demo.build()["results"]
+    assert results["held_with_unit"] + results["held_without_unit"] == results["review_documents"]
+    assert results["review_documents"] + results["suggestion_failures"] == results["held"]
+    assert (
+        results["model_right_unit"] + results["model_right_no_unit"]
+        == (results["model_suggestions_correct"])
+    )
+    assert (
+        results["rules_right_unit"] + results["rules_right_no_unit"]
+        == (results["rules_top_pick_correct"])
+    )
+
+
+class _VisibleText(HTMLParser):
+    """Collects text a visitor reads, minus data-fact elements (pinned by the test above) and
+    the demo's data-field placeholders, which home.js replaces with recorded corpus text."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.skip, self.stack, self.parts = 0, [], []
+
+    def handle_starttag(self, tag, attrs):
+        hidden = tag in {"script", "style"} or any(
+            name in {"data-fact", "data-field"} for name, _ in attrs
+        )
+        self.stack.append(hidden)
+        self.skip += hidden
+
+    def handle_endtag(self, tag):
+        if self.stack:
+            self.skip -= self.stack.pop()
+
+    def handle_data(self, data):
+        if not self.skip:
+            self.parts.append(data)
+
+
+def test_no_figure_on_the_page_escapes_the_data_fact_check():
+    parser = _VisibleText()
+    parser.feed(PAGE.read_text())
+    text = " ".join(parser.parts)
+    # A licence name and a model version, not measured figures.
+    allowed = {"Apache-2.0.", "5.5"}
+    stray = [word for word in re.findall(r"\S*\d\S*", text) if word not in allowed]
+    assert stray == [], stray

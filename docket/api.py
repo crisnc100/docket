@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from sqlalchemy import select
@@ -258,12 +258,20 @@ def serve_home(app: FastAPI, home: Path) -> None:
 
     @app.get("/", include_in_schema=False)
     def front_page():
-        return FileResponse(root / "index.html", headers=HOME_HEADERS)
+        page = root / "index.html"
+        if not page.is_file():
+            return PlainTextResponse(
+                "Build the front page with npm --prefix web run build", 503, headers=HOME_HEADERS
+            )
+        return FileResponse(page, headers=HOME_HEADERS)
 
     @app.get("/home/{path:path}", include_in_schema=False)
     def home_file(path: str):
         if path in {"", "index.html"}:
             return RedirectResponse("/", 308)
+        # Path.resolve raises on a NUL byte; treat it like any other path that is not a file.
+        if "\x00" in path:
+            raise HTTPException(404, "Not found")
         target = (root / path).resolve()
         if root not in target.parents or not target.is_file():
             raise HTTPException(404, "Not found")

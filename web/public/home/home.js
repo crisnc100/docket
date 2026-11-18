@@ -29,7 +29,7 @@ const short = value => Number(value).toFixed(3).replace(/0+$/, '').replace(/\.$/
 
 function readStep(doc) {
   if (!doc.text) {
-    return [p('No text layer. This page is a picture of text, and Docket does not read images, so there is nothing to match.')];
+    return [p('This PDF has no text layer, and Docket does not read page images, so there is nothing to match.')];
   }
   const lines = doc.text.split('\n').length;
   return [p(`Read ${lines} lines of text from ${doc.pages} page${doc.pages === 1 ? '' : 's'}.`)];
@@ -93,10 +93,12 @@ function scoreStep(doc, policy) {
   }
   const top = doc.candidates.find(c => c.record_id === doc.rules.record_id);
   const score = Number(doc.rules.score);
-  const gap = threshold - score;
+  // A near miss shows score, line and gap at four places so the subtraction checks out.
+  const shown = (score >= threshold || threshold - score >= 0.01) ? 3 : 4;
+  const round = value => Number(value.toFixed(shown));
   const verdict = score >= threshold
     ? `${short(score)} from ${top.clue_count} clues. It needs ${policy.auto_file_threshold_short} and at least ${policy.clues_required} clues.`
-    : `${short(score)} from ${top.clue_count} clues: ${gap.toFixed(4)} short of ${policy.auto_file_threshold_short}.`;
+    : `${round(score).toFixed(shown)} from ${top.clue_count} clues: ${(round(threshold) - round(score)).toFixed(shown)} short of ${round(threshold).toFixed(shown)}.`;
   return [...meter(score, threshold), p(verdict)];
 }
 
@@ -136,7 +138,7 @@ function decideStep(doc) {
   const r = doc.recorded;
   const filed = r.status === 'would_file';
   const box = filed
-    ? el('div', { class: 'outcome filed' }, el('strong', {}, `Filed to ${r.record_id}`), el('p', {}, 'Enough clues agree, and nothing points at another unit.'))
+    ? el('div', { class: 'outcome filed' }, el('strong', {}, `Filed to ${r.record_id}`), el('p', {}, 'Enough clues agree, and no other unit is named outright.'))
     : el('div', { class: 'outcome held' }, el('strong', {}, 'Waits for a person'), el('p', {}, HELD_BECAUSE[r.reason] ?? 'A person decides.'));
   // A filed document's rules row would repeat the green box, so only held ones show it.
   const ledger = el('dl', { class: 'ledger' },
@@ -148,17 +150,13 @@ function decideStep(doc) {
 }
 
 function markClues(pre, doc) {
-  const phrases = new Set();
-  for (const c of doc.candidates) {
-    if (c.signals.explicit_id) phrases.add(c.record_id);
-    if (c.signals.address) phrases.add(c.address);
-    if (c.signals.tenant_name) phrases.add(c.tenant);
-    if (c.signals.building) phrases.add(doc.text.match(/Building: (\S+)/)?.[1] ?? '');
-  }
-  const found = [...phrases].filter(phrase => phrase && doc.text.includes(phrase));
+  // Spans come from the matcher re-run line by line in docket/front_demo.py, so a close
+  // spelling is marked where it was actually matched.
+  const found = [...new Set(doc.clue_spans.map(span => span.text))].filter(text => doc.text.includes(text));
   pre.replaceChildren();
   if (!found.length) { pre.textContent = doc.text; return; }
-  const pattern = new RegExp(found.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
+  found.sort((a, b) => b.length - a.length);
+  const pattern = new RegExp(found.map(text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
   let last = 0;
   for (const match of doc.text.matchAll(pattern)) {
     pre.append(doc.text.slice(last, match.index), el('mark', {}, match[0]));

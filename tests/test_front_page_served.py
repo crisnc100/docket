@@ -16,9 +16,9 @@ from docket.settings import Settings
 HOME = Path("web/public/home")
 
 
-def guarded_app():
+def guarded_app(home: Path = HOME):
     app = FastAPI()
-    serve_home(app, HOME)
+    serve_home(app, home)
 
     @app.get("/review")
     def queue():
@@ -31,16 +31,16 @@ def guarded_app():
     return ReviewerAccess(app, lambda: Settings(docket_review_token=SecretStr("secret")))
 
 
-def request(method: str, path: str, **kwargs) -> httpx.Response:
+def request(method: str, path: str, home: Path = HOME, **kwargs) -> httpx.Response:
     async def send():
-        transport = httpx.ASGITransport(guarded_app())
+        transport = httpx.ASGITransport(guarded_app(home))
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             return await client.request(method, path, **kwargs)
 
     return asyncio.run(send())
 
 
-def raw_status(path: str) -> int:
+def raw_status(path: str, home: Path = HOME) -> int:
     """Send a path exactly as given; httpx would normalise dot segments before sending."""
     messages = []
 
@@ -64,7 +64,7 @@ def raw_status(path: str) -> int:
         "client": ("127.0.0.1", 1),
         "server": ("test", 80),
     }
-    asyncio.run(guarded_app()(scope, receive, send))
+    asyncio.run(guarded_app(home)(scope, receive, send))
     return next(m["status"] for m in messages if m["type"] == "http.response.start")
 
 
@@ -164,3 +164,31 @@ def test_public_paths_are_exactly_the_front_page_its_files_and_the_two_service_r
     assert not public("GET", "/home/../review")
     assert not public("HEAD", "/home/home.css")
     assert not public("POST", "/")
+
+
+def test_missing_build_gives_a_clear_503_not_a_crash(tmp_path):
+    response = request("GET", "/", home=tmp_path)
+    assert response.status_code == 503
+    assert "npm --prefix web run build" in response.text
+
+
+def test_absolute_and_doubled_paths_stay_inside_the_folder():
+    assert raw_status("/home//etc/passwd") == 404
+    assert request("GET", "/home/%2Fetc%2Fpasswd").status_code == 404
+
+
+def test_symlink_out_of_the_folder_is_not_served(tmp_path):
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "index.html").write_text("<h1>front</h1>")
+    secret = tmp_path / "secret.txt"
+    secret.write_text("outside")
+    (home / "link.txt").symlink_to(secret)
+    response = request("GET", "/home/link.txt", home=home)
+    assert response.status_code == 404
+    assert "outside" not in response.text
+
+
+def test_nul_byte_is_a_404():
+    assert raw_status("/home/\x00") == 404
+    assert request("GET", "/home/%00").status_code == 404

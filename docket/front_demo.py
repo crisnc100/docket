@@ -8,20 +8,28 @@ Regenerate with: uv run python -m docket.front_demo
 """
 
 import json
+import re
 from decimal import Decimal
 from pathlib import Path
 
 from docket.config import Record, Signal, load_records
-from docket.core.candidates import shortlist
+from docket.core.candidates import address_strength, name_strength, normalize_text, shortlist
 from docket.core.extraction import Extracted, extract_document
 from docket.core.scoring import load_scoring_config, score_choice, weighted_evidence
 
 HELD_OUT = Path("evals/reports/2026-11-13-seed-11.json")
 TUNING = Path("evals/reports/2026-11-13-seed-7.json")
+# ADR 008's live-pass gates: at most 2% unreadable or unanswered, spend under $5.
+ANSWER_LIMIT_PERCENT = 2
+SPEND_CAP_USD = 5
+# The report's intervals use z = 1.96 (docket/evaluation.py).
+CONFIDENCE_PERCENT = 95
+# The matcher's fuzzy cutoff for names and addresses (shortlist's tenant_cutoff default).
+MATCH_CUTOFF = 0.88
 CORPUS = Path("corpus/seed-11")
 OUTPUT = Path("web/public/home/demo.json")
 
-# Order is the order of the page's document tabs. doc-0176 sits behind "one more".
+# Order is the order of the page's document tabs.
 DOCUMENTS = ("doc-0001", "doc-0075", "doc-0012", "doc-0176")
 
 
@@ -32,6 +40,58 @@ def _labels() -> dict[str, dict]:
 
 def _by_id(rows: list[dict]) -> dict[str, dict]:
     return {row["document_id"]: row for row in rows}
+
+
+def _label_free(line: str) -> str:
+    return line.split(":", 1)[1].strip() if ":" in line else line.strip()
+
+
+def _spans(text: str, candidate, record: Record) -> list[dict]:
+    """The text each clue came from, found by re-running the matcher one line at a time, so a
+    close spelling such as "Streeet" is marked where the matcher actually found it."""
+    lines = [line for line in text.splitlines() if line.strip()]
+    spans = []
+
+    def add(signal: Signal, found: str | None):
+        if found:
+            spans.append({"text": found, "signal": signal.value, "record_id": record.record_id})
+
+    def line_with(strength: float, measure) -> str | None:
+        for line in lines:
+            if abs(measure(_label_free(line)) - strength) < 1e-9:
+                return _label_free(line)
+        return None
+
+    for signal, strength in candidate.signals.items():
+        if strength <= 0:
+            continue
+        if signal == Signal.EXPLICIT_ID:
+            match = re.search(re.escape(record.record_id), text, re.IGNORECASE)
+            add(signal, match.group(0) if match else None)
+        elif signal == Signal.BUILDING and candidate.building_is_explicit:
+            match = re.search(re.escape(record.building), text, re.IGNORECASE)
+            add(signal, match.group(0) if match else None)
+        elif signal == Signal.ADDRESS:
+            aliases = [record.address, *record.aliases]
+            add(
+                signal,
+                line_with(
+                    strength,
+                    lambda rest, aliases=aliases: address_strength(aliases, [rest], MATCH_CUTOFF),
+                ),
+            )
+        elif signal == Signal.TENANT_NAME:
+            names = [*record.current_tenants, *record.former_tenants]
+            add(
+                signal,
+                line_with(
+                    strength,
+                    lambda rest, names=names: name_strength(
+                        names, [normalize_text(rest)], MATCH_CUTOFF
+                    ),
+                ),
+            )
+    return spans
 
 
 def _candidate(candidate, records: dict[str, Record], config) -> dict:
@@ -83,6 +143,11 @@ def _document(
         "text": extracted.text.strip(),
         "pages": extracted.page_count,
         "candidates": [_candidate(by_id[item.record_id], records, config) for item in ranked],
+        "clue_spans": [
+            span
+            for item in ranked
+            for span in _spans(extracted.text, by_id[item.record_id], records[item.record_id])
+        ],
         "conflict": found.conflict,
         "rules": {
             "record_id": top.record_id,
@@ -109,6 +174,20 @@ def _document(
     }
 
 
+def _suggestion_split(compared: list[dict]) -> dict:
+    """The report counts a correct "no unit" as a match; split unit picks from abstentions."""
+    with_unit = [row for row in compared if row["gold_record_id"] is not None]
+    no_unit = [row for row in compared if row["gold_record_id"] is None]
+    return {
+        "held_with_unit": len(with_unit),
+        "held_without_unit": len(no_unit),
+        "model_right_unit": sum(row["suggestion_correct"] for row in with_unit),
+        "rules_right_unit": sum(row["rules_correct"] for row in with_unit),
+        "model_right_no_unit": sum(row["suggestion_correct"] for row in no_unit),
+        "rules_right_no_unit": sum(row["rules_correct"] for row in no_unit),
+    }
+
+
 def _gates(report: dict, tuning: dict) -> dict:
     """The four live-pass gates as ADR 008 defines them, measured from both seeds' reports."""
     seeds = (report["live"], tuning["live"])
@@ -117,10 +196,10 @@ def _gates(report: dict, tuning: dict) -> dict:
     no_answer = sum(live["no_answer_count"] for live in seeds)
     spend = sum(Decimal(live["spend_usd"]) for live in seeds)
     gates = {
-        "unreadable_at_most_2_percent": unreadable <= requests * Decimal("0.02"),
-        "no_answer_at_most_2_percent": no_answer <= requests * Decimal("0.02"),
+        "unreadable_at_most_2_percent": unreadable * 100 <= requests * ANSWER_LIMIT_PERCENT,
+        "no_answer_at_most_2_percent": no_answer * 100 <= requests * ANSWER_LIMIT_PERCENT,
         "held_out_floors": all(report["floors"].values()),
-        "spend_under_5_dollars": spend < 5,
+        "spend_under_5_dollars": spend < SPEND_CAP_USD,
     }
     return {
         "passed": sum(gates.values()),
@@ -128,6 +207,7 @@ def _gates(report: dict, tuning: dict) -> dict:
         "total": len(gates),
         "results": gates,
         "requests": requests,
+        "answer_limit_percent": ANSWER_LIMIT_PERCENT,
         "unreadable_answers": unreadable,
         "spend_usd": str(spend),
         "missed_floor": [name for name, met in report["floors"].items() if not met],
@@ -150,6 +230,8 @@ def build() -> dict:
             "model": report["model"],
             "recorded_on": report["date"],
             "seed": report["seed"],
+            "tuning_documents": tuning["docket"]["documents"],
+            "confidence_percent": CONFIDENCE_PERCENT,
         },
         "policy": {
             "weights": {
@@ -172,9 +254,13 @@ def build() -> dict:
             "rules_only_filed": report["baseline"]["auto_file_count"],
             "rules_only_filed_correct": report["baseline"]["correct_file_count"],
             "rules_only_filed_wrong": report["baseline"]["wrong_file_count"],
+            "held": report["docket"]["outcomes"]["would_review"],
+            "rejected": report["docket"]["outcomes"]["rejected"],
+            "suggestion_failures": suggestions["excluded_suggestion_failures"],
             "review_documents": suggestions["review_documents"],
             "model_suggestions_correct": suggestions["suggestion_correct"],
             "rules_top_pick_correct": suggestions["rules_correct"],
+            **_suggestion_split(suggestions["documents"]),
             "units": len(records),
         },
         "gates": _gates(report, tuning),

@@ -13,13 +13,13 @@ web
 
 ## Product Purpose
 
-Docket is an open-source pipeline that reads an incoming property document (a PDF) and matches it to a known unit, called a record, such as `UNIT-0001`. It files the document automatically only when two independent pieces of evidence agree, the score reaches the threshold, and nothing points at a second unit. Everything else waits for a person on the review page. Every step leaves a trace.
+Docket is an open-source pipeline that reads an incoming property document (a PDF) and matches it to a known unit, called a record, such as `UNIT-0001`. It files the document automatically only when two independent pieces of evidence agree, the score reaches the threshold, and no other unit is named outright (by its record id, its full address or a full tenant name; a shared building code does not count). A file that cannot be read at all (zero bytes, too large, not a PDF, encrypted, corrupt) is rejected with a reason before review. Everything else waits for a person on the review page. Every step leaves a trace.
 
 Success on the front page is a visitor who has watched a real test document get read, matched, scored, and then either filed or sent to a person, and who understands why. Success on the review page is that a reviewer can settle a document quickly and nothing is filed to the wrong unit.
 
 ## Positioning
 
-The rules decide; the model only suggests. Automatic filing needs two independent signals (such as an address and a tenant name), a strong score at or above 0.5857142, and no conflict. A language model labels the category and may suggest a record to the reviewer, but it never decides whether or where a document files. In the held-out test its suggestions were less accurate than the rules, and the project publishes that. A document that only names a unit id cannot file itself, which is the main defence against injected instructions.
+The rules decide; the model only suggests. Automatic filing needs two independent signals (such as an address and a tenant name), a strong score at or above 0.5857142, and no conflict, meaning no second record named by its id, a full address match or a full tenant-name match. A language model labels the category and may suggest a record to the reviewer. It never files a document or chooses where one files, but it can hold one back: an unreadable category answer sends an otherwise eligible document to review (10 documents in seed 11, such as doc-0017 at score 0.95). In the held-out test its suggestions were less accurate than the rules, and the project publishes that. A document that only names a unit id cannot file itself, which is the main defence against injected instructions.
 
 ## Operating Context
 
@@ -35,7 +35,7 @@ The rules decide; the model only suggests. Automatic filing needs two independen
 
 - Model: Claude Haiku 5.5 on the Anthropic API, recorded live once on 2026-11-13; replays use saved answers with no model call.
 - Data: synthetic. 200 units; seeds 7 and 11 each generate 180 test documents across case types (clean, address only, tenant only, former tenant, two-record conflict, decoy near-miss address, building level, no record, injection, exact duplicate, empty text layer, corrupt, encrypted, zero byte, non-PDF, very long, id in file name only, graded evidence). Seed 7 chose the threshold; seed 11 was held out.
-- A document whose unit is not in the list finds no candidate. It goes to review with reason `no_candidate_chosen`, gets category misc, and the model is not called. Docket never creates a record from document text.
+- A document whose unit is not in the list can still produce candidates when other clues (a shared building code, a tenant name, an address) match other units; it then goes through the normal scoring and, lacking two agreeing clues, waits for review. When no clue matches any unit, it goes to review with reason `no_candidate_chosen`, gets category misc, and the model is not called. Docket never creates a record from document text.
 - No optical character recognition: a scan with no text layer finds no candidate and goes to review the same way.
 - Conflicting evidence and single-signal matches go to review. This keeps filing precision at the cost of more human work.
 - The model's safety filter refused every `very_long` test document (category `bio`). They go to review instead of failing; this is the whole recall gap against the rules-only baseline.
@@ -50,7 +50,7 @@ The rules decide; the model only suggests. Automatic filing needs two independen
 
 ## Evidence on Hand
 
-- Held-out report, seed 11 (`evals/reports/2026-11-13-seed-11.md`, `.json`): Docket filed 28 of 180 automatically, all 28 correct, none wrong; recall 28 of 39 against the rules-only baseline's 38 of 39; 112 of 180 sent to review; 40 rejected as unreadable. Model suggestions were right on 43 of 102 review items, the rules' top pick on 62 of 102. Every interval is a 95% Wilson interval.
+- Held-out report, seed 11 (`evals/reports/2026-11-13-seed-11.md`, `.json`): Docket filed 28 of 180 automatically, all 28 correct, none wrong; recall 28 of 39 against the rules-only baseline's 38 of 39; 112 of 180 sent to review; 40 rejected as unreadable. On the 102 held documents compared (112 held, 10 suggestion failures left out), the model's answer matched the label on 43 and the rules' top pick on 62; split by kind, the model named the right unit on 3 of the 62 documents that belong to a unit and correctly named none on 40 of 40, against the rules' 42 of 62 and 20 of 40. Every interval is a 95% Wilson interval.
 - The live pass missed two of its four gates (unreadable answers 40 of 440, 9.1%, against a 2% limit; recall against the baseline). Both are published in the README and ADR 008.
 - Cost and speed: $0.0293 for the whole 440-call pass; median call 1.29 s on seed 11.
 - Failure notes in `docs/failures/`: 0017 (very long refusals), 0176 (threshold miss by 0.0015), 0002 (id in file name only), 0009 (unlisted address), 0075 (decoy address, where the rules and the model both propose the neighbouring unit).

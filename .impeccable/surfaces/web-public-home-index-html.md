@@ -23,7 +23,7 @@ THESIS: A plain product page whose craft is exactness: the demo is the hero, and
 
 OWN-WORLD: White ground, near-black ink, one deep green for "filed", one amber-brown for "waits for a person", and one blue kept for focus rings, clue highlights and text selection; hairline 1px rules, 8px radii only on the demo panel and buttons, and one soft ink-tinted shadow on the demo panel alone; Geist for text and fixed settings, Geist Mono only for data the pipeline produced (unit ids, scores, extracted text).
 
-STORY: The visitor learns that Docket files a document only when two clues agree, watches three real test documents get decided (one filed, two held), sees that the model suggests but never decides and was less accurate than the rules, and leaves knowing the data is synthetic and two gates were missed.
+STORY: The visitor learns that Docket files a document only when two clues agree, watches four real test documents get decided (one filed, three held), sees that the model suggests but never files a document and was less accurate than the rules, and leaves knowing the data is synthetic and two gates were missed.
 
 FIRST VIEWPORT: Left column (about 40%): one-sentence headline, two-sentence lede, primary button "Try a test document" (scrolls focus to the demo), secondary link to the held-out results, then three short fact lines with real numbers. Right column (about 60%): the demo panel at full height: document tabs on top, the document's text (what Docket reads) beside a four-step track: read, find units, score, decide, ending in the outcome.
 

@@ -64,19 +64,20 @@ function findStep(doc) {
   );
   const found = `${doc.candidates.length} unit${doc.candidates.length === 1 ? '' : 's'} found`;
   const intro = doc.conflict
-    ? p(`${found}. The clues point at two different units.`)
+    ? p(`${found}. The clues name more than one unit outright.`)
     : p(rest.length ? `${found}; ${weakNote(rest)}` : `${found}.`);
   return [intro, list];
 }
 
-function meter(score, threshold) {
-  const bar = el('div', { class: 'meter', role: 'img', 'aria-label': `Score ${short(score)} against a filing line of ${short(threshold)}` },
+function meter(score, threshold, places) {
+  const fixed = value => (places ? value.toFixed(places) : short(value));
+  const bar = el('div', { class: 'meter', role: 'img', 'aria-label': `Score ${fixed(score)} against a filing line of ${fixed(threshold)}` },
     el('span', { class: 'fill', style: { width: `${Math.min(score, 1) * 100}%` } }),
     el('span', { class: 'line', style: { left: `calc(${threshold * 100}% - 1px)` } }),
   );
   const labels = el('div', { class: 'meter-labels', 'aria-hidden': 'true' },
     el('span', {}, '0'),
-    el('span', { class: 'at', style: { left: `${threshold * 100}%` } }, `files at ${short(threshold)}`),
+    el('span', { class: 'at', style: { left: `${threshold * 100}%` } }, `files at ${fixed(threshold)}`),
     el('span', { class: 'end' }, '1'),
   );
   return [bar, labels];
@@ -88,22 +89,24 @@ function scoreStep(doc, policy) {
   if (doc.conflict) {
     const best = [...doc.candidates].sort((a, b) => Number(b.evidence_score) - Number(a.evidence_score))[0];
     return [
-      p('Two units are named, so the score is set to 0. Alone, ', unit(best.record_id), ` would score ${short(best.evidence_score)} from ${best.clue_count} clues.`),
+      p('The clues name more than one unit outright, so the score is set to 0. Alone, ', unit(best.record_id), ` would score ${short(best.evidence_score)} from ${best.clue_count} clues.`),
     ];
   }
   const top = doc.candidates.find(c => c.record_id === doc.rules.record_id);
   const score = Number(doc.rules.score);
-  // A near miss shows score, line and gap at four places so the subtraction checks out.
-  const shown = (score >= threshold || threshold - score >= 0.01) ? 3 : 4;
+  // A near miss shows score, line and gap at four places, in the text and on the meter, so
+  // the subtraction checks out.
+  const nearMiss = score < threshold && threshold - score < 0.01;
+  const shown = nearMiss ? 4 : 3;
   const round = value => Number(value.toFixed(shown));
   const verdict = score >= threshold
     ? `${short(score)} from ${top.clue_count} clues. It needs ${policy.auto_file_threshold_short} and at least ${policy.clues_required} clues.`
     : `${round(score).toFixed(shown)} from ${top.clue_count} clues: ${(round(threshold) - round(score)).toFixed(shown)} short of ${round(threshold).toFixed(shown)}.`;
-  return [...meter(score, threshold), p(verdict)];
+  return [...meter(score, threshold, nearMiss ? shown : 0), p(verdict)];
 }
 
 const HELD_BECAUSE = {
-  conflicting_records: 'Two units are named, so a person picks the right one.',
+  conflicting_records: 'The clues name more than one unit outright, so a person picks.',
   no_candidate_chosen: 'No unit was found, so a person looks at it.',
   insufficient_corroboration: 'The clues are not strong enough to file without a person.',
   category_unreadable: 'The model could not label the document, so a person looks at it.',
@@ -138,7 +141,7 @@ function decideStep(doc) {
   const r = doc.recorded;
   const filed = r.status === 'would_file';
   const box = filed
-    ? el('div', { class: 'outcome filed' }, el('strong', {}, `Filed to ${r.record_id}`), el('p', {}, 'Enough clues agree, and no other unit is named outright.'))
+    ? el('div', { class: 'outcome filed' }, el('strong', {}, `Filed to ${r.record_id}`), el('p', {}, 'Enough clues agree, and they name only this unit outright.'))
     : el('div', { class: 'outcome held' }, el('strong', {}, 'Waits for a person'), el('p', {}, HELD_BECAUSE[r.reason] ?? 'A person decides.'));
   // A filed document's rules row would repeat the green box, so only held ones show it.
   const ledger = el('dl', { class: 'ledger' },

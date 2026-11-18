@@ -74,8 +74,7 @@ h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.02em; text-wrap: ba
   max-width: 1600px; margin: 0 auto;
 }
 h1 > span { display: block; }
-h1 .nb { white-space: nowrap; }
-h1 { font-size: clamp(2.125rem, 0.9rem + 2.4vw, 2.875rem); line-height: 1.05; letter-spacing: -0.032em; font-weight: 680; }
+h1 { max-width: 22ch; font-size: clamp(2.125rem, 0.9rem + 2.4vw, 2.875rem); line-height: 1.05; letter-spacing: -0.032em; font-weight: 680; }
 .lede { margin: 20px 0 0; max-width: 34em; font-size: clamp(1.0625rem, 0.98rem + 0.25vw, 1.1875rem); line-height: 1.5; color: var(--ink-2); }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 28px 0 0; }
 .button {
@@ -153,6 +152,7 @@ h1 { font-size: clamp(2.125rem, 0.9rem + 2.4vw, 2.875rem); line-height: 1.05; le
 .units .where { color: var(--ink-2); font-size: 0.8125rem; min-width: 0; }
 .units .clues { grid-column: 1 / -1; font-size: 0.8125rem; color: var(--ink); }
 .clue { white-space: nowrap; }
+@media (max-width: 480px) { .clue { white-space: normal; } }
 .clue.part { color: var(--ink-2); }
 
 .meter { position: relative; height: 8px; margin: 8px 0 4px; background: var(--soft); box-shadow: inset 0 0 0 1px var(--line); }
@@ -162,7 +162,7 @@ h1 { font-size: clamp(2.125rem, 0.9rem + 2.4vw, 2.875rem); line-height: 1.05; le
 .meter-labels span { position: absolute; top: 0; }
 .meter-labels .at { transform: translateX(-50%); white-space: nowrap; }
 .meter-labels .end { right: 0; }
-.num { font-family: var(--mono); font-size: 0.8125rem; color: var(--ink); white-space: nowrap; }
+.num { display: inline-block; max-width: 100%; overflow-wrap: anywhere; font-family: var(--mono); font-size: 0.8125rem; color: var(--ink); }
 
 .outcome { margin-top: 6px; padding: 8px 12px; }
 .outcome strong { display: block; font-size: 0.9375rem; font-weight: 650; letter-spacing: -0.01em; }
@@ -171,7 +171,7 @@ h1 { font-size: clamp(2.125rem, 0.9rem + 2.4vw, 2.875rem); line-height: 1.05; le
 .outcome.held { background: var(--held-bg); color: var(--held); }
 .outcome.filed p { color: var(--filed-text); }
 .outcome.held p { color: var(--held-text); }
-.ledger { display: grid; grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr); margin: 10px 0 0; border-bottom: 1px solid var(--line); color: var(--ink); }
+.ledger { display: grid; grid-template-columns: minmax(0, 38%) minmax(0, 1fr); margin: 10px 0 0; border-bottom: 1px solid var(--line); color: var(--ink); }
 .ledger dt, .ledger dd { margin: 0; padding: 4px 0; border-top: 1px solid var(--line); }
 .ledger dt { padding-right: 14px; color: var(--ink-2); }
 
@@ -200,6 +200,8 @@ tbody th { font-weight: 400; color: var(--ink-2); padding-right: 16px; }
 .compare { max-width: 880px; margin: 8px 0 28px; }
 .compare td { font-weight: 600; padding-right: 16px; }
 .compare .who { display: block; font-weight: 400; font-size: 0.8125rem; color: var(--ink-2); }
+.compare td.who { display: table-cell; }
+.split tbody th { max-width: 30rem; }
 
 .fold { max-width: 880px; border-top: 1px solid var(--line); padding-top: 14px; }
 .fold summary { cursor: pointer; font-weight: 600; width: fit-content; list-style: none; display: flex; align-items: center; gap: 10px; }
@@ -223,9 +225,15 @@ tbody th { font-weight: 400; color: var(--ink-2); padding-right: 16px; }
   .facts { margin-top: 0; }
 }
 @media (max-width: 480px) {
-  h1 .nb { white-space: normal; }
+  .ledger { grid-template-columns: minmax(0, 1fr); }
+  .ledger dd { border-top: 0; padding-top: 0; }
 }
 @media (max-width: 760px) {
+  .split thead { display: none; }
+  .split tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .split th, .split td { display: block; padding: 0; border: 0; }
+  .split th { grid-column: 1 / -1; padding-bottom: 6px; max-width: none; }
+  .split td::before { content: attr(data-label); display: block; min-height: 2.6em; font-size: 0.8125rem; font-weight: 400; color: var(--ink-2); }
   .top { height: auto; padding-block: 14px; flex-wrap: wrap; row-gap: 8px; }
   .top ul { gap: 18px; font-size: 0.875rem; flex-wrap: wrap; white-space: normal; }
   .run { grid-template-columns: minmax(0, 1fr); }

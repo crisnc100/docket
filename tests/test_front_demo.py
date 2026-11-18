@@ -130,6 +130,35 @@ def test_close_spellings_are_marked_where_the_matcher_found_them():
     assert "1110 Maple Street Apt 20" in spans
 
 
+def test_held_rows_partition_every_held_document_and_match_the_report_totals():
+    report = json.loads(front_demo.HELD_OUT.read_text())
+    results = front_demo.build()["results"]
+    rows = ("held_failed", "held_not_asked", "asked_with_unit", "asked_without_unit")
+    assert sum(results[row] for row in rows) == results["held"]
+    assert results["held"] == report["docket"]["outcomes"]["would_review"]
+    assert results["held_failed"] == report["review_suggestion_comparison"].get(
+        "excluded_suggestion_failures", 0
+    )
+    comparison = report["review_suggestion_comparison"]
+    assert (
+        results["model_right_unit"]
+        + results["model_right_no_unit"]
+        + results["not_asked_model_right"]
+        == comparison["suggestion_correct"]
+    )
+    assert (
+        results["rules_right_unit"]
+        + results["rules_right_no_unit"]
+        + results["not_asked_rules_right"]
+        == comparison["rules_correct"]
+    )
+    assert results["model_right_unit"] <= results["asked_with_unit"]
+    assert results["rules_right_no_unit"] <= results["asked_without_unit"]
+
+
+VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "wbr"}
+
+
 class _VisibleText(HTMLParser):
     """Collects text a visitor reads, minus data-fact elements (pinned by the test above) and
     the demo's data-field placeholders, which home.js replaces with recorded corpus text."""
@@ -139,7 +168,9 @@ class _VisibleText(HTMLParser):
         self.skip, self.stack, self.parts = 0, [], []
 
     def handle_starttag(self, tag, attrs):
-        hidden = tag in {"script", "style"} or any(
+        if tag in VOID:
+            return
+        hidden = tag in {"script", "style", "head"} or any(
             name in {"data-fact", "data-field"} for name, _ in attrs
         )
         self.stack.append(hidden)
@@ -162,3 +193,36 @@ def test_no_figure_on_the_page_escapes_the_data_fact_check():
     allowed = {"Apache-2.0.", "5.5"}
     stray = [word for word in re.findall(r"\S*\d\S*", text) if word not in allowed]
     assert stray == [], stray
+
+
+NUMBER_WORDS = {
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+}
+# Number words allowed in prose, each with the reason it is not a measured figure.
+ALLOWED_NUMBER_WORDS = {
+    "one": "a pronoun or 'one clue alone' / 'one queue', never a count from a report",
+    "two": "the two-clue rule, which test_two_in_prose_is_the_policy pins to the policy",
+}
+
+
+def test_no_number_word_escapes_the_data_fact_check():
+    parser = _VisibleText()
+    parser.feed(PAGE.read_text())
+    words = re.findall(r"[a-z]+", " ".join(parser.parts).lower())
+    stray = sorted({word for word in words if word in NUMBER_WORDS} - set(ALLOWED_NUMBER_WORDS))
+    assert stray == [], stray
+
+
+def test_two_in_prose_is_the_policy():
+    assert front_demo.build()["policy"]["clues_required"] == 2

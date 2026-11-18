@@ -42,13 +42,15 @@ def _by_id(rows: list[dict]) -> dict[str, dict]:
     return {row["document_id"]: row for row in rows}
 
 
-def _label_free(line: str) -> str:
-    return line.split(":", 1)[1].strip() if ":" in line else line.strip()
+# The matcher strips these labels before comparing (docket/core/candidates.py shortlist).
+ADDRESS_LABEL = re.compile(r"^\s*address\s*:\s*", re.IGNORECASE)
+NAME_LABEL = re.compile(r"^\s*(?:former tenant|tenant|resident|name)\s*:\s*", re.IGNORECASE)
 
 
 def _spans(text: str, candidate, record: Record) -> list[dict]:
-    """The text each clue came from, found by re-running the matcher one line at a time, so a
-    close spelling such as "Streeet" is marked where the matcher actually found it."""
+    """The text each clue came from. An exact phrase is marked where it appears; a close
+    spelling is found by re-running the matcher one line at a time, so "Streeet" is marked
+    where the matcher actually found it."""
     lines = [line for line in text.splitlines() if line.strip()]
     spans = []
 
@@ -56,27 +58,35 @@ def _spans(text: str, candidate, record: Record) -> list[dict]:
         if found:
             spans.append({"text": found, "signal": signal.value, "record_id": record.record_id})
 
-    def line_with(strength: float, measure) -> str | None:
+    def exact(phrases: list[str]) -> str | None:
+        for phrase in phrases:
+            match = re.search(re.escape(phrase), text, re.IGNORECASE)
+            if match:
+                return match.group(0)
+        return None
+
+    def line_with(strength: float, label: re.Pattern, measure) -> str | None:
         for line in lines:
-            if abs(measure(_label_free(line)) - strength) < 1e-9:
-                return _label_free(line)
+            rest = label.sub("", line).strip()
+            if abs(measure(rest) - strength) < 1e-9:
+                return rest
         return None
 
     for signal, strength in candidate.signals.items():
         if strength <= 0:
             continue
         if signal == Signal.EXPLICIT_ID:
-            match = re.search(re.escape(record.record_id), text, re.IGNORECASE)
-            add(signal, match.group(0) if match else None)
+            add(signal, exact([record.record_id]))
         elif signal == Signal.BUILDING and candidate.building_is_explicit:
-            match = re.search(re.escape(record.building), text, re.IGNORECASE)
-            add(signal, match.group(0) if match else None)
+            add(signal, exact([record.building]))
         elif signal == Signal.ADDRESS:
             aliases = [record.address, *record.aliases]
             add(
                 signal,
-                line_with(
+                (strength == 1.0 and exact(aliases))
+                or line_with(
                     strength,
+                    ADDRESS_LABEL,
                     lambda rest, aliases=aliases: address_strength(aliases, [rest], MATCH_CUTOFF),
                 ),
             )
@@ -84,8 +94,10 @@ def _spans(text: str, candidate, record: Record) -> list[dict]:
             names = [*record.current_tenants, *record.former_tenants]
             add(
                 signal,
-                line_with(
+                (strength == 1.0 and exact(names))
+                or line_with(
                     strength,
+                    NAME_LABEL,
                     lambda rest, names=names: name_strength(
                         names, [normalize_text(rest)], MATCH_CUTOFF
                     ),
@@ -174,17 +186,30 @@ def _document(
     }
 
 
-def _suggestion_split(compared: list[dict]) -> dict:
-    """The report counts a correct "no unit" as a match; split unit picks from abstentions."""
-    with_unit = [row for row in compared if row["gold_record_id"] is not None]
-    no_unit = [row for row in compared if row["gold_record_id"] is None]
+def _held_breakdown(report: dict) -> dict:
+    """Every held document in exactly one row, so each suggestion figure has its own
+    denominator. The report's own comparison counts documents the model was never asked
+    about (no candidate) as correct abstentions; these rows keep them apart."""
+    compared = _by_id(report["review_suggestion_comparison"]["documents"])
+    held = [row for row in report["docket_results"] if row["status"] == "would_review"]
+    failed = [row for row in held if (row["suggestion"] or {}).get("suggestion_failure_reason")]
+    answered = [compared[row["document_id"]] for row in held if row not in failed]
+    not_asked = [row for row in answered if row["rules_top_record_id"] is None]
+    asked = [row for row in answered if row["rules_top_record_id"] is not None]
+    with_unit = [row for row in asked if row["gold_record_id"] is not None]
+    no_unit = [row for row in asked if row["gold_record_id"] is None]
     return {
-        "held_with_unit": len(with_unit),
-        "held_without_unit": len(no_unit),
+        "held": len(held),
+        "held_failed": len(failed),
+        "held_not_asked": len(not_asked),
+        "asked_with_unit": len(with_unit),
         "model_right_unit": sum(row["suggestion_correct"] for row in with_unit),
         "rules_right_unit": sum(row["rules_correct"] for row in with_unit),
+        "asked_without_unit": len(no_unit),
         "model_right_no_unit": sum(row["suggestion_correct"] for row in no_unit),
         "rules_right_no_unit": sum(row["rules_correct"] for row in no_unit),
+        "not_asked_rules_right": sum(row["rules_correct"] for row in not_asked),
+        "not_asked_model_right": sum(row["suggestion_correct"] for row in not_asked),
     }
 
 
@@ -254,13 +279,12 @@ def build() -> dict:
             "rules_only_filed": report["baseline"]["auto_file_count"],
             "rules_only_filed_correct": report["baseline"]["correct_file_count"],
             "rules_only_filed_wrong": report["baseline"]["wrong_file_count"],
-            "held": report["docket"]["outcomes"]["would_review"],
             "rejected": report["docket"]["outcomes"]["rejected"],
-            "suggestion_failures": suggestions["excluded_suggestion_failures"],
+            "suggestion_failures": suggestions.get("excluded_suggestion_failures", 0),
             "review_documents": suggestions["review_documents"],
             "model_suggestions_correct": suggestions["suggestion_correct"],
             "rules_top_pick_correct": suggestions["rules_correct"],
-            **_suggestion_split(suggestions["documents"]),
+            **_held_breakdown(report),
             "units": len(records),
         },
         "gates": _gates(report, tuning),

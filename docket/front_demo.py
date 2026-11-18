@@ -282,7 +282,6 @@ def build() -> dict:
             "strong_threshold": str(config.strong_threshold),
             "auto_file_threshold": str(config.auto_file_threshold),
             "auto_file_threshold_short": f"{config.auto_file_threshold:.3f}",
-            "auto_file_threshold_exact": f"{config.auto_file_threshold:.4f}",
             "clues_required": CLUES_REQUIRED,
         },
         "results": {

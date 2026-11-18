@@ -19,7 +19,6 @@
     "strong_threshold": "0.55",
     "auto_file_threshold": "0.5857142",
     "auto_file_threshold_short": "0.586",
-    "auto_file_threshold_exact": "0.5857",
     "clues_required": 2
   },
   "results": {

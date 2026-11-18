@@ -1,0 +1,467 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-18T17:39:56+00:00",
+  "title": "Design System: Docket",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "primary",
+        "displayName": "Ledger Ink",
+        "canonical": "oklch(20.9% 0.010 268)",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#242527",
+          "#404245",
+          "#5f6167",
+          "#808288",
+          "#a3a5a9",
+          "#c8c9cc",
+          "#eeeeef"
+        ]
+      },
+      "filed": {
+        "role": "secondary",
+        "displayName": "Filed Green",
+        "canonical": "oklch(44.3% 0.077 173)",
+        "tonalRamp": [
+          "#070d0b",
+          "#162a24",
+          "#254a3f",
+          "#346e5d",
+          "#56907e",
+          "#87afa2",
+          "#b8cfc7",
+          "#e7f1ee"
+        ]
+      },
+      "filed-bg": {
+        "role": "secondary",
+        "displayName": "Filed Green Ground",
+        "canonical": "oklch(95.5% 0.013 172)",
+        "tonalRamp": [
+          "#0a0b0b",
+          "#232625",
+          "#3e4341",
+          "#5b6360",
+          "#7c8581",
+          "#a0a7a4",
+          "#c6cac9",
+          "#edefee"
+        ]
+      },
+      "filed-text": {
+        "role": "secondary",
+        "displayName": "Filed Green Text",
+        "canonical": "oklch(38.4% 0.054 175)",
+        "tonalRamp": [
+          "#080c0b",
+          "#1b2824",
+          "#2f4841",
+          "#446a60",
+          "#648c81",
+          "#90aca4",
+          "#bdcec8",
+          "#e9f0ee"
+        ]
+      },
+      "held": {
+        "role": "secondary",
+        "displayName": "Held Amber",
+        "canonical": "oklch(47.9% 0.112 60)",
+        "tonalRamp": [
+          "#100905",
+          "#34200f",
+          "#5d3817",
+          "#89521e",
+          "#ad7342",
+          "#c69b79",
+          "#dec4af",
+          "#f7ece4"
+        ]
+      },
+      "held-bg": {
+        "role": "secondary",
+        "displayName": "Held Amber Ground",
+        "canonical": "oklch(96.2% 0.024 80)",
+        "tonalRamp": [
+          "#0c0b09",
+          "#272520",
+          "#464139",
+          "#686054",
+          "#898175",
+          "#aaa49b",
+          "#ccc9c3",
+          "#f0eeec"
+        ]
+      },
+      "held-text": {
+        "role": "secondary",
+        "displayName": "Held Amber Text",
+        "canonical": "oklch(38.4% 0.079 68)",
+        "tonalRamp": [
+          "#0f0a06",
+          "#2f2216",
+          "#543d24",
+          "#7c5934",
+          "#9e7b54",
+          "#baa085",
+          "#d6c6b6",
+          "#f4ede6"
+        ]
+      },
+      "focus": {
+        "role": "tertiary",
+        "displayName": "Focus Blue",
+        "canonical": "oklch(51.4% 0.192 265)",
+        "tonalRamp": [
+          "#060b17",
+          "#142347",
+          "#223d80",
+          "#3158bf",
+          "#507ce5",
+          "#80a3f0",
+          "#b3c9f8",
+          "#e5efff"
+        ]
+      },
+      "clue-mark": {
+        "role": "tertiary",
+        "displayName": "Clue Mark",
+        "canonical": "oklch(94.3% 0.020 270)",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#242529",
+          "#3f4249",
+          "#5d616b",
+          "#7e828d",
+          "#a2a5ad",
+          "#c7c9ce",
+          "#eeeef0"
+        ]
+      },
+      "clue-mark-edge": {
+        "role": "tertiary",
+        "displayName": "Clue Mark Edge",
+        "canonical": "oklch(86.6% 0.049 270)",
+        "tonalRamp": [
+          "#0a0b0e",
+          "#22252e",
+          "#3c4153",
+          "#58607a",
+          "#78829d",
+          "#9da5b9",
+          "#c4c9d5",
+          "#eceef4"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "oklch(100.0% 0.000 90)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#a5a5a5",
+          "#c9c9c9",
+          "#eeeeee"
+        ]
+      },
+      "soft": {
+        "role": "neutral",
+        "displayName": "Soft Grey",
+        "canonical": "oklch(97.6% 0.003 265)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#252525",
+          "#414243",
+          "#606163",
+          "#818284",
+          "#a4a5a6",
+          "#c9c9ca",
+          "#eeeeef"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(91.9% 0.007 269)",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#242526",
+          "#414244",
+          "#606165",
+          "#818286",
+          "#a4a5a8",
+          "#c8c9cb",
+          "#eeeeef"
+        ]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Strong Hairline",
+        "canonical": "oklch(84.5% 0.010 267)",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#242527",
+          "#404245",
+          "#5f6166",
+          "#808288",
+          "#a3a5a9",
+          "#c8c9cc",
+          "#eeeeef"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Second Ink",
+        "canonical": "oklch(44.9% 0.023 266)",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#232529",
+          "#3e424a",
+          "#5c616d",
+          "#7d828f",
+          "#a1a5ae",
+          "#c6c9cf",
+          "#edeef1"
+        ]
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "oklch(54.7% 0.019 263)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#232528",
+          "#3f4248",
+          "#5c616b",
+          "#7d838c",
+          "#a1a5ac",
+          "#c7c9ce",
+          "#edeef0"
+        ]
+      },
+      "ink-hover": {
+        "role": "neutral",
+        "displayName": "Ink Hover",
+        "canonical": "oklch(30.9% 0.017 266)",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#242528",
+          "#3f4248",
+          "#5d616a",
+          "#7e828c",
+          "#a2a5ac",
+          "#c7c9cd",
+          "#eeeef0"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The single page headline, two deliberate lines."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "One per content band."
+      },
+      "lede": {
+        "displayName": "Lede",
+        "purpose": "The paragraph under the headline, capped at 34em."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Step names, outcome headings, buttons, captions, the fold summary."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Base text with tabular figures on."
+      },
+      "body-prose": {
+        "displayName": "Body Prose",
+        "purpose": "Prose bands in Second Ink, capped at 66ch."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Captions, table headers, meter labels, the demo footer."
+      },
+      "data": {
+        "displayName": "Data",
+        "purpose": "Geist Mono for pipeline output: document text, unit ids, scores, weights, file names."
+      }
+    },
+    "shadows": [
+      {
+        "name": "panel-lift",
+        "value": "0 1px 2px rgba(22, 24, 29, 0.04), 0 12px 32px -12px rgba(22, 24, 29, 0.12)",
+        "purpose": "The demo panel only: the one raised, operated object on a page."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Step detail reveal (360ms) and score meter fill (500ms)."
+      },
+      {
+        "name": "step-interval",
+        "value": "520ms",
+        "purpose": "Delay between steps in a demo replay; zero under reduced motion."
+      },
+      {
+        "name": "state-fade",
+        "value": "120ms ease-out",
+        "purpose": "Button background on hover."
+      },
+      {
+        "name": "marker-fill",
+        "value": "300ms ease-out",
+        "purpose": "Step counter filling when a step completes."
+      },
+      {
+        "name": "fold-chevron",
+        "value": "150ms ease-out",
+        "purpose": "Fold chevron rotation."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "stack-hero",
+        "value": "1100px"
+      },
+      {
+        "name": "narrow",
+        "value": "760px"
+      }
+    ],
+    "scope": {
+      "covers": "web/public/home/ (public front page)",
+      "notYet": "web/login.html and the Vite app under web/src (served at /reviewer) are not in this world; restyled in a later phase."
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action in a view.",
+      "html": "<a class=\"ds-btn\" href=\"#\">Try a test document</a>",
+      "css": ":host{--ink:#16181d;--ink-2:#4f5562;--line:#e2e4e9;--line-strong:#c9ccd3;--soft:#f6f7f9;--bg:#ffffff;--filed:#17614f;--filed-bg:#e8f3ef;--held:#8a4b00;--held-bg:#fbf1e1;--focus:#2f5bd3;--radius:8px;--sans:\"Geist\",system-ui,-apple-system,\"Segoe UI\",sans-serif;--mono:\"Geist Mono\",ui-monospace,\"SF Mono\",Menlo,monospace} .ds-btn{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:var(--radius);background:var(--ink);color:#fff;font:600 0.9375rem/1.55 var(--sans);text-decoration:none;transition:background-color 120ms ease-out}.ds-btn:hover{background:#2c3039}.ds-btn:focus-visible{outline:2px solid var(--focus);outline-offset:3px}"
+    },
+    {
+      "name": "Quiet Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "The secondary route beside a primary button.",
+      "html": "<a class=\"ds-btn-quiet\" href=\"#\">See the held-out results</a>",
+      "css": ":host{--ink:#16181d;--ink-2:#4f5562;--line:#e2e4e9;--line-strong:#c9ccd3;--soft:#f6f7f9;--bg:#ffffff;--filed:#17614f;--filed-bg:#e8f3ef;--held:#8a4b00;--held-bg:#fbf1e1;--focus:#2f5bd3;--radius:8px;--sans:\"Geist\",system-ui,-apple-system,\"Segoe UI\",sans-serif;--mono:\"Geist Mono\",ui-monospace,\"SF Mono\",Menlo,monospace} .ds-btn-quiet{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:var(--radius);background:var(--bg);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-strong);font:600 0.9375rem/1.55 var(--sans);text-decoration:none;transition:background-color 120ms ease-out}.ds-btn-quiet:hover{background:var(--soft)}.ds-btn-quiet:focus-visible{outline:2px solid var(--focus);outline-offset:3px}"
+    },
+    {
+      "name": "Top Navigation",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "64px bar with a hairline: wordmark left, plain Second Ink links right.",
+      "html": "<header class=\"ds-top\"><a class=\"ds-mark\" href=\"#\">Docket</a><nav><a href=\"#\">How it works</a><a href=\"#\">Results</a><a href=\"#\">Review page</a><a href=\"#\">Source</a></nav></header>",
+      "css": ":host{--ink:#16181d;--ink-2:#4f5562;--line:#e2e4e9;--line-strong:#c9ccd3;--soft:#f6f7f9;--bg:#ffffff;--filed:#17614f;--filed-bg:#e8f3ef;--held:#8a4b00;--held-bg:#fbf1e1;--focus:#2f5bd3;--radius:8px;--sans:\"Geist\",system-ui,-apple-system,\"Segoe UI\",sans-serif;--mono:\"Geist Mono\",ui-monospace,\"SF Mono\",Menlo,monospace} .ds-top{display:flex;align-items:center;justify-content:space-between;gap:24px;height:64px;padding:0 24px;border-bottom:1px solid var(--line);font-family:var(--sans);background:var(--bg)}.ds-mark{font-weight:700;font-size:1.1875rem;letter-spacing:-0.02em;color:var(--ink);text-decoration:none}.ds-top nav{display:flex;gap:24px;font-size:0.9375rem}.ds-top nav a{color:var(--ink-2);text-decoration:none}.ds-top nav a:hover{color:var(--ink)}.ds-top a:focus-visible{outline:2px solid var(--focus);outline-offset:3px}"
+    },
+    {
+      "name": "Document Tabs",
+      "kind": "custom",
+      "refersTo": "tab-selected",
+      "description": "Soft Grey strip of plain-text tabs; the selected one gets ink weight and a 2px underline.",
+      "html": "<div class=\"ds-tabs\" role=\"tablist\"><button role=\"tab\" aria-selected=\"true\">A clean lease</button><button role=\"tab\" aria-selected=\"false\">A near-miss address</button><button role=\"tab\" aria-selected=\"false\">A page with no text</button></div>",
+      "css": ":host{--ink:#16181d;--ink-2:#4f5562;--line:#e2e4e9;--line-strong:#c9ccd3;--soft:#f6f7f9;--bg:#ffffff;--filed:#17614f;--filed-bg:#e8f3ef;--held:#8a4b00;--held-bg:#fbf1e1;--focus:#2f5bd3;--radius:8px;--sans:\"Geist\",system-ui,-apple-system,\"Segoe UI\",sans-serif;--mono:\"Geist Mono\",ui-monospace,\"SF Mono\",Menlo,monospace} .ds-tabs{display:flex;gap:4px;padding:0 12px;border-bottom:1px solid var(--line);background:var(--soft);font-family:var(--sans)}.ds-tabs button{appearance:none;border:0;background:none;font:inherit;font-size:0.9375rem;color:var(--ink-2);padding:12px 10px;cursor:pointer;position:relative}.ds-tabs button:hover{color:var(--ink)}.ds-tabs button[aria-selected=\"true\"]{color:var(--ink);font-weight:600}.ds-tabs button[aria-selected=\"true\"]::after{content:\"\";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--ink)}.ds-tabs button:focus-visible{outline:2px solid var(--focus);outline-offset:3px}"
+    },
+    {
+      "name": "Outcome: Filed",
+      "kind": "card",
+      "refersTo": "outcome-filed",
+      "description": "The decision box when a document files on its own.",
+      "html": "<div class=\"ds-out ds-filed\"><strong>Filed to UNIT-0116</strong><p>Enough clues agree, and nothing points at another unit.</p></div>",
+      "css": ":host{--ink:#16181d;--ink-2:#4f5562;--line:#e2e4e9;--line-strong:#c9ccd3;--soft:#f6f7f9;--bg:#ffffff;--filed:#17614f;--filed-bg:#e8f3ef;--held:#8a4b00;--held-bg:#fbf1e1;--focus:#2f5bd3;--radius:8px;--sans:\"Geist\",system-ui,-apple-system,\"Segoe UI\",sans-serif;--mono:\"Geist Mono\",ui-monospace,\"SF Mono\",Menlo,monospace} .ds-out{padding:8px 12px;font-family:var(--sans)}.ds-out strong{display:block;font-size:0.9375rem;font-weight:650;letter-spacing:-0.01em}.ds-out p{margin:4px 0 0;font-size:0.875rem}.ds-filed{background:var(--filed-bg);color:var(--filed)}.ds-filed p{color:#1f4d42}"
+    },
+    {
+      "name": "Outcome: Waits for a person",
+      "kind": "card",
+      "refersTo": "outcome-held",
+      "description": "The decision box when a document is held for review; a safe outcome, not an error.",
+      "html": "<div class=\"ds-out ds-held\"><strong>Waits for a person</strong><p>Two units are named, so a person picks the right one.</p></div>",
+      "css": ":host{--ink:#16181d;--ink-2:#4f5562;--line:#e2e4e9;--line-strong:#c9ccd3;--soft:#f6f7f9;--bg:#ffffff;--filed:#17614f;--filed-bg:#e8f3ef;--held:#8a4b00;--held-bg:#fbf1e1;--focus:#2f5bd3;--radius:8px;--sans:\"Geist\",system-ui,-apple-system,\"Segoe UI\",sans-serif;--mono:\"Geist Mono\",ui-monospace,\"SF Mono\",Menlo,monospace} .ds-out{padding:8px 12px;font-family:var(--sans)}.ds-out strong{display:block;font-size:0.9375rem;font-weight:650;letter-spacing:-0.01em}.ds-out p{margin:4px 0 0;font-size:0.875rem}.ds-held{background:var(--held-bg);color:var(--held)}.ds-held p{color:#5f3a08}"
+    },
+    {
+      "name": "Document Text",
+      "kind": "custom",
+      "refersTo": "document-text",
+      "description": "What Docket reads: Geist Mono on Soft Grey, clue phrases highlighted.",
+      "html": "<pre class=\"ds-paper\">Record: <mark>UNIT-0116</mark>\nAddress: <mark>1510 Birch Street Apt 16</mark>\nTenant: <mark>Paul Logan</mark></pre>",
+      "css": ":host{--ink:#16181d;--ink-2:#4f5562;--line:#e2e4e9;--line-strong:#c9ccd3;--soft:#f6f7f9;--bg:#ffffff;--filed:#17614f;--filed-bg:#e8f3ef;--held:#8a4b00;--held-bg:#fbf1e1;--focus:#2f5bd3;--radius:8px;--sans:\"Geist\",system-ui,-apple-system,\"Segoe UI\",sans-serif;--mono:\"Geist Mono\",ui-monospace,\"SF Mono\",Menlo,monospace} .ds-paper{margin:0;padding:16px;border:1px solid var(--line);background:var(--soft);color:var(--ink);font:0.8125rem/1.65 var(--mono);white-space:pre-wrap}.ds-paper mark{background:#e7ecfa;color:inherit;box-shadow:0 0 0 1px #c6d2f4}"
+    },
+    {
+      "name": "Step Track",
+      "kind": "custom",
+      "refersTo": "step-marker-done",
+      "description": "Numbered steps on a hairline; counters fill with the outcome colour once the run settles.",
+      "html": "<ol class=\"ds-steps\" data-outcome=\"filed\"><li class=\"done\"><h3>Read the text</h3><p>Read 7 lines of text from 1 page.</p></li><li class=\"done\"><h3>Score the clues</h3><p><span class=\"ds-num\">0.95</span> from 4 clues.</p></li><li class=\"pending\"><h3>Decide</h3><p>Hidden until played.</p></li></ol>",
+      "css": ":host{--ink:#16181d;--ink-2:#4f5562;--line:#e2e4e9;--line-strong:#c9ccd3;--soft:#f6f7f9;--bg:#ffffff;--filed:#17614f;--filed-bg:#e8f3ef;--held:#8a4b00;--held-bg:#fbf1e1;--focus:#2f5bd3;--radius:8px;--sans:\"Geist\",system-ui,-apple-system,\"Segoe UI\",sans-serif;--mono:\"Geist Mono\",ui-monospace,\"SF Mono\",Menlo,monospace} .ds-steps{list-style:none;margin:0;padding:16px 20px 4px;counter-reset:s;font-family:var(--sans)}.ds-steps li{position:relative;padding:0 0 10px 36px;counter-increment:s}.ds-steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:0.8125rem;font-weight:600;color:var(--ink-2);box-shadow:inset 0 0 0 1.5px var(--line-strong);background:var(--bg)}.ds-steps li::after{content:\"\";position:absolute;left:10.5px;top:28px;bottom:6px;width:1px;background:var(--line)}.ds-steps li:last-child::after{display:none}.ds-steps h3{margin:0;font-size:0.9375rem;font-weight:600;letter-spacing:-0.01em;color:var(--ink)}.ds-steps p{margin:4px 0 0;font-size:0.875rem;color:var(--ink-2)}.ds-steps li.done::before{background:var(--ink);color:#fff;box-shadow:none}.ds-steps[data-outcome=\"filed\"] li.done::before{background:var(--filed)}.ds-steps li.pending h3{color:#6b717c}.ds-steps li.pending p{visibility:hidden}.ds-num{font-family:var(--mono);font-size:0.8125rem;color:var(--ink)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Plain Standard",
+    "overview": "A plain product page whose craft is exactness. White ground, near-black ink, hairline rules, and one working demo that carries the page; every figure on screen is the recorded one. The world refuses the AI-startup look: no split hero with a glowing screenshot, no gradient text, no logo row. Character comes from spacing, a tight Geist ramp, and the honesty of the data, not from ornament.\n\nColour is spent on meaning. Deep green means \"filed\", amber-brown means \"waits for a person\", and those two hues appear only where a decision is shown. Everything else is ink on white, separated by 1px lines. Geist Mono marks what the pipeline read or produced (document text, unit ids, scores), so a visitor can tell machine output from explanation at a glance.\n\nMotion is a replay, not decoration: choosing a document plays the four steps in order, each revealing its real data, and reduced motion shows the final state at once.\n\nThis system currently covers the public front page only (`web/public/home/`). The reviewer page (`web/login.html` and the Vite app under `web/src`, served at `/reviewer`) is not in this world yet; it is restyled in a later phase, and its current look is not part of this system.",
+    "keyCharacteristics": [
+      "White ground, near-black ink, two outcome colours used only for outcomes.",
+      "1px hairline rules do the structural work that cards and shadows do elsewhere.",
+      "Geist for language, Geist Mono for pipeline data.",
+      "One raised object per page: the demo panel.",
+      "Real numbers, tabular figures, plain words; research terms live behind a fold."
+    ],
+    "rules": [
+      {
+        "name": "The Outcome-Only Colour Rule",
+        "body": "Green and amber appear only where Docket shows a decision. They never decorate headings, links, icons or charts.",
+        "section": "colors"
+      },
+      {
+        "name": "The Waiting-Is-Correct Rule",
+        "body": "Held Amber is a calm, earthy tone, never an alarm red. Holding a document for a person is shown as a safe outcome, not an error.",
+        "section": "colors"
+      },
+      {
+        "name": "The Machine Voice Rule",
+        "body": "Geist Mono is for data the pipeline read, produced or weighs: document text, unit ids, scores, weights, file names. Explanation, labels and headings are always Geist.",
+        "section": "typography"
+      },
+      {
+        "name": "The Bold Figure Rule",
+        "body": "In running text, emphasis goes on the number or the condition that matters (\"28 of 28\", \"at least two different clues\"), set in 600 Ledger Ink against Second Ink prose. No italics, no colour emphasis.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Raised Object Rule",
+        "body": "A page has at most one lifted surface, and it is the thing the visitor operates. Everything else sits flat on hairlines.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** take every figure from the recorded data and bold the figure, not the claim around it.",
+      "**Do** use Filed Green and Held Amber only for a decision, and show who decided (rules, model, person) beside it.",
+      "**Do** set pipeline output (document text, unit ids, scores, weights) in Geist Mono at 13px; everything else in Geist.",
+      "**Do** separate content with 1px hairlines and the Soft Grey recess before reaching for a box or a shadow.",
+      "**Do** keep the 8px radius for the operated panel and buttons; leave everything else square.",
+      "**Do** give every animated step a static, readable final state, shown at once under reduced motion.",
+      "**Do** use the shared focus ring (2px Focus Blue, 3px offset) on every interactive element."
+    ],
+    "donts": [
+      "**Don't** use gradients, gradient text, glows or coloured shadows.",
+      "**Don't** add a split hero with a glowing product screenshot, a logo row, testimonials or invented customers.",
+      "**Don't** lift more than one surface per page with the panel shadow.",
+      "**Don't** colour a held document red or style it as an error.",
+      "**Don't** reuse the dashed border for anything but a labelled, not-yet-built slot.",
+      "**Don't** apply this system's look to the reviewer page piecemeal; it joins the world in its own restyle phase."
+    ]
+  }
+}

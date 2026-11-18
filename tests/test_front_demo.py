@@ -7,6 +7,10 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from docket import front_demo
+from docket.config import load_records
+from docket.core.candidates import shortlist
+from docket.core.extraction import Extracted, extract_document
+from docket.core.scoring import CLUES_REQUIRED
 
 DEMO = Path("web/public/home/demo.json")
 PAGE = Path("web/public/home/index.html")
@@ -103,6 +107,9 @@ def test_every_number_written_into_the_page_matches_demo_json():
     data = json.loads(DEMO.read_text())
     parser = _Facts()
     parser.feed(PAGE.read_text())
+    parser.close()
+    unclosed = [path for _, path, _ in parser.open if path is not None]
+    assert unclosed == [], f"data-fact elements never closed: {unclosed}"
     facts = parser.facts
     assert len(facts) >= 20
     for path, shown in facts:
@@ -156,6 +163,63 @@ def test_held_rows_partition_every_held_document_and_match_the_report_totals():
     assert results["rules_right_no_unit"] <= results["asked_without_unit"]
 
 
+def _expected_held_rows() -> dict[str, set[str]]:
+    """Rows from the workflow's own facts, independent of how front_demo groups them: the
+    model is asked only when the shortlist recomputed from the PDF is non-empty
+    (docket/workflows.py), a failed call carries a suggestion_failure_reason, and the test
+    label says whether the document belongs to a unit."""
+    report = json.loads(front_demo.HELD_OUT.read_text())
+    labels = {
+        row["document_id"]: row
+        for row in map(json.loads, (front_demo.CORPUS / "labels.jsonl").read_text().splitlines())
+    }
+    records = load_records()
+    rows: dict[str, set[str]] = {
+        "failed": set(),
+        "not_asked": set(),
+        "asked_with_unit": set(),
+        "asked_without_unit": set(),
+    }
+    for result in report["docket_results"]:
+        if result["status"] != "would_review":
+            continue
+        document_id = result["document_id"]
+        label = labels[document_id]
+        path = front_demo.CORPUS / label["filename"]
+        extracted = extract_document(path.read_bytes())
+        assert isinstance(extracted, Extracted), document_id
+        has_candidates = bool(
+            shortlist(records, text=extracted.text, filename=path.name).candidates
+        )
+        if (result["suggestion"] or {}).get("suggestion_failure_reason"):
+            assert has_candidates, document_id
+            rows["failed"].add(document_id)
+        elif not has_candidates:
+            rows["not_asked"].add(document_id)
+        elif label["record_id"] is not None:
+            rows["asked_with_unit"].add(document_id)
+        else:
+            rows["asked_without_unit"].add(document_id)
+    return rows
+
+
+def test_each_held_document_sits_in_the_row_the_workflow_facts_give():
+    expected = _expected_held_rows()
+    counts = {row: len(members) for row, members in expected.items()}
+    assert counts == {
+        "failed": 10,
+        "not_asked": 20,
+        "asked_with_unit": 62,
+        "asked_without_unit": 20,
+    }
+    report = json.loads(front_demo.HELD_OUT.read_text())
+    built = {
+        row: {member["document_id"] for member in members}
+        for row, members in front_demo.held_rows(report).items()
+    }
+    assert built == expected
+
+
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "wbr"}
 
 
@@ -195,34 +259,39 @@ def test_no_figure_on_the_page_escapes_the_data_fact_check():
     assert stray == [], stray
 
 
-NUMBER_WORDS = {
-    "one",
-    "two",
-    "three",
-    "four",
-    "five",
-    "six",
-    "seven",
-    "eight",
-    "nine",
-    "ten",
-    "eleven",
-    "twelve",
-}
-# Number words allowed in prose, each with the reason it is not a measured figure.
-ALLOWED_NUMBER_WORDS = {
-    "one": "a pronoun or 'one clue alone' / 'one queue', never a count from a report",
-    "two": "the two-clue rule, which test_two_in_prose_is_the_policy pins to the policy",
+NUMBER_WORDS = re.compile(
+    r"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b", re.IGNORECASE
+)
+SPELLED = {1: "one", 2: "two"}
+# Exact phrases where a number word is allowed, each with the reason it is not a stray
+# figure. Anywhere else, a number word fails the test.
+ALLOWED_NUMBER_PHRASES = {
+    "matches each one to a known unit": "a pronoun",
+    f"only when {SPELLED[CLUES_REQUIRED]} independent clues agree": "the filing rule, from "
+    "CLUES_REQUIRED",
+    "point at one of the known units": "a pronoun",
+    "name more than one unit outright": "the conflict rule: any second unit named outright",
+    "does not count as naming one": "a pronoun",
+    f"{SPELLED[CLUES_REQUIRED - 1].capitalize()} clue alone": "the filing rule: one fewer than "
+    "CLUES_REQUIRED never files",
+    "but never file one": "a pronoun",
+    "Two sets of generated documents": "the tuning and held-out reports, front_demo.TUNING "
+    "and front_demo.HELD_OUT",
+    "wait in one queue": "the single review queue, not a measured figure",
 }
 
 
 def test_no_number_word_escapes_the_data_fact_check():
     parser = _VisibleText()
     parser.feed(PAGE.read_text())
-    words = re.findall(r"[a-z]+", " ".join(parser.parts).lower())
-    stray = sorted({word for word in words if word in NUMBER_WORDS} - set(ALLOWED_NUMBER_WORDS))
-    assert stray == [], stray
+    text = re.sub(r"\s+", " ", " ".join(parser.parts))
+    for phrase in ALLOWED_NUMBER_PHRASES:
+        assert phrase in text, f"allowed phrase no longer on the page: {phrase!r}"
+        text = text.replace(phrase, " ")
+    assert NUMBER_WORDS.findall(text) == []
 
 
-def test_two_in_prose_is_the_policy():
-    assert front_demo.build()["policy"]["clues_required"] == 2
+def test_the_page_states_the_scoring_rule_clue_count():
+    assert front_demo.build()["policy"]["clues_required"] == CLUES_REQUIRED
+    text = re.sub(r"\s+", " ", PAGE.read_text())
+    assert f"only when {SPELLED[CLUES_REQUIRED]} independent clues agree" in text

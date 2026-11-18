@@ -44,6 +44,11 @@ function clueChips(candidate) {
   return chips.flatMap((chip, index) => (index ? [' · ', chip] : [chip]));
 }
 
+function weakNote(rest) {
+  const shared = [...new Set(rest.flatMap(c => Object.keys(c.signals)))].map(name => CLUE_NAMES[name].toLowerCase());
+  return `${rest.length} of them share only the ${shared.join(' and ')}.`;
+}
+
 function findStep(doc) {
   if (doc.candidates.length === 0) {
     return [p('No unit matches anything in the text. With no candidate, the model is not asked either.')];
@@ -57,13 +62,10 @@ function findStep(doc) {
       el('span', { class: 'clues' }, ...clueChips(c)),
     )),
   );
-  if (rest.length) {
-    const shared = [...new Set(rest.flatMap(c => Object.keys(c.signals)))].map(name => CLUE_NAMES[name].toLowerCase());
-    list.append(el('li', { class: 'weak' }, `${rest.length} more share only the ${shared.join(' and ')}.`));
-  }
+  const found = `${doc.candidates.length} unit${doc.candidates.length === 1 ? '' : 's'} found`;
   const intro = doc.conflict
-    ? p(`${doc.candidates.length} units found. The clues point at two different units.`)
-    : p(`${doc.candidates.length} unit${doc.candidates.length === 1 ? '' : 's'} found.`);
+    ? p(`${found}. The clues point at two different units.`)
+    : p(rest.length ? `${found}; ${weakNote(rest)}` : `${found}.`);
   return [intro, list];
 }
 
@@ -86,8 +88,7 @@ function scoreStep(doc, policy) {
   if (doc.conflict) {
     const best = [...doc.candidates].sort((a, b) => Number(b.evidence_score) - Number(a.evidence_score))[0];
     return [
-      p('When clues point at two units, the score is set to 0, so the document cannot file on its own.'),
-      p('Alone, ', unit(best.record_id), ` would have scored ${short(best.evidence_score)} from ${best.clue_count} clues.`),
+      p('Two units are named, so the score is set to 0. Alone, ', unit(best.record_id), ` would score ${short(best.evidence_score)} from ${best.clue_count} clues.`),
     ];
   }
   const top = doc.candidates.find(c => c.record_id === doc.rules.record_id);
@@ -108,7 +109,6 @@ const HELD_BECAUSE = {
 
 function rulesValue(doc) {
   const r = doc.recorded;
-  if (r.status === 'would_file') return ['Filed to ', unit(r.record_id)];
   if (!doc.rules.record_id) return ['Held; no candidate unit'];
   return ['Held; top pick ', unit(doc.rules.record_id)];
 }
@@ -126,7 +126,7 @@ function labelValue(doc) {
   if (!expected) return ['No unit, so waiting is right'];
   if (doc.recorded.status === 'would_file') return [unit(expected), ', so the filing is right'];
   if (comparison && !comparison.rules_correct && !comparison.suggestion_correct) {
-    return [unit(expected), '. Both picks were wrong; holding it kept the neighbour from getting the lease.'];
+    return [unit(expected), '. Both picks were wrong; holding it prevented a wrong filing.'];
   }
   if (doc.expected.decision === 'filed') return [unit(expected), '. Both picks found it, so a reviewer only approves.'];
   return [unit(expected)];
@@ -138,8 +138,9 @@ function decideStep(doc) {
   const box = filed
     ? el('div', { class: 'outcome filed' }, el('strong', {}, `Filed to ${r.record_id}`), el('p', {}, 'Enough clues agree, and nothing points at another unit.'))
     : el('div', { class: 'outcome held' }, el('strong', {}, 'Waits for a person'), el('p', {}, HELD_BECAUSE[r.reason] ?? 'A person decides.'));
+  // A filed document's rules row would repeat the green box, so only held ones show it.
   const ledger = el('dl', { class: 'ledger' },
-    el('dt', {}, 'Rules decided'), el('dd', {}, ...rulesValue(doc)),
+    ...(filed ? [] : [el('dt', {}, 'Rules decided'), el('dd', {}, ...rulesValue(doc))]),
     el('dt', {}, 'Model suggested (not used to file)'), el('dd', {}, ...modelValue(doc)),
     el('dt', {}, 'Test label'), el('dd', {}, ...labelValue(doc)),
   );

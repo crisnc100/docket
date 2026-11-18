@@ -282,7 +282,9 @@ document is never filed twice and still reaches a final status.
 | `docket/review_access.py` | Reviewer token check and the token entry page         |
 | `docket/evaluation.py`    | Evaluation runs and reports                           |
 | `docket/cli.py`           | The `docket` command                                  |
+| `docket/front_demo.py`    | Builds the front page's demo data from committed reports |
 | `web/`                    | The review page and its Playwright tests              |
+| `web/public/home/`        | The public front page, served as is                   |
 | `config/`                 | Records, categories and scoring weights               |
 | `migrations/`             | Alembic migrations for the Postgres tables            |
 | `corpus/`                 | Committed synthetic documents and labels              |

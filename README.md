@@ -68,7 +68,7 @@ It plays back recorded seed-11 results for four test documents; nothing is uploa
 Upload with `POST /documents`, or send a signed email payload to `POST /inbound`.
 Both have a **10 MB limit (10 MiB, 10 × 1,024 × 1,024 bytes)** on the whole request,
 including upload or encoding overhead. Oversize requests return 413.
-Every route except the webhook, the health check and the front page needs a reviewer Bearer token.
+Every route except the webhook, the health check and the front page with its files needs a reviewer Bearer token.
 The webhook uses a shared-secret signature and a timestamp within five minutes.
 See [operations](docs/operations.md) for headers, routes, settings and services.
 

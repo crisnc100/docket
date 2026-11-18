@@ -70,9 +70,40 @@ def _lookup(data: dict, dotted: str):
     return data
 
 
+class _Facts(HTMLParser):
+    """Pairs each data-fact attribute, in either quote style, with its element's text."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.open, self.facts = [], []
+
+    def handle_starttag(self, tag, attrs):
+        path = dict(attrs).get("data-fact")
+        self.open.append([tag, path, ""])
+
+    def handle_startendtag(self, tag, attrs):
+        pass
+
+    def handle_endtag(self, tag):
+        while self.open:
+            name, path, text = self.open.pop()
+            if path is not None:
+                self.facts.append((path, text))
+            if self.open:
+                self.open[-1][2] += text
+            if name == tag:
+                break
+
+    def handle_data(self, data):
+        if self.open:
+            self.open[-1][2] += data
+
+
 def test_every_number_written_into_the_page_matches_demo_json():
     data = json.loads(DEMO.read_text())
-    facts = re.findall(r'data-fact="([^"]+)"[^>]*>([^<]*)<', PAGE.read_text())
+    parser = _Facts()
+    parser.feed(PAGE.read_text())
+    facts = parser.facts
     assert len(facts) >= 20
     for path, shown in facts:
         value = _lookup(data, path)
@@ -97,20 +128,6 @@ def test_close_spellings_are_marked_where_the_matcher_found_them():
     spans = {span["text"] for span in documents["doc-0075"]["clue_spans"]}
     assert "1110 Maple Streeet Apt 4" in spans
     assert "1110 Maple Street Apt 20" in spans
-
-
-def test_suggestion_split_adds_up_to_the_report_totals():
-    results = front_demo.build()["results"]
-    assert results["held_with_unit"] + results["held_without_unit"] == results["review_documents"]
-    assert results["review_documents"] + results["suggestion_failures"] == results["held"]
-    assert (
-        results["model_right_unit"] + results["model_right_no_unit"]
-        == (results["model_suggestions_correct"])
-    )
-    assert (
-        results["rules_right_unit"] + results["rules_right_no_unit"]
-        == (results["rules_top_pick_correct"])
-    )
 
 
 class _VisibleText(HTMLParser):

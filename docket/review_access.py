@@ -31,7 +31,7 @@ def reviewer_page(status_code: int = 200):
             "X-Content-Type-Options": "nosniff",
             "Content-Security-Policy": (
                 f"default-src 'none'; script-src 'nonce-{nonce}' blob:; "
-                f"style-src 'nonce-{nonce}' blob:; connect-src 'self'; "
+                f"style-src 'nonce-{nonce}' blob:; font-src 'self'; connect-src 'self'; "
                 "frame-src blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
             ),
         },

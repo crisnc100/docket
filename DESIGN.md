@@ -139,7 +139,7 @@ Colour is spent on meaning. Deep green means "filed", amber-brown means "waits f
 
 Motion is a replay, not decoration: choosing a document plays the four steps in order, each revealing its real data, and reduced motion shows the final state at once.
 
-This system currently covers the public front page only (`web/public/home/`). The reviewer page (`web/login.html` and the Vite app under `web/src`, served at `/reviewer`) is not in this world yet; it is restyled in a later phase, and its current look is not part of this system.
+This system covers the public front page (`web/public/home/`) and the reviewer page served at `/reviewer` (the token form in `web/login.html` and the review app under `web/src`). The front page is the Persuade surface; the reviewer page is the Operate surface, where the same world shows up as plain, dense, scannable working UI.
 
 **Key Characteristics:**
 - White ground, near-black ink, two outcome colours used only for outcomes.
@@ -216,11 +216,11 @@ Flat by default. Depth comes from hairlines and the Soft Grey recess, not shadow
 - **Panel lift** (`box-shadow: 0 1px 2px rgba(22, 24, 29, 0.04), 0 12px 32px -12px rgba(22, 24, 29, 0.12)`): the demo panel only, so the working object reads as the one thing to touch. Ink-tinted and soft; never coloured.
 
 ### Named Rules
-**The One Raised Object Rule.** A page has at most one lifted surface, and it is the thing the visitor operates. Everything else sits flat on hairlines.
+**The One Raised Object Rule.** A page has at most one lifted surface, and it is the thing the visitor operates: the demo panel on the front page, the document panel in the review app, the token panel on the reviewer sign-in. Everything else sits flat on hairlines.
 
 ## Shapes
 
-Square by default. An 8px radius is reserved for the demo panel and for buttons (primary, quiet, replay). Step markers are full circles because they are counters. The document text block, outcome boxes, tables, the meter and the "not built yet" slot have square corners. Borders are 1px throughout; the selected tab and the meter's threshold line are the only 2px strokes.
+Square by default. An 8px radius is reserved for the raised panel of each page (the demo panel, the review document panel, the token panel) and for buttons (primary, quiet, replay). Text inputs, selects and textareas are square. Step markers are full circles because they are counters. The document text block, outcome boxes, tables, the meter and the "not built yet" slot have square corners. Borders are 1px throughout; the selected tab and the meter's threshold line are the only 2px strokes.
 
 ## Components
 
@@ -231,6 +231,8 @@ Solid, compact, unadorned.
 - **Hover / Focus:** fill eases to Ink Hover over 120ms; focus is the shared 2px Focus Blue outline at a 3px offset.
 - **Quiet:** Paper fill, Ledger Ink text, a 1px Strong Hairline inset ring; hover fills Soft Grey. Used beside the primary for the secondary route.
 - **Replay:** the quiet treatment at small size (6px by 12px padding) inside the demo footer.
+- **Small quiet:** 36px high, 12px side padding, 14px text; the review queue's refresh button.
+- **Disabled:** Soft Grey fill, Muted Ink text, a 1px Hairline ring, default cursor.
 
 ### Navigation
 A 64px top bar with a hairline under it: the wordmark "Docket" in Geist 700 at 19px on the left, plain text links in Second Ink at 15px on the right that darken to Ledger Ink on hover, with no underline. On narrow screens the bar wraps to two lines. Body links elsewhere are underlined with a 1px Strong Hairline line that turns to the text colour on hover.
@@ -252,6 +254,20 @@ Full width, hairline under every row, left-aligned, no fills or zebra stripes. H
 ### Fold
 A `details` block under a hairline for research terms and method. The summary is a 600 title with a small drawn chevron that rotates over 150ms. Its contents are a two-column definition list that collapses to one column on narrow screens.
 
+### Reviewer page
+
+The Operate surface. The same tokens, fonts and rules as the front page; no new colours or components beyond those named here.
+- **Token form:** a 25rem raised panel (Strong Hairline border, 8px radius, Panel lift) placed high on a white page: the wordmark at 19px 700, one line of Second Ink, a square 44px input in Geist Mono, a full-width primary button, and a status line in Second Ink below it.
+- **Top bar:** the wordmark as the page heading and "Document review" in Second Ink beside it, with a hairline under the bar.
+- **Queue:** a 20rem column with no box. A 15px 600 title, the count in 13px Second Ink, and a small quiet refresh button. Each document is a hairline-ruled row: the file name in Geist Mono 13px, the sender in 13px Second Ink. The open document's row sits on Soft Grey with its file name at weight 650. Hover is Soft Grey.
+- **Document panel (the raised object):** a header with the file name in Geist Mono 17px, the status tag, and the sender; then the PDF preview beside the evidence column at roughly 51/49, stacked under 1100px; then the trace fold. The preview is a square frame on Soft Grey with an "Open PDF" link under it.
+- **Status tag:** a square Geist Mono 13px tag. Held Amber on held-bg for `needs_review`, Filed Green on filed-bg for `filed`, Second Ink on Soft Grey for anything else.
+- **Why it waits:** the outcome box from the front page: held-bg, "Waiting for a person" at 600 in Held Amber, the plain-language reason in held-text, and the rules' raw reason in Geist Mono under it. A filed document gets the filed box; a dismissed or processing one gets the same box on Soft Grey in Second Ink.
+- **Candidates:** a hairline-ruled list. Each row: unit id in Geist Mono 500, score and tier in Geist Mono Second Ink, a right-aligned note naming "Rules' top pick" and "Model suggestion" in Second Ink, and the clues found with their strengths on the line below.
+- **Picks:** two columns split by a hairline, the rules' top pick first and the model's suggestion second. Each has a 15px 600 heading, the unit id in Geist Mono 15px, a 13px Second Ink note (the suggestion's note says it never files a document on its own), and a quiet approve button. They stack under 760px.
+- **Actions:** "Pick another candidate" (square select in Geist Mono) and "Dismiss reason" (square textarea), each with its quiet button beside it, stacked under 760px. Every button on the review screen is quiet, so no single choice reads as the recommended one.
+- **Empty states:** with documents in the queue and none open, the panel says to open the oldest one; with an empty queue it says nothing is waiting and to refresh.
+
 ### Fact lines
 Short lines of plain text, each with a hairline above it, the real figure bolded in Ledger Ink, the sentence in Second Ink.
 
@@ -272,4 +288,5 @@ Short lines of plain text, each with a hairline above it, the real figure bolded
 - **Don't** lift more than one surface per page with the panel shadow.
 - **Don't** colour a held document red or style it as an error.
 - **Don't** reuse the dashed border for anything but a labelled, not-yet-built slot.
-- **Don't** apply this system's look to the reviewer page piecemeal; it joins the world in its own restyle phase.
+- **Don't** make one review action look recommended: the approve buttons stay quiet, and the model's suggestion is always labelled as never filing.
+- **Don't** use Held Amber or Filed Green on the reviewer page for anything but the status tag and the outcome box.

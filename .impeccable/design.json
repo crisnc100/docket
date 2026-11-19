@@ -339,8 +339,7 @@
       }
     ],
     "scope": {
-      "covers": "web/public/home/ (public front page)",
-      "notYet": "web/login.html and the Vite app under web/src (served at /reviewer) are not in this world; restyled in a later phase."
+      "covers": "web/public/home/ (public front page, Persuade) and the reviewer page at /reviewer: web/login.html and the Vite app under web/src (Operate)."
     }
   },
   "components": [
@@ -407,11 +406,21 @@
       "description": "Numbered steps on a hairline; counters fill with the outcome colour once the run settles.",
       "html": "<ol class=\"ds-steps\" data-outcome=\"filed\"><li class=\"done\"><h3>Read the text</h3><p>Read 7 lines of text from 1 page.</p></li><li class=\"done\"><h3>Score the clues</h3><p><span class=\"ds-num\">0.95</span> from 4 clues.</p></li><li class=\"pending\"><h3>Decide</h3><p>Hidden until played.</p></li></ol>",
       "css": ":host{--ink:#16181d;--ink-2:#4f5562;--line:#e2e4e9;--line-strong:#c9ccd3;--soft:#f6f7f9;--bg:#ffffff;--filed:#17614f;--filed-bg:#e8f3ef;--held:#8a4b00;--held-bg:#fbf1e1;--focus:#2f5bd3;--radius:8px;--sans:\"Geist\",system-ui,-apple-system,\"Segoe UI\",sans-serif;--mono:\"Geist Mono\",ui-monospace,\"SF Mono\",Menlo,monospace} .ds-steps{list-style:none;margin:0;padding:16px 20px 4px;counter-reset:s;font-family:var(--sans)}.ds-steps li{position:relative;padding:0 0 10px 36px;counter-increment:s}.ds-steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:0.8125rem;font-weight:600;color:var(--ink-2);box-shadow:inset 0 0 0 1.5px var(--line-strong);background:var(--bg)}.ds-steps li::after{content:\"\";position:absolute;left:10.5px;top:28px;bottom:6px;width:1px;background:var(--line)}.ds-steps li:last-child::after{display:none}.ds-steps h3{margin:0;font-size:0.9375rem;font-weight:600;letter-spacing:-0.01em;color:var(--ink)}.ds-steps p{margin:4px 0 0;font-size:0.875rem;color:var(--ink-2)}.ds-steps li.done::before{background:var(--ink);color:#fff;box-shadow:none}.ds-steps[data-outcome=\"filed\"] li.done::before{background:var(--filed)}.ds-steps li.pending h3{color:#6b717c}.ds-steps li.pending p{visibility:hidden}.ds-num{font-family:var(--mono);font-size:0.8125rem;color:var(--ink)}"
+    },
+    {
+      "name": "Reviewer Document Panel",
+      "kind": "panel",
+      "description": "The review app's raised object: file name and status tag, PDF preview beside the evidence column (why it waits, candidates, rules' pick, model suggestion, actions), then the trace fold. Paper ground, Strong Hairline border, 8px radius, Panel lift."
+    },
+    {
+      "name": "Status Tag",
+      "kind": "tag",
+      "description": "Square Geist Mono 13px tag: Held Amber on held-bg for needs_review, Filed Green on filed-bg for filed, Second Ink on Soft Grey otherwise."
     }
   ],
   "narrative": {
     "northStar": "Plain Standard",
-    "overview": "A plain product page whose craft is exactness. White ground, near-black ink, hairline rules, and one working demo that carries the page; every figure on screen is the recorded one. The world refuses the AI-startup look: no split hero with a glowing screenshot, no gradient text, no logo row. Character comes from spacing, a tight Geist ramp, and the honesty of the data, not from ornament.\n\nColour is spent on meaning. Deep green means \"filed\", amber-brown means \"waits for a person\", and those two hues appear only where a decision is shown. Everything else is ink on white, separated by 1px lines. Geist Mono marks what the pipeline read or produced (document text, unit ids, scores), so a visitor can tell machine output from explanation at a glance.\n\nMotion is a replay, not decoration: choosing a document plays the four steps in order, each revealing its real data, and reduced motion shows the final state at once.\n\nThis system currently covers the public front page only (`web/public/home/`). The reviewer page (`web/login.html` and the Vite app under `web/src`, served at `/reviewer`) is not in this world yet; it is restyled in a later phase, and its current look is not part of this system.",
+    "overview": "A plain product page whose craft is exactness. White ground, near-black ink, hairline rules, and one working demo that carries the page; every figure on screen is the recorded one. The world refuses the AI-startup look: no split hero with a glowing screenshot, no gradient text, no logo row. Character comes from spacing, a tight Geist ramp, and the honesty of the data, not from ornament.\n\nColour is spent on meaning. Deep green means \"filed\", amber-brown means \"waits for a person\", and those two hues appear only where a decision is shown. Everything else is ink on white, separated by 1px lines. Geist Mono marks what the pipeline read or produced (document text, unit ids, scores), so a visitor can tell machine output from explanation at a glance.\n\nMotion is a replay, not decoration: choosing a document plays the four steps in order, each revealing its real data, and reduced motion shows the final state at once.\n\nThis system covers the public front page (`web/public/home/`) and the reviewer page served at `/reviewer` (the token form in `web/login.html` and the review app under `web/src`). The front page is the Persuade surface; the reviewer page is the Operate surface, where the same world shows up as plain, dense, scannable working UI.",
     "keyCharacteristics": [
       "White ground, near-black ink, two outcome colours used only for outcomes.",
       "1px hairline rules do the structural work that cards and shadows do elsewhere.",

@@ -85,7 +85,7 @@ def protected_requests(document_id, content):
         ("GET", "/review", {}),
         ("POST", f"/review/{document_id}/approve", {"json": {"record_id": "UNIT-0001"}}),
         ("POST", f"/review/{document_id}/dismiss", {"json": {"reason": "not relevant"}}),
-        ("GET", "/", {}),
+        ("GET", "/reviewer", {}),
         ("GET", "/assets/" + asset, {}),
         ("GET", "/docs", {}),
         ("GET", "/redoc", {}),
@@ -113,7 +113,7 @@ async def test_every_protected_route_requires_bearer_and_accepts_correct_token(
         assert response.status_code == 200, (method, path, response.text)
         if path.endswith("/file"):
             assert response.content == content
-        if path == "/":
+        if path == "/reviewer":
             assert token not in response.text
 
 

@@ -13,7 +13,7 @@ const test = base.extend({
 });
 
 async function unlock(page: import('@playwright/test').Page) {
-  const response = await page.goto('/');
+  const response = await page.goto('/reviewer');
   expect(response!.status()).toBe(401);
   await page.getByLabel('Reviewer token').fill('wrong-token');
   await page.getByRole('button', { name: 'Unlock review' }).click();

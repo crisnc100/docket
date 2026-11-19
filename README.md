@@ -54,17 +54,21 @@ docker compose up -d --build --wait
 uv run docket submit corpus/seed-11/doc-0075-decoy_near_miss_address.pdf
 ```
 
-Open [the local review page](http://127.0.0.1:8010/) and enter the token.
+Open [the local review page](http://127.0.0.1:8010/reviewer) and enter the token.
 The sample waits for review. It uses saved model answers, with no network model call.
 The token stays in that browser tab's session storage.
 The page shows the PDF, why it needs review, candidate scores, the rules' top pick
 and the model's suggestion. Approve either, choose another candidate, or dismiss.
 `uv run docket status <document-id>` prints the trace.
 
+The public front page is at [the root address](http://127.0.0.1:8010/) and needs no token.
+It plays back recorded seed-11 results for four test documents; nothing is uploaded.
+`uv run python -m docket.front_demo` rebuilds its data, and a test fails if it drifts.
+
 Upload with `POST /documents`, or send a signed email payload to `POST /inbound`.
 Both have a **10 MB limit (10 MiB, 10 × 1,024 × 1,024 bytes)** on the whole request,
 including upload or encoding overhead. Oversize requests return 413.
-Every route except the webhook and health check needs a reviewer Bearer token.
+Every route except the webhook, the health check and the front page with its files needs a reviewer Bearer token.
 The webhook uses a shared-secret signature and a timestamp within five minutes.
 See [operations](docs/operations.md) for headers, routes, settings and services.
 

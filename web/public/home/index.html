@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Docket · Property documents, filed or held for a person</title>
+  <meta name="description" content="Docket reads incoming property documents. Each one files to the right unit, waits for a person, or stops with a reason; it files on its own only when independent clues agree.">
+  <link rel="preload" href="/home/fonts/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/home/fonts/geist-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/home/home.css">
+  <script type="module" src="/home/home.js"></script>
+</head>
+<body>
+  <a class="skip" href="#demo">Skip to the demo</a>
+  <header class="top">
+    <a class="mark" href="/" aria-label="Docket home">Docket</a>
+    <nav aria-label="Main">
+      <ul>
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#results">Results</a></li>
+        <li><a data-review-link href="/reviewer">Review page</a></li>
+        <li><a href="https://github.com/crisnc100/docket">Source</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="title">
+      <div class="pitch">
+        <h1 id="title"><span>Property documents filed to the right unit,</span> <span>or held for a person.</span></h1>
+        <p class="lede">Docket reads incoming leases, invoices and notices, and matches each one to a known unit. It files a document on its own only when two independent clues agree. A language model can suggest a unit to a reviewer; it never files a document.</p>
+        <p class="actions">
+          <a class="button" href="#demo" data-start-demo>Try a test document</a>
+          <a class="button quiet" href="#results">See the held-out results</a>
+        </p>
+      </div>
+
+      <div class="demo" id="demo" tabindex="-1" aria-labelledby="demo-title">
+        <h2 class="visually-hidden" id="demo-title">Watch a test document get filed or held</h2>
+        <div class="tabs" role="tablist" aria-label="Test documents">
+          <button role="tab" id="tab-doc-0001" aria-controls="run" aria-selected="true" data-doc="doc-0001">A clean lease</button>
+          <button role="tab" id="tab-doc-0075" aria-controls="run" aria-selected="false" tabindex="-1" data-doc="doc-0075">A near-miss address</button>
+          <button role="tab" id="tab-doc-0012" aria-controls="run" aria-selected="false" tabindex="-1" data-doc="doc-0012">A page with no text</button>
+          <button role="tab" id="tab-doc-0176" aria-controls="run" aria-selected="false" tabindex="-1" data-doc="doc-0176">Just below the line</button>
+        </div>
+        <p class="demo-error" role="alert" data-demo-error hidden>The recorded results did not load. Reload the page to try again.</p>
+
+        <div class="run" id="run" role="tabpanel" aria-labelledby="tab-doc-0001" aria-live="polite">
+          <figure class="paper">
+            <figcaption><span>What Docket reads</span><span class="file" data-field="filename">doc-0001-clean.pdf</span></figcaption>
+            <pre data-field="text">Lease document
+Synthetic property-management fixture.
+Record: UNIT-0116
+Address: 1510 Birch Street Apt 16
+Building: BIRCH_06
+Tenant: Paul Logan
+Tend tax sit later talk couple sound little pass control land.</pre>
+          </figure>
+
+          <ol class="steps" data-steps>
+            <li data-step="read"><h3>Read the text</h3><div class="detail"></div></li>
+            <li data-step="find"><h3>Find candidate units</h3><div class="detail"></div></li>
+            <li data-step="score"><h3>Score the clues</h3><div class="detail"></div></li>
+            <li data-step="decide"><h3>Decide</h3><div class="detail"></div></li>
+          </ol>
+        </div>
+        <div class="demo-foot"><p>Recorded held-out results, played back here. Nothing is uploaded.</p><span class="own" title="Planned for a hosted beta; not built yet">Your own PDF: later</span><button type="button" class="replay" data-replay>Replay</button></div>
+      </div>
+
+      <ul class="facts">
+        <li><b><span data-fact="results.auto_filed_correct">28</span> of <span data-fact="results.auto_filed">28</span></b> automatic filings were correct in the held-out test.</li>
+        <li>On held documents, the model's unit suggestions were less accurate than the rules' top pick. <a href="#suggestions">See the comparison</a></li>
+        <li>All data is synthetic: <span data-fact="results.units">200</span> units and <span data-fact="results.documents">180</span> held-out test documents. The live test missed <span data-fact="gates.missed">2</span> of its <span data-fact="gates.total">4</span> gates. <a href="#missed">What it missed</a></li>
+      </ul>
+    </section>
+
+    <section class="band" id="how" aria-labelledby="how-title">
+      <h2 id="how-title">How a document is decided</h2>
+      <div class="cols">
+        <div class="prose">
+          <p>Docket looks for clues in the text that point at one of the known units. Each kind of clue carries a weight. A close spelling counts for part of its weight.</p>
+          <p>A document is filed on its own only when <b>at least <span data-fact="policy.clues_required">2</span> different clues</b> point at the same unit, and their weights add up to a score of about <b data-fact="policy.auto_file_threshold_short">0.586</b>. If the clues name more than one unit outright (by unit number, full address or full tenant name), it waits for a person. A building code shared by many units does not count as naming one. One clue alone, even the unit number, is never enough, so a document cannot file itself just by naming a unit.</p>
+          <p>Every document files, waits for a person, or stops with a reason: a file that cannot be read at all (empty, encrypted, damaged or not a PDF) is rejected, and a document whose type question gets no answer from the model fails. Everything else that does not file waits on the review page, where a person sees the PDF, the clues, the rules' top pick and the model's suggestion side by side, and picks the unit or dismisses the document.</p>
+          <p>The model labels the document type and may suggest a unit. Its suggestion is shown to the reviewer and recorded in the trace; it is never used to file. If its type answer cannot be read, the document waits for a person, so the model can hold a document back but never file one.</p>
+        </div>
+        <table class="weights">
+          <caption>Clue weights</caption>
+          <thead><tr><th scope="col">Clue</th><th scope="col">Weight</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Unit number in the text</th><td data-fact="policy.weights.explicit_id">0.30</td></tr>
+            <tr><th scope="row">Street address</th><td data-fact="policy.weights.address">0.30</td></tr>
+            <tr><th scope="row">Tenant name</th><td data-fact="policy.weights.tenant_name">0.25</td></tr>
+            <tr><th scope="row">Building code</th><td data-fact="policy.weights.building">0.10</td></tr>
+            <tr><th scope="row">Unit number in the file name</th><td data-fact="policy.weights.filename_id">0.05</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="band" id="results" aria-labelledby="results-title">
+      <h2 id="results-title">Held-out results</h2>
+      <p class="prose">Measured on <span data-fact="results.documents">180</span> synthetic test documents that played no part in choosing any setting: <span data-fact="results.auto_filed">28</span> filed, <span data-fact="results.held">112</span> held for a person and <span data-fact="results.rejected">40</span> rejected as unreadable files. "Rules only" is the same filing policy with no model at all.</p>
+      <table class="compare">
+        <thead><tr><th scope="col"></th><th scope="col">Docket</th><th scope="col">Rules only</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Automatic filings that were correct</th><td><span data-fact="results.auto_filed_correct">28</span> of <span data-fact="results.auto_filed">28</span></td><td><span data-fact="results.rules_only_filed_correct">38</span> of <span data-fact="results.rules_only_filed">38</span></td></tr>
+          <tr><th scope="row">Documents that should file, filed</th><td><span data-fact="results.auto_filed_correct">28</span> of <span data-fact="results.expected_filings">39</span></td><td><span data-fact="results.rules_only_filed_correct">38</span> of <span data-fact="results.expected_filings">39</span></td></tr>
+        </tbody>
+      </table>
+      <table class="compare split" id="suggestions">
+        <caption>Suggestions on the <span data-fact="results.held">112</span> documents held for a person</caption>
+        <thead><tr><th scope="col">Held documents</th><th scope="col">Count</th><th scope="col">Model right</th><th scope="col">Rules' top pick right</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Belong to a known unit; model asked. Right means naming that unit.</th><td data-label="Count" data-fact="results.asked_with_unit">62</td><td data-label="Model right"><span data-fact="results.model_right_unit">3</span> of <span data-fact="results.asked_with_unit">62</span></td><td data-label="Rules' top pick right"><span data-fact="results.rules_right_unit">42</span> of <span data-fact="results.asked_with_unit">62</span></td></tr>
+          <tr><th scope="row">Belong to no unit; model asked. Right means naming none.</th><td data-label="Count" data-fact="results.asked_without_unit">20</td><td data-label="Model right"><span data-fact="results.model_right_no_unit">20</span> of <span data-fact="results.asked_without_unit">20</span></td><td data-label="Rules' top pick right"><span data-fact="results.rules_right_no_unit">0</span> of <span data-fact="results.asked_without_unit">20</span></td></tr>
+          <tr><th scope="row">No candidate unit, so the model was not asked</th><td data-label="Count" data-fact="results.held_not_asked">20</td><td data-label="Model right" class="who">not compared</td><td data-label="Rules' top pick right" class="who">not compared</td></tr>
+          <tr><th scope="row">The model's suggestion call failed</th><td data-label="Count" data-fact="results.held_failed">10</td><td data-label="Model right" class="who">not compared</td><td data-label="Rules' top pick right" class="who">not compared</td></tr>
+        </tbody>
+      </table>
+      <p class="prose" id="missed"><b>What it missed.</b> The model's safety filter refused every very long test document: <span data-fact="gates.unreadable_answers">40</span> of <span data-fact="gates.requests">440</span> answers across both test sets, against a limit of <span data-fact="gates.answer_limit_percent">2</span>%. Those documents wait for a person instead of filing, so in the held-out set Docket filed fewer of the documents it should have than the rules alone. That missed <span data-fact="gates.missed">2</span> of the live test's <span data-fact="gates.total">4</span> gates. Nothing was filed to a wrong unit. <a href="https://github.com/crisnc100/docket#held-out-results">The full results and both missed gates</a></p>
+      <details class="fold">
+        <summary>Terms and method</summary>
+        <dl>
+          <dt>Held-out test</dt><dd>Two sets of generated documents. The tuning set, <span data-fact="source.tuning_documents">180</span> documents, chose the filing threshold, <span data-fact="policy.auto_file_threshold">0.5857142</span>. The held-out set, <span data-fact="results.documents">180</span> documents, chose nothing. Every other figure on this page comes from the held-out set, except the live-test gates, which count the model's answers across both.</dd>
+          <dt>Model</dt><dd>Claude Haiku 5.5 on the Anthropic API, answers recorded once on <span data-fact="source.recorded_on">2026-11-13</span> and replayed with no model call.</dd>
+          <dt>Precision and recall</dt><dd>"Correct automatic filings" is precision; "should file, filed" is recall.</dd>
+          <dt>Uncertainty</dt><dd>The report gives a <span data-fact="source.confidence_percent">95</span>% Wilson interval for its overall figures, such as filing precision, recall and suggestion accuracy; the split rows in the suggestions table have none. These figures measure synthetic documents, not real mail.</dd>
+        </dl>
+        <p><a href="https://github.com/crisnc100/docket/blob/main/evals/reports/2026-11-13-seed-11.md">Held-out report</a> · <a href="https://github.com/crisnc100/docket/blob/main/docs/failures/README.md">Failure notes</a> · <a href="https://github.com/crisnc100/docket/blob/main/docs/adr/008-real-model.md">Live-test gates</a></p>
+      </details>
+    </section>
+
+    <section class="band" id="review" aria-labelledby="review-title">
+      <h2 id="review-title">The review page</h2>
+      <div class="cols">
+        <p class="prose">Held documents wait in one queue. Each shows the PDF, why it is waiting, every candidate unit with its score, the rules' top pick and the model's suggestion. A reviewer approves either, picks another candidate, or dismisses the document with a reason. Every step is in the document's trace.</p>
+        <p class="prose">It needs a reviewer token. To try it, run Docket locally with the <a href="https://github.com/crisnc100/docket#quickstart">quickstart</a>, then open the <a data-review-link href="/reviewer">review page</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>Docket is open source under Apache-2.0. Every unit, tenant and document here is synthetic.</p>
+    <p><a href="https://github.com/crisnc100/docket">Source on GitHub</a></p>
+  </footer>
+</body>
+</html>

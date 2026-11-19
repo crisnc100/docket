@@ -38,15 +38,24 @@ def reviewer_page(status_code: int = 200):
     )
 
 
+def public(method: str, path: str) -> bool:
+    """Routes that need no reviewer token: the webhook, the health check, the front page at
+    exactly "/" and its static files under /home/."""
+    if (method, path) in {("POST", "/inbound"), ("GET", "/healthz"), ("GET", "/")}:
+        return True
+    if method != "GET" or not path.startswith("/home/") or "\\" in path:
+        return False
+    # ASGI paths arrive percent-decoded but not dot-normalised, so /home/../review must not
+    # count as a front-page file.
+    return all(part not in {".", ".."} for part in path.split("/"))
+
+
 class ReviewerAccess:
     def __init__(self, app: ASGIApp, settings: Callable[[], Settings]):
         self.app, self.settings = app, settings
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if scope["type"] != "http" or (scope["method"], scope["path"]) in {
-            ("POST", "/inbound"),
-            ("GET", "/healthz"),
-        }:
+        if scope["type"] != "http" or public(scope["method"], scope["path"]):
             return await self.app(scope, receive, send)
         configured = self.settings().docket_review_token
         expected = configured.get_secret_value() if configured is not None else ""
@@ -62,7 +71,7 @@ class ReviewerAccess:
         if scheme.lower() != b"bearer" or not valid:
             response = (
                 reviewer_page(401)
-                if (scope["method"], scope["path"]) == ("GET", "/")
+                if (scope["method"], scope["path"]) == ("GET", "/reviewer")
                 else PlainTextResponse(
                     "A valid reviewer Bearer token is required.",
                     401,

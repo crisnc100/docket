@@ -1,0 +1,397 @@
+{
+  "source": {
+    "report": "evals/reports/2026-11-13-seed-11.json",
+    "tuning_report": "evals/reports/2026-11-13-seed-7.json",
+    "model": "claude-haiku-5-5",
+    "recorded_on": "2026-11-13",
+    "seed": 11,
+    "tuning_documents": 180,
+    "confidence_percent": 95
+  },
+  "policy": {
+    "weights": {
+      "explicit_id": "0.3",
+      "address": "0.3",
+      "tenant_name": "0.25",
+      "building": "0.1",
+      "filename_id": "0.05"
+    },
+    "strong_threshold": "0.55",
+    "auto_file_threshold": "0.5857142",
+    "auto_file_threshold_short": "0.586",
+    "clues_required": 2
+  },
+  "results": {
+    "documents": 180,
+    "outcomes": {
+      "rejected": 40,
+      "would_file": 28,
+      "would_review": 112
+    },
+    "auto_filed": 28,
+    "auto_filed_correct": 28,
+    "auto_filed_wrong": 0,
+    "expected_filings": 39,
+    "rules_only_filed": 38,
+    "rules_only_filed_correct": 38,
+    "rules_only_filed_wrong": 0,
+    "rejected": 40,
+    "suggestion_failures": 10,
+    "review_documents": 102,
+    "model_suggestions_correct": 43,
+    "rules_top_pick_correct": 62,
+    "held": 112,
+    "held_failed": 10,
+    "held_not_asked": 20,
+    "asked_with_unit": 62,
+    "model_right_unit": 3,
+    "rules_right_unit": 42,
+    "asked_without_unit": 20,
+    "model_right_no_unit": 20,
+    "rules_right_no_unit": 0,
+    "not_asked_rules_right": 20,
+    "not_asked_model_right": 20,
+    "units": 200
+  },
+  "gates": {
+    "passed": 2,
+    "missed": 2,
+    "total": 4,
+    "results": {
+      "unreadable_at_most_2_percent": false,
+      "no_answer_at_most_2_percent": true,
+      "held_out_floors": false,
+      "spend_under_5_dollars": true
+    },
+    "requests": 440,
+    "answer_limit_percent": 2,
+    "unreadable_answers": 40,
+    "spend_usd": "0.029313600",
+    "missed_floor": [
+      "recall_at_least_baseline"
+    ]
+  },
+  "documents": [
+    {
+      "id": "doc-0001",
+      "filename": "doc-0001-clean.pdf",
+      "case_type": "clean",
+      "expected": {
+        "decision": "filed",
+        "record_id": "UNIT-0116"
+      },
+      "text": "Lease document\nSynthetic property-management fixture.\nRecord: UNIT-0116\nAddress: 1510 Birch Street Apt 16\nBuilding: BIRCH_06\nTenant: Paul Logan\nTend tax sit later talk couple sound little pass control land.",
+      "pages": 1,
+      "candidates": [
+        {
+          "record_id": "UNIT-0116",
+          "address": "1510 Birch Street Apt 16",
+          "tenant": "Paul Logan",
+          "signals": {
+            "explicit_id": 1.0,
+            "address": 1.0,
+            "tenant_name": 1.0,
+            "building": 1.0
+          },
+          "evidence_score": "0.9500000",
+          "clue_count": 4
+        },
+        {
+          "record_id": "UNIT-0101",
+          "address": "1510 Birch Street Apt 1",
+          "tenant": "Sabrina Freeman",
+          "signals": {
+            "building": 1.0
+          },
+          "evidence_score": "0.1000000",
+          "clue_count": 1
+        },
+        {
+          "record_id": "UNIT-0102",
+          "address": "1510 Birch Street Apt 2",
+          "tenant": "Emily Proctor",
+          "signals": {
+            "building": 1.0
+          },
+          "evidence_score": "0.1000000",
+          "clue_count": 1
+        },
+        {
+          "record_id": "UNIT-0103",
+          "address": "1510 Birch Street Apt 3",
+          "tenant": "David Whitehead",
+          "signals": {
+            "building": 1.0
+          },
+          "evidence_score": "0.1000000",
+          "clue_count": 1
+        },
+        {
+          "record_id": "UNIT-0104",
+          "address": "1510 Birch Street Apt 4",
+          "tenant": "Melissa Orr",
+          "signals": {
+            "building": 1.0
+          },
+          "evidence_score": "0.1000000",
+          "clue_count": 1
+        }
+      ],
+      "clue_spans": [
+        {
+          "text": "UNIT-0116",
+          "signal": "explicit_id",
+          "record_id": "UNIT-0116"
+        },
+        {
+          "text": "1510 Birch Street Apt 16",
+          "signal": "address",
+          "record_id": "UNIT-0116"
+        },
+        {
+          "text": "Paul Logan",
+          "signal": "tenant_name",
+          "record_id": "UNIT-0116"
+        },
+        {
+          "text": "BIRCH_06",
+          "signal": "building",
+          "record_id": "UNIT-0116"
+        },
+        {
+          "text": "BIRCH_06",
+          "signal": "building",
+          "record_id": "UNIT-0101"
+        },
+        {
+          "text": "BIRCH_06",
+          "signal": "building",
+          "record_id": "UNIT-0102"
+        },
+        {
+          "text": "BIRCH_06",
+          "signal": "building",
+          "record_id": "UNIT-0103"
+        },
+        {
+          "text": "BIRCH_06",
+          "signal": "building",
+          "record_id": "UNIT-0104"
+        }
+      ],
+      "conflict": false,
+      "rules": {
+        "record_id": "UNIT-0116",
+        "score": "0.9500000",
+        "tier": "strong",
+        "decision": "file",
+        "reason": "threshold_met"
+      },
+      "recorded": {
+        "status": "would_file",
+        "reason": "threshold_met",
+        "record_id": "UNIT-0116",
+        "score": "0.9500000",
+        "tier": "strong",
+        "category": "lease",
+        "model_suggestion": "UNIT-0116",
+        "model_called": true
+      },
+      "rules_only_baseline": {
+        "status": "would_file",
+        "record_id": "UNIT-0116"
+      },
+      "review_comparison": null
+    },
+    {
+      "id": "doc-0075",
+      "filename": "doc-0075-decoy_near_miss_address.pdf",
+      "case_type": "decoy_near_miss_address",
+      "expected": {
+        "decision": "review",
+        "record_id": "UNIT-0024"
+      },
+      "text": "Lease document\nSynthetic property-management fixture.\nAddress: 1110 Maple Streeet Apt 4\nTenant: Michael Ryan\nDo not confuse with neighbouring address: 1110 Maple Street Apt 20\nClaim bag send culture themselves assume second a.",
+      "pages": 1,
+      "candidates": [
+        {
+          "record_id": "UNIT-0040",
+          "address": "1110 Maple Street Apt 20",
+          "tenant": "Olivia Nichols",
+          "signals": {
+            "address": 1.0
+          },
+          "evidence_score": "0.3000000",
+          "clue_count": 1
+        },
+        {
+          "record_id": "UNIT-0024",
+          "address": "1110 Maple Street Apt 4",
+          "tenant": "Michael Ryan",
+          "signals": {
+            "address": 0.8889,
+            "tenant_name": 1.0
+          },
+          "evidence_score": "0.5166666",
+          "clue_count": 2
+        }
+      ],
+      "clue_spans": [
+        {
+          "text": "1110 Maple Street Apt 20",
+          "signal": "address",
+          "record_id": "UNIT-0040"
+        },
+        {
+          "text": "1110 Maple Streeet Apt 4",
+          "signal": "address",
+          "record_id": "UNIT-0024"
+        },
+        {
+          "text": "Michael Ryan",
+          "signal": "tenant_name",
+          "record_id": "UNIT-0024"
+        }
+      ],
+      "conflict": true,
+      "rules": {
+        "record_id": "UNIT-0040",
+        "score": "0",
+        "tier": "none",
+        "decision": "review",
+        "reason": "conflicting_records"
+      },
+      "recorded": {
+        "status": "would_review",
+        "reason": "conflicting_records",
+        "record_id": "UNIT-0040",
+        "score": "0",
+        "tier": "none",
+        "category": "lease",
+        "model_suggestion": "UNIT-0040",
+        "model_called": true
+      },
+      "rules_only_baseline": {
+        "status": "would_review",
+        "record_id": "UNIT-0040"
+      },
+      "review_comparison": {
+        "document_id": "doc-0075",
+        "gold_record_id": "UNIT-0024",
+        "rules_correct": false,
+        "rules_top_record_id": "UNIT-0040",
+        "suggested_record_id": "UNIT-0040",
+        "suggestion_correct": false
+      }
+    },
+    {
+      "id": "doc-0012",
+      "filename": "doc-0012-empty_text_layer.pdf",
+      "case_type": "empty_text_layer",
+      "expected": {
+        "decision": "review",
+        "record_id": null
+      },
+      "text": "",
+      "pages": 1,
+      "candidates": [],
+      "clue_spans": [],
+      "conflict": false,
+      "rules": {
+        "record_id": null,
+        "score": "0",
+        "tier": "none",
+        "decision": "review",
+        "reason": "no_candidate_chosen"
+      },
+      "recorded": {
+        "status": "would_review",
+        "reason": "no_candidate_chosen",
+        "record_id": null,
+        "score": "0",
+        "tier": "none",
+        "category": "misc",
+        "model_suggestion": null,
+        "model_called": false
+      },
+      "rules_only_baseline": {
+        "status": "would_review",
+        "record_id": null
+      },
+      "review_comparison": {
+        "document_id": "doc-0012",
+        "gold_record_id": null,
+        "rules_correct": true,
+        "rules_top_record_id": null,
+        "suggested_record_id": null,
+        "suggestion_correct": true
+      }
+    },
+    {
+      "id": "doc-0176",
+      "filename": "doc-0176-graded_evidence.pdf",
+      "case_type": "graded_evidence",
+      "expected": {
+        "decision": "filed",
+        "record_id": "UNIT-0131"
+      },
+      "text": "Lease document\nRecord: UNIT-0131\nAddress: 1610 zlm Street Apt 11\nSynthetic property-management fixture.",
+      "pages": 1,
+      "candidates": [
+        {
+          "record_id": "UNIT-0131",
+          "address": "1610 Elm Street Apt 11",
+          "tenant": "Angela Gutierrez",
+          "signals": {
+            "explicit_id": 1.0,
+            "address": 0.9474
+          },
+          "evidence_score": "0.5842105",
+          "clue_count": 2
+        }
+      ],
+      "clue_spans": [
+        {
+          "text": "UNIT-0131",
+          "signal": "explicit_id",
+          "record_id": "UNIT-0131"
+        },
+        {
+          "text": "1610 zlm Street Apt 11",
+          "signal": "address",
+          "record_id": "UNIT-0131"
+        }
+      ],
+      "conflict": false,
+      "rules": {
+        "record_id": "UNIT-0131",
+        "score": "0.5842105",
+        "tier": "strong",
+        "decision": "review",
+        "reason": "insufficient_corroboration"
+      },
+      "recorded": {
+        "status": "would_review",
+        "reason": "insufficient_corroboration",
+        "record_id": "UNIT-0131",
+        "score": "0.5842105",
+        "tier": "strong",
+        "category": "lease",
+        "model_suggestion": "UNIT-0131",
+        "model_called": true
+      },
+      "rules_only_baseline": {
+        "status": "would_review",
+        "record_id": "UNIT-0131"
+      },
+      "review_comparison": {
+        "document_id": "doc-0176",
+        "gold_record_id": "UNIT-0131",
+        "rules_correct": true,
+        "rules_top_record_id": "UNIT-0131",
+        "suggested_record_id": "UNIT-0131",
+        "suggestion_correct": true
+      }
+    }
+  ]
+}

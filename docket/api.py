@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from sqlalchemy import select
@@ -233,12 +233,49 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
 
     static = Path(__file__).resolve().parent.parent / "web" / "dist"
     app.mount("/assets", StaticFiles(directory=static / "assets", check_dir=False), name="assets")
+    serve_home(app, static / "home")
 
-    @app.get("/", include_in_schema=False)
+    @app.get("/reviewer", include_in_schema=False)
     def review_page():
         return reviewer_page()
 
     return app
+
+
+HOME_HEADERS = {
+    "Cache-Control": "no-cache",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": (
+        "default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    ),
+}
+
+
+def serve_home(app: FastAPI, home: Path) -> None:
+    """The public front page at "/" and its files under /home/. ReviewerAccess lets exactly
+    these GETs through without a token; nothing here reads the database or the review queue."""
+    root = home.resolve()
+
+    @app.get("/", include_in_schema=False)
+    def front_page():
+        page = root / "index.html"
+        if not page.is_file():
+            return PlainTextResponse(
+                "Build the front page with npm --prefix web run build", 503, headers=HOME_HEADERS
+            )
+        return FileResponse(page, headers=HOME_HEADERS)
+
+    @app.get("/home/{path:path}", include_in_schema=False)
+    def home_file(path: str):
+        if path in {"", "index.html"}:
+            return RedirectResponse("/", 308)
+        # Path.resolve raises on a NUL byte; treat it like any other path that is not a file.
+        if "\x00" in path:
+            raise HTTPException(404, "Not found")
+        target = (root / path).resolve()
+        if root not in target.parents or not target.is_file():
+            raise HTTPException(404, "Not found")
+        return FileResponse(target, headers=HOME_HEADERS)
 
 
 app = create_app()

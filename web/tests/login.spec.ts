@@ -11,7 +11,7 @@ for (const resource of ['review', 'style', 'script']) {
         if (failure === 'network') await route.abort('failed');
         else await route.fulfill({ status: Number(failure), body: 'Temporary failure' });
       });
-      await page.goto('/');
+      await page.goto('/reviewer');
       await expect(page.getByRole('button', { name: 'Unlock review' })).toBeEnabled();
       await expect(page.getByRole('status')).not.toHaveText('Checking access…');
       expect(await page.evaluate(() => sessionStorage.getItem('docket-review-token')))

@@ -1,0 +1,121 @@
+{
+  "rows": [
+    {
+      "behavior": "/ is the public front page; review page moved to /reviewer",
+      "files": [
+        "docket/api.py",
+        "web/tests/login.spec.ts",
+        "web/tests/review.spec.ts",
+        "tests/workflow/test_review_access.py"
+      ],
+      "docs": [
+        {
+          "path": "README.md",
+          "claims": [
+            {
+              "claim": "The review page is at /reviewer",
+              "at": "docket/api.py:238"
+            },
+            {
+              "claim": "The front page is at the root and needs no token",
+              "at": "docket/api.py:260"
+            }
+          ]
+        },
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "GET /reviewer opens the review page and token entry shows after a 401 there",
+              "at": "docket/review_access.py:74"
+            },
+            {
+              "claim": "GET / opens the public front page",
+              "at": "docket/api.py:260"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Public routes without the token: GET /, GET /home/*, POST /inbound, GET /healthz",
+      "files": [
+        "docket/review_access.py",
+        "tests/test_front_page_served.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "Every route except POST /inbound, GET /healthz, GET / and GET /home/{file} needs the token",
+              "at": "docket/review_access.py:41"
+            },
+            {
+              "claim": "GET /home/{file} reads the front page's files",
+              "at": "docket/api.py:269"
+            }
+          ]
+        },
+        {
+          "path": "README.md",
+          "claims": [
+            {
+              "claim": "Every route except webhook, health check and front page with its files needs a token",
+              "at": "docket/review_access.py:41"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Front-page demo data built from committed reports and checked by a test",
+      "files": [
+        "docket/front_demo.py",
+        "tests/test_front_demo.py",
+        "web/public/home/home.js",
+        "web/public/home/home.css",
+        "web/public/home/index.html",
+        "web/public/home/fonts/OFL.txt",
+        "web/public/home/fonts/geist-latin.woff2",
+        "web/public/home/fonts/geist-mono-latin.woff2",
+        ".gitignore"
+      ],
+      "docs": [
+        {
+          "path": "README.md",
+          "claims": [
+            {
+              "claim": "python -m docket.front_demo rebuilds the data",
+              "at": "docket/front_demo.py:286"
+            },
+            {
+              "claim": "Page plays four recorded seed-11 documents",
+              "at": "docket/front_demo.py:36"
+            },
+            {
+              "claim": "A test fails if demo.json drifts",
+              "at": "tests/test_front_demo.py:15"
+            }
+          ]
+        },
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "front_demo.py builds the demo data; web/public/home is the front page",
+              "at": "docket/front_demo.py:1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "The two-clue filing rule is named CLUES_REQUIRED and read by the front-page demo",
+      "files": [
+        "docket/core/scoring.py"
+      ],
+      "none": "Behaviour unchanged (docket/core/scoring.py:16); the README already states the two-clue rule"
+    }
+  ]
+}

@@ -23,3 +23,11 @@ builds/**/*.err
 /web/dist/
 /web/test-results/
 /web/playwright-report/
+
+# Impeccable working files: decision boards and review captures stay local.
+/.impeccable/decision/
+/.impeccable/review/
+/.impeccable/mocks/
+/.impeccable/config.local.json
+/.impeccable/hook.cache.json
+/.impeccable/questions/

@@ -1,0 +1,15 @@
+{
+  "mode": "pr",
+  "purpose": "Give Docket a public front page that shows how document filing works and lets visitors try it with real test documents, in the Plain Standard look Cristian picked, and move the token-gated review page to /reviewer.",
+  "mechanism": "docket/api.py serves GET / from web/dist/home/index.html (503 with the build command when the build is missing) and GET /home/{path} for the page's static files, with a strict CSP; /home/ and /home/index.html 308 to /; files outside the folder, absolute paths, symlinks out and NUL bytes give 404. The review page moved to GET /reviewer. docket/review_access.py public() lets only GET / exactly and GET under /home/ through without the token, plus POST /inbound and GET /healthz; paths with . or .. segments or backslashes still need the token. docket/front_demo.py builds web/public/home/demo.json from evals/reports seed-11 and seed-7, the corpus labels and the matcher (highlight spans come from re-running address_strength and name_strength). web/public/home/home.js plays the recorded run: read, candidates, score, decide. tests/test_front_demo.py checks demo.json equals a fresh build, the rules recomputed from each PDF match, and every visible figure is a data-fact equal to demo.json. Vite copies web/public/home into dist/home untouched.",
+  "decisions": "Front page at / and review page at /reviewer (like Askwell's /try/), over keeping the review page at /. Static files outside Vite's entries because reviewer_page loads every script in dist/assets. Recorded results rather than a live run, so nothing is uploaded; try-your-own-PDF is a later hosted-beta PR. Plain Standard over The Site Plan and The Lobby Directory (Cristian, 2026-11-18).",
+  "readers": "README and docs/operations.md: people running Docket and reviewers who need the new /reviewer address. DESIGN.md: whoever builds the next page in this look. Comments: the next maintainer of docket/api.py, review_access.py, front_demo.py and home.js.",
+  "base": "origin/main",
+  "docMap": [
+    {"behavior": "/ is the public front page; the review page is at /reviewer behind the token", "docs": ["README.md", "docs/operations.md"]},
+    {"behavior": "Which routes are public without the token", "docs": ["docs/operations.md", "README.md"]},
+    {"behavior": "How the front-page demo data is built and checked", "docs": ["README.md"]},
+    {"behavior": "Visual system of the front page", "docs": ["DESIGN.md"]}
+  ],
+  "untouchable": ["PRODUCT.md", ".impeccable/**", "evals/**", "corpus/**", "web/public/home/demo.json"]
+}

@@ -1,0 +1,11 @@
+{"rows":[
+{"behavior":"Review page look: candidates with score, tier words and conflict note, pick cards and their notes, outcome box, empty queue panel","files":["web/src/main.ts","web/src/style.css"],"docs":[{"path":"DESIGN.md","claims":[
+{"claim":"Tier words are strong evidence, some evidence, and weak evidence below the medium line for tier none","at":"web/src/main.ts:116"},
+{"claim":"A row whose own score is 0 with no conflict shows just Score 0; a conflict row reads Score 0, set by the conflict","at":"web/src/main.ts:249"},
+{"claim":"Rules' note reads The rules list this unit first., plus Compare the candidates with the document. on a conflict; pick card note shows only when it has a unit","at":"web/src/main.ts:268"},
+{"claim":"Outcome labels the raw value Hold reason: and adds the conflict line when another hold reason won","at":"web/src/main.ts:181"},
+{"claim":"Empty queue panel says Nothing waiting","at":"web/src/main.ts:309"}]}]},
+{"behavior":"Reviewer CSP allows fonts from 'self'","files":["docket/review_access.py"],"none":"The reviewer CSP is not described in README.md or docs/operations.md, and the one-directive change is explained by the code."},
+{"behavior":"Token form at /reviewer in the Plain Standard look","files":["web/login.html"],"docs":[{"path":"DESIGN.md","claims":[{"claim":"Token form is a raised panel with wordmark, one line of Second Ink, a square 44px input, a full-width button and a status line","at":"web/login.html:32"}]}]},
+{"behavior":"Design record of the review page","files":[".impeccable/design.json",".impeccable/surfaces/web-login-html.md"],"none":"Untouchable files that record the look; no edit needed from the writer."}
+]}

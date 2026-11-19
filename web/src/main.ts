@@ -115,10 +115,19 @@ const CLUE_NAMES: Record<string, string> = {
 const TIER_WORDS: Record<string, string> = {
   strong: 'strong evidence',
   medium: 'some evidence',
-  none: 'too little evidence to rank',
+  none: 'weak evidence, below the medium line',
 };
 const short = (value: string | number) => Number(value).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
 
+// The shortlist step records the conflict even when another hold reason wins (input too large,
+// unreadable category). Older traces lack that step's flag, so the hold reason stands in.
+function hasConflict(trace: Trace, heldReason: string) {
+  const shortlist = trace.events.filter(event => event.step === 'shortlist').pop()?.detail;
+  if (shortlist && typeof shortlist === 'object' && 'conflict' in shortlist) {
+    return (shortlist as { conflict: unknown }).conflict === true;
+  }
+  return heldReason === 'conflicting_records';
+}
 function documentId() {
   const id = window.location.hash.slice(1);
   return /^[0-9a-f-]{36}$/i.test(id) ? id : undefined;
@@ -164,12 +173,14 @@ async function act(action: 'approve' | 'dismiss', value: string) {
     await openDocument();
   }
 }
-function outcome(trace: Trace) {
+function outcome(trace: Trace, conflict: boolean) {
   if (trace.status === 'needs_review') {
-    return block('div', 'outcome held',
+    const held = block('div', 'outcome held',
       element('strong', 'Waiting for a person'),
-      element('p', HELD_BECAUSE[trace.reason] || 'Docket could not file it on its own, so a person decides.'),
-      block('p', 'code', `Rules' reason: ${trace.reason}`));
+      element('p', HELD_BECAUSE[trace.reason] || 'Docket could not file it on its own, so a person decides.'));
+    if (conflict && trace.reason !== 'conflicting_records') held.append(element('p', HELD_BECAUSE.conflicting_records));
+    held.append(block('p', 'code', `Hold reason: ${trace.reason}`));
+    return held;
   }
   if (trace.status === 'filed') {
     return block('div', 'outcome filed',
@@ -182,7 +193,8 @@ function outcome(trace: Trace) {
 }
 function pickCard(heading: string, note: string, id: string | null, empty: string, action: string) {
   const card = element('article');
-  card.append(element('h3', heading), block('p', 'pick', id ? unit(id) : empty), block('p', 'note', note));
+  card.append(element('h3', heading), block('p', 'pick', id ? unit(id) : empty));
+  if (id) card.append(block('p', 'note', note));
   const approve = button(action, () => act('approve', id!));
   approve.disabled = busy || !id;
   card.append(approve);
@@ -215,11 +227,11 @@ function renderDocument(item: ReviewItem | undefined, trace: Trace, pdfUrl?: str
   } else {
     paper.append(block('p', 'no-preview', 'PDF preview unavailable.'));
   }
-  const evidence = block('div', 'evidence', outcome(trace));
+  const conflict = trace.status === 'needs_review' && hasConflict(trace, item?.reason ?? trace.reason);
+  const evidence = block('div', 'evidence', outcome(trace, conflict));
   detail.append(block('div', 'sheet', paper, evidence));
 
   if (item && trace.status === 'needs_review') {
-    const conflict = item.reason === 'conflicting_records';
     evidence.append(element('h3', 'Candidates'));
     if (conflict && item.candidates.length) {
       evidence.append(block('p', 'list-note',
@@ -252,8 +264,8 @@ function renderDocument(item: ReviewItem | undefined, trace: Trace, pdfUrl?: str
     choices.className = 'choices';
     choices.append(
       pickCard('Rules top candidate', conflict
-        ? 'Ranked first, but the clues also name another unit outright; compare both.'
-        : 'The highest-scoring unit. The rules held it instead of filing it.',
+        ? 'The rules list this unit first. Compare the candidates with the document.'
+        : 'The highest-scoring unit.',
         item.rules_top_record_id, 'No candidate', 'Approve rules top'),
       pickCard('Suggested', 'Suggested by the model. Nothing is filed unless you approve it.',
         item.suggested_record_id, 'No record suggested', 'Approve suggested'),

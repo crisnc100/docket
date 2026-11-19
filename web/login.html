@@ -28,7 +28,7 @@
     body { margin: 0; background: var(--bg); color: var(--ink); font: 400 1rem/1.55 var(--sans); font-feature-settings: "tnum" 1; text-rendering: optimizeLegibility; }
     ::selection { background: var(--clue-mark); color: var(--ink); }
     :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
-    .access { width: min(25rem, calc(100% - 32px)); margin: 14vh auto 48px; padding: 28px 28px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg); box-shadow: var(--lift); }
+    .access { width: min(25rem, calc(100% - 32px)); margin: 14vh auto 48px; padding: 28px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg); box-shadow: var(--lift); }
     .access h1 { margin: 0; font-size: 1.1875rem; font-weight: 700; letter-spacing: -0.02em; }
     .access .note { margin: 6px 0 24px; color: var(--ink-2); font-size: 0.9375rem; }
     .access label { display: block; font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.01em; }
@@ -37,7 +37,8 @@
     .access button { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 44px; padding: 0 18px; border: 0; border-radius: var(--radius); background: var(--ink); color: var(--bg); font: 600 0.9375rem var(--sans); cursor: pointer; touch-action: manipulation; transition: background-color 120ms ease-out; }
     .access button:hover { background: var(--ink-hover); }
     .access button:disabled { background: var(--ink-muted); cursor: progress; }
-    .access [role="status"] { min-height: 1.55em; margin: 12px 0 0; color: var(--ink-2); font-size: 0.875rem; }
+    .access [role="status"] { margin: 12px 0 0; color: var(--ink-2); font-size: 0.875rem; }
+    .access [role="status"]:empty { margin: 0; }
   </style>
 </head>
 <body>

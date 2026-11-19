@@ -27,6 +27,6 @@ STORY: The reviewer opens the oldest held document, sees the PDF, reads in one s
 
 FIRST VIEWPORT: A 64px top bar with the wordmark and "Document review". Below, a 20rem queue on the left as hairline rows (file name in mono, sender beneath, the open one on Soft Grey), and on the right the raised document panel: file name and status on top, then the PDF on the left half and the evidence column on the right half, ending in the actions. Under 1100px the panel's two halves stack; under 760px the queue sits above the panel.
 
-FORM: canon (the established world), played straight; extension of an existing surface system, no concept roll. seed: none (unavailable)
+FORM: canon (the established world, standing exit), played straight; extension of an existing surface system. seed: seed:ef1491d345c19843
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance

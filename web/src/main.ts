@@ -112,6 +112,11 @@ const CLUE_NAMES: Record<string, string> = {
   building: 'Building code',
   filename_id: 'Unit number in file name',
 };
+const TIER_WORDS: Record<string, string> = {
+  strong: 'strong evidence',
+  medium: 'some evidence',
+  none: 'too little evidence to rank',
+};
 const short = (value: string | number) => Number(value).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
 
 function documentId() {
@@ -124,7 +129,6 @@ function renderQueue() {
   count.className = 'count';
   queue.append(count);
   queue.append(button('Refresh queue', refresh, 'quiet small'));
-  if (!items.length) queue.append(block('p', 'queue-empty', 'No documents awaiting review.'));
   for (const item of items) {
     const link = element('a');
     link.href = `#${item.document_id}`;
@@ -215,7 +219,12 @@ function renderDocument(item: ReviewItem | undefined, trace: Trace, pdfUrl?: str
   detail.append(block('div', 'sheet', paper, evidence));
 
   if (item && trace.status === 'needs_review') {
+    const conflict = item.reason === 'conflicting_records';
     evidence.append(element('h3', 'Candidates'));
+    if (conflict && item.candidates.length) {
+      evidence.append(block('p', 'list-note',
+        'Every score here is set to 0 because the clues name more than one unit outright. The clues found are listed under each unit.'));
+    }
     const candidates = element('ul');
     candidates.className = 'candidates';
     for (const candidate of item.candidates) {
@@ -225,7 +234,9 @@ function renderDocument(item: ReviewItem | undefined, trace: Trace, pdfUrl?: str
       if (candidate.record_id === item.suggested_record_id) tags.push('Model suggestion');
       row.append(
         unit(candidate.record_id),
-        block('span', 'score', `Score ${short(candidate.score)} · ${candidate.tier}`),
+        block('span', 'score', conflict
+          ? 'Score 0, set by the conflict'
+          : `Score ${short(candidate.score)} · ${TIER_WORDS[candidate.tier] || candidate.tier}`),
       );
       if (tags.length) row.append(block('span', 'tags', tags.join(' · ')));
       const found = Object.entries(candidate.signals).filter(([, value]) => value > 0);
@@ -240,9 +251,11 @@ function renderDocument(item: ReviewItem | undefined, trace: Trace, pdfUrl?: str
     const choices = element('div');
     choices.className = 'choices';
     choices.append(
-      pickCard('Rules top candidate', 'The highest-scoring unit. The rules held it instead of filing it.',
+      pickCard('Rules top candidate', conflict
+        ? 'Ranked first, but the clues also name another unit outright; compare both.'
+        : 'The highest-scoring unit. The rules held it instead of filing it.',
         item.rules_top_record_id, 'No candidate', 'Approve rules top'),
-      pickCard('Suggested', "The model's suggestion. It never files a document; it only files if you approve it.",
+      pickCard('Suggested', 'Suggested by the model. Nothing is filed unless you approve it.',
         item.suggested_record_id, 'No record suggested', 'Approve suggested'),
     );
     evidence.append(choices);
@@ -277,6 +290,7 @@ async function openDocument() {
   renderQueue();
   if (!id) {
     releasePreview();
+    detail.classList.toggle('flat', !items.length);
     detail.replaceChildren(block('div', 'pending',
       element('h2', items.length ? 'Select a document' : 'Nothing waiting'),
       element('p', items.length
@@ -293,6 +307,7 @@ async function openDocument() {
   releasePreview();
   if (blob) previewUrl = URL.createObjectURL(blob);
   selected = item;
+  detail.classList.remove('flat');
   renderDocument(item, trace, previewUrl);
 }
 async function refresh() {

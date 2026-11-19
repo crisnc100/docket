@@ -30,9 +30,19 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string) {
   if (text !== undefined) node.textContent = text;
   return node;
 }
-function button(text: string, action: () => void | Promise<void>) {
+function block<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, ...children: (Node | string)[]) {
+  const node = element(tag);
+  node.className = className;
+  node.append(...children);
+  return node;
+}
+function unit(id: string) {
+  return block('span', 'unit', id);
+}
+function button(text: string, action: () => void | Promise<void>, className = 'quiet') {
   const node = element('button', text);
   node.type = 'button';
+  node.className = className;
   node.addEventListener('click', () => { void Promise.resolve().then(action).catch(showError); });
   return node;
 }
@@ -59,11 +69,13 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const header = element('header');
+header.className = 'top';
 header.append(element('h1', 'Docket'), element('span', 'Document review'));
 const message = element('p');
 message.className = 'message';
 message.setAttribute('role', 'status');
 const layout = element('main');
+layout.className = 'desk';
 const queue = element('nav');
 queue.setAttribute('aria-label', 'Review queue');
 const detail = element('section');
@@ -85,15 +97,47 @@ window.addEventListener('pagehide', releasePreview);
 function showError(error: unknown) {
   message.textContent = error instanceof Error ? error.message : 'Request failed';
 }
+// Plain-language versions of the rules' review reasons; the raw reason is shown beside them.
+const HELD_BECAUSE: Record<string, string> = {
+  conflicting_records: 'The clues name more than one unit outright, so a person picks.',
+  insufficient_corroboration: 'The clues are not strong enough to file without a person.',
+  no_candidate_chosen: 'No unit was found, so a person looks at it.',
+  category_unreadable: 'The model could not label the document, so a person looks at it.',
+  input_too_large: 'Part of the document is too long to match safely, so a person looks at it.',
+};
+const CLUE_NAMES: Record<string, string> = {
+  explicit_id: 'Unit number',
+  address: 'Address',
+  tenant_name: 'Tenant',
+  building: 'Building code',
+  filename_id: 'Unit number in file name',
+};
+const TIER_WORDS: Record<string, string> = {
+  strong: 'strong evidence',
+  medium: 'some evidence',
+  none: 'weak evidence, below the medium line',
+};
+const short = (value: string | number) => Number(value).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+
+// The shortlist step records the conflict even when another hold reason wins (input too large,
+// unreadable category). Older traces lack that step's flag, so the hold reason stands in.
+function hasConflict(trace: Trace, heldReason: string) {
+  const shortlist = trace.events.filter(event => event.step === 'shortlist').pop()?.detail;
+  if (shortlist && typeof shortlist === 'object' && 'conflict' in shortlist) {
+    return (shortlist as { conflict: unknown }).conflict === true;
+  }
+  return heldReason === 'conflicting_records';
+}
 function documentId() {
   const id = window.location.hash.slice(1);
   return /^[0-9a-f-]{36}$/i.test(id) ? id : undefined;
 }
 function renderQueue() {
   queue.replaceChildren(element('h2', 'Review queue'));
-  queue.append(element('p', `${items.length} awaiting review · oldest first`));
-  queue.append(button('Refresh queue', refresh));
-  if (!items.length) queue.append(element('p', 'No documents awaiting review.'));
+  const count = element('p', `${items.length} awaiting review · oldest first`);
+  count.className = 'count';
+  queue.append(count);
+  queue.append(button('Refresh queue', refresh, 'quiet small'));
   for (const item of items) {
     const link = element('a');
     link.href = `#${item.document_id}`;
@@ -129,49 +173,108 @@ async function act(action: 'approve' | 'dismiss', value: string) {
     await openDocument();
   }
 }
+function outcome(trace: Trace, conflict: boolean) {
+  if (trace.status === 'needs_review') {
+    const held = block('div', 'outcome held',
+      element('strong', 'Waiting for a person'),
+      element('p', HELD_BECAUSE[trace.reason] || 'Docket could not file it on its own, so a person decides.'));
+    if (conflict && trace.reason !== 'conflicting_records') held.append(element('p', HELD_BECAUSE.conflicting_records));
+    held.append(block('p', 'code', `Hold reason: ${trace.reason}`));
+    return held;
+  }
+  if (trace.status === 'filed') {
+    return block('div', 'outcome filed',
+      element('strong', 'Filed'),
+      element('p', trace.reason === 'review_approved' ? 'Approved by a reviewer.' : 'Filed by the rules: the clues agreed and the score reached the filing line.'));
+  }
+  return block('div', 'outcome',
+    element('strong', trace.status === 'dismissed' ? 'Dismissed' : 'Reason'),
+    element('p', trace.reason || 'Processing'));
+}
+function pickCard(heading: string, note: string, id: string | null, empty: string, action: string) {
+  const card = element('article');
+  card.append(element('h3', heading), block('p', 'pick', id ? unit(id) : empty));
+  if (id) card.append(block('p', 'note', note));
+  const approve = button(action, () => act('approve', id!));
+  approve.disabled = busy || !id;
+  card.append(approve);
+  return card;
+}
 function renderDocument(item: ReviewItem | undefined, trace: Trace, pdfUrl?: string) {
-  detail.replaceChildren(element('h2', item?.filename || 'Document'));
+  detail.replaceChildren();
+  const head = block('div', 'doc-head', element('h2', item?.filename || 'Document'));
   const state = element('p', `Status: ${trace.status}`);
   state.dataset.testid = 'document-status';
-  detail.append(state, element('p', `Reason: ${trace.reason || 'Processing'}`));
-  if (item) detail.append(element('p', `Sender: ${item.sender || 'Unknown sender'}`));
-  if (trace.record_id) detail.append(element('p', `Record: ${trace.record_id}`));
+  state.className = 'status' + (trace.status === 'needs_review' ? ' held' : trace.status === 'filed' ? ' filed' : '');
+  head.append(state);
+  const facts = block('div', 'facts');
+  if (item) facts.append(element('p', `Sender: ${item.sender || 'Unknown sender'}`));
+  if (trace.record_id) facts.append(block('p', '', 'Record: ', unit(trace.record_id)));
+  head.append(facts);
+  detail.append(head);
+
+  const paper = block('div', 'paper');
   if (pdfUrl) {
     const preview = element('iframe');
     preview.title = 'PDF preview';
     preview.src = pdfUrl;
-    detail.append(preview);
+    paper.append(preview);
     const fileLink = element('a', 'Open PDF');
     fileLink.href = pdfUrl;
     fileLink.target = '_blank';
     fileLink.rel = 'noopener';
-    detail.append(fileLink);
+    paper.append(fileLink);
   } else {
-    detail.append(element('p', 'PDF preview unavailable.'));
+    paper.append(block('p', 'no-preview', 'PDF preview unavailable.'));
   }
+  const conflict = trace.status === 'needs_review' && hasConflict(trace, item?.reason ?? trace.reason);
+  const evidence = block('div', 'evidence', outcome(trace, conflict));
+  detail.append(block('div', 'sheet', paper, evidence));
+
   if (item && trace.status === 'needs_review') {
-    const choices = element('div');
-    choices.className = 'choices';
-    const suggested = element('article');
-    suggested.append(element('h3', 'Suggested'), element('p', item.suggested_record_id || 'No record suggested'));
-    const approveSuggestion = button('Approve suggested', () => act('approve', item.suggested_record_id!));
-    approveSuggestion.disabled = busy || !item.suggested_record_id;
-    suggested.append(approveSuggestion);
-    const rules = element('article');
-    rules.append(element('h3', 'Rules top candidate'), element('p', item.rules_top_record_id || 'No candidate'));
-    const approveRules = button('Approve rules top', () => act('approve', item.rules_top_record_id!));
-    approveRules.disabled = busy || !item.rules_top_record_id;
-    rules.append(approveRules);
-    choices.append(suggested, rules);
-    detail.append(choices, element('h3', 'Candidates'));
+    evidence.append(element('h3', 'Candidates'));
+    if (conflict && item.candidates.length) {
+      evidence.append(block('p', 'list-note',
+        'Every score here is set to 0 because the clues name more than one unit outright. The clues found are listed under each unit.'));
+    }
     const candidates = element('ul');
+    candidates.className = 'candidates';
     for (const candidate of item.candidates) {
       const row = element('li');
-      row.append(element('strong', candidate.record_id), element('span', ` · Score ${candidate.score} · ${candidate.tier}`));
-      row.append(element('p', Object.entries(candidate.signals).map(([signal, value]) => `${signal}: ${value}`).join(' · ')));
+      const tags: string[] = [];
+      if (candidate.record_id === item.rules_top_record_id) tags.push("Rules' top pick");
+      if (candidate.record_id === item.suggested_record_id) tags.push('Model suggestion');
+      row.append(
+        unit(candidate.record_id),
+        block('span', 'score', conflict
+          ? 'Score 0, set by the conflict'
+          : Number(candidate.score) === 0
+            ? 'Score 0'
+            : `Score ${short(candidate.score)} · ${TIER_WORDS[candidate.tier] || candidate.tier}`),
+      );
+      if (tags.length) row.append(block('span', 'tags', tags.join(' · ')));
+      const found = Object.entries(candidate.signals).filter(([, value]) => value > 0);
+      row.append(block('p', 'clues', found.length
+        ? found.map(([signal, value]) => `${CLUE_NAMES[signal] || signal} ${value.toFixed(2)}`).join(' · ')
+        : 'No clues'));
       candidates.append(row);
     }
-    detail.append(candidates);
+    if (!item.candidates.length) candidates.append(block('li', 'none', 'No candidate units were found.'));
+    evidence.append(candidates);
+
+    const choices = element('div');
+    choices.className = 'choices';
+    choices.append(
+      pickCard('Rules top candidate', conflict
+        ? 'The rules list this unit first. Compare the candidates with the document.'
+        : 'The rules list this unit first.',
+        item.rules_top_record_id, 'No candidate', 'Approve rules top'),
+      pickCard('Suggested', 'Suggested by the model. Nothing is filed unless you approve it.',
+        item.suggested_record_id, 'No record suggested', 'Approve suggested'),
+    );
+    evidence.append(choices);
+
+    const actions = block('div', 'actions');
     const pickLabel = element('label', 'Pick another candidate');
     const pick = element('select');
     pick.append(new Option('Choose a record', ''));
@@ -187,9 +290,11 @@ function renderDocument(item: ReviewItem | undefined, trace: Trace, pdfUrl?: str
     const dismiss = button('Dismiss', () => act('dismiss', reason.value.trim()));
     dismiss.disabled = true;
     reason.addEventListener('input', () => { dismiss.disabled = busy || !reason.value.trim(); });
-    detail.append(pickLabel, approvePick, dismissLabel, dismiss);
+    actions.append(block('div', 'action', pickLabel, approvePick), block('div', 'action', dismissLabel, dismiss));
+    evidence.append(actions);
   }
   const tracePanel = element('details');
+  tracePanel.className = 'trace';
   tracePanel.append(element('summary', 'Document trace'), element('pre', JSON.stringify(trace, null, 2)));
   detail.append(tracePanel);
 }
@@ -199,7 +304,12 @@ async function openDocument() {
   renderQueue();
   if (!id) {
     releasePreview();
-    detail.replaceChildren(element('h2', 'Select a document'), element('p', 'Review the evidence and choose where it belongs.'));
+    detail.classList.toggle('flat', !items.length);
+    detail.replaceChildren(block('div', 'pending',
+      element('h2', items.length ? 'Select a document' : 'Nothing waiting'),
+      element('p', items.length
+        ? 'Open the oldest document in the queue, check the evidence, and choose where it belongs.'
+        : 'Every held document has been settled. New ones appear in the queue; refresh to check.')));
     return;
   }
   const item = items.find(item => item.document_id === id) || (selected?.document_id === id ? selected : undefined);
@@ -211,6 +321,7 @@ async function openDocument() {
   releasePreview();
   if (blob) previewUrl = URL.createObjectURL(blob);
   selected = item;
+  detail.classList.remove('flat');
   renderDocument(item, trace, previewUrl);
 }
 async function refresh() {

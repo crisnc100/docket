@@ -248,7 +248,9 @@ function renderDocument(item: ReviewItem | undefined, trace: Trace, pdfUrl?: str
         unit(candidate.record_id),
         block('span', 'score', conflict
           ? 'Score 0, set by the conflict'
-          : `Score ${short(candidate.score)} · ${TIER_WORDS[candidate.tier] || candidate.tier}`),
+          : Number(candidate.score) === 0
+            ? 'Score 0'
+            : `Score ${short(candidate.score)} · ${TIER_WORDS[candidate.tier] || candidate.tier}`),
       );
       if (tags.length) row.append(block('span', 'tags', tags.join(' · ')));
       const found = Object.entries(candidate.signals).filter(([, value]) => value > 0);
@@ -265,7 +267,7 @@ function renderDocument(item: ReviewItem | undefined, trace: Trace, pdfUrl?: str
     choices.append(
       pickCard('Rules top candidate', conflict
         ? 'The rules list this unit first. Compare the candidates with the document.'
-        : 'The highest-scoring unit.',
+        : 'The rules list this unit first.',
         item.rules_top_record_id, 'No candidate', 'Approve rules top'),
       pickCard('Suggested', 'Suggested by the model. Nothing is filed unless you approve it.',
         item.suggested_record_id, 'No record suggested', 'Approve suggested'),

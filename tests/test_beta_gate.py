@@ -632,7 +632,7 @@ async def test_beta_refuses_a_blank_dismiss_reason_before_temporal(postgres_engi
 
 
 def beta_environment(monkeypatch, **extra):
-    for key, value in {
+    base = {
         "DOCKET_ENV": "beta",
         "DOCKET_INVITE_CODES": CODE,
         "DOCKET_SESSION_KEY": KEY,
@@ -641,7 +641,9 @@ def beta_environment(monkeypatch, **extra):
         "DOCKET_DAILY_BUDGET_USD": "1.00",
         "DOCKET_MODEL_MODE": "replay",
         "ANTHROPIC_API_KEY": "set",  # pragma: allowlist secret
-    }.items() | extra.items():
+    }
+    # A dict merge, so a value in extra always replaces the default.
+    for key, value in {**base, **extra}.items():
         monkeypatch.setenv(key, value)
 
 
@@ -655,6 +657,8 @@ def test_eval_checks_the_mode_it_will_run_not_the_environment(mode, monkeypatch)
     runs = []
     monkeypatch.setattr(evaluation, "evaluate", lambda *args: runs.append(args) or 1 / 0)
     beta_environment(monkeypatch)
+    # The environment allows replay, so only --mode can cause the refusal.
+    assert os.environ["DOCKET_MODEL_MODE"] == "replay"
     result = CliRunner().invoke(app, ["eval", "--mode", mode])
     assert result.exit_code == 1
     assert "DOCKET_MODEL_MODE must be live or replay in beta." in result.output
@@ -672,6 +676,8 @@ def test_spike_models_is_checked_as_the_live_run_it_is(monkeypatch):
     runs = []
     monkeypatch.setattr(spike, "spike", lambda *args: runs.append(args) or "ran")
     beta_environment(monkeypatch, DOCKET_MODEL_MODE="record")
+    # The environment's mode is refused in beta, so passing proves the live mode was checked.
+    assert os.environ["DOCKET_MODEL_MODE"] == "record"
     result = CliRunner().invoke(app, ["spike-models"])
     assert result.exit_code == 0, result.output
     assert len(runs) == 1

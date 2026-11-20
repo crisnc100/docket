@@ -226,6 +226,33 @@ Nothing changes what the model is for. The rules decide automatic filing. The mo
 - **C3:** the load run stays under every limit, and the peak is published.
 - **C4:** each runbook command was run once during the build, and its output matched what the runbook says.
 
+## PR D: Beta hardening (after the deploy)
+
+**PR C carry-ins** (fix check fix-1795195207168-89e6ac on review 2026-11-20-16-32-27-cadd8a). Fix these first:
+- x1: Shield the reset's worker threads from cancellation (await them before releasing), and check the session lock is still held before each destructive step.
+- x2: Keep per-document spend in Postgres if a hard per-document guarantee is ever wanted.
+- x3: Queue the failed refund and replay it when Postgres returns, or reconcile from the reservation rows.
+- x4: Check each sample's outcome before the reset, and count review-action errors as problems.
+- x5: Count stub calls from before the first sample and require calls from workflows.
+- x6: Require stats for the hand-run reset container as well.
+- x7: Write the ready file after the startup catch-up, or have the runbook wait for healthz resetting false.
+- x8: Count filed and dismissed seeds as settled in the 12 check, or hide seeds from the queue until the flag clears.
+- x9: Wrap the scheduler's record read in the retry, and treat a failed flag write as a failed reset that retries.
+- x10: Parse the env file with compose's own rules (python-dotenv) in both scripts.
+- x11: Print only the failing setting's name, never compose's raw stderr.
+- x12: Check both down exit codes and start the try before up.
+- x13: Fail the loop on any archive error (set -e inside, or track a status).
+- x14: Use ${DOCKET_PORT:-8001} in the runbook's checks and Caddy block, or drop the setting.
+- x15: Correct ADR-009 and state the retention the dev server uses.
+- x16: Commit the load run's JSON output beside the ADR.
+- x17: Say it pins the base per platform.
+- x18: Name the worker and the reset as the services with ready files.
+- x19: Note the DOCKET_PORT default.
+- x20: None needed.
+- x21: Same fix as x10.
+- x22: Same fix as x5.
+- Filed LOWs from review 2026-11-20-16-32-27-cadd8a: f8/s1 (compose stderr may quote a value), f9 (the sample panel stays disabled after a reset until reload).
+
 ## Deploy (after PR C merges)
 
 1. **Before deploying, Cristian:**

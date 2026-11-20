@@ -1,0 +1,140 @@
+{
+  "f1": {
+    "status": "fixed",
+    "response": "real"
+  },
+  "f2": {
+    "status": "fixed",
+    "response": "real"
+  },
+  "f3": {
+    "status": "fixed",
+    "response": "real"
+  },
+  "f4": {
+    "status": "fixed",
+    "response": "real"
+  },
+  "f5": {
+    "status": "fixed",
+    "response": "real; fixed as decided on 2026-11-20 on the advisor's evidence: cap raised to 10,000 and the per-document run cap documented as best effort, with the daily ledger as the hard bound."
+  },
+  "f6": {
+    "status": "fixed",
+    "response": "real"
+  },
+  "f7": {
+    "status": "fixed",
+    "response": "real"
+  },
+  "x1": {
+    "status": "deferred",
+    "reason": "Cancelling a reset releases its runner lock while an in-flight thread can still delete data, and a Postgres disconnect can drop the session lock mid-reset. Needs a cancel mid-reset plus a second reset at once; the data is demo data reseeded nightly. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Shield the reset's worker threads from cancellation (await them before releasing), and check the session lock is still held before each destructive step."
+  },
+  "x2": {
+    "status": "deferred",
+    "reason": "Eviction still resets a document's run budget at the 10,000 cap. Decided best effort on 2026-11-20 on the advisor's evidence: a beta document can spend at most about $0.07 against a $2 run cap, a worker restart already resets it, and the daily ledger is the hard bound; documented in runtime.py and operations.md. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Keep per-document spend in Postgres if a hard per-document guarantee is ever wanted."
+  },
+  "x3": {
+    "status": "deferred",
+    "reason": "A refund the database cannot write is logged and the amount stays counted until the UTC day ends. Fails closed: no request is sent. Needs Postgres down through both the switch read and the refund. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Queue the failed refund and replay it when Postgres returns, or reconcile from the reservation rows."
+  },
+  "x4": {
+    "status": "deferred",
+    "reason": "The load run cannot tell a sample that completed from one that failed when the reset deleted it first, and review-action errors do not fail the run. Load harness only; nothing in production runs it. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Check each sample's outcome before the reset, and count review-action errors as problems."
+  },
+  "x5": {
+    "status": "deferred",
+    "reason": "The load run's stub-call check counts the harness's own probe, so it cannot fail. Load harness only; the worker's base URL is checked separately and the daily ledger bounds spend. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Count stub calls from before the first sample and require calls from workflows."
+  },
+  "x6": {
+    "status": "deferred",
+    "reason": "The load run's stats check omits the one-off container that does the measured reset. Load harness only. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Require stats for the hand-run reset container as well."
+  },
+  "x7": {
+    "status": "deferred",
+    "reason": "The reset service writes its ready file before the startup reset, so compose --wait can finish while samples still answer 503 resetting. Cosmetic: the page says resetting and the reset finishes in under two minutes. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Write the ready file after the startup catch-up, or have the runbook wait for healthz resetting false."
+  },
+  "x8": {
+    "status": "deferred",
+    "reason": "A visitor who approves a seed document during the reset makes the 12-held check fail, and the retry deletes that action. Needs a review click in the minute the reset runs at 08:00 UTC; demo data only. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Count filed and dismissed seeds as settled in the 12 check, or hide seeds from the queue until the flag clears."
+  },
+  "x9": {
+    "status": "deferred",
+    "reason": "If Postgres is down before the reset writes its flag, the fallback write fails too, and health can show the prior success; the scheduler's record read sits outside its retry. Needs a database outage at 08:00. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Wrap the scheduler's record read in the retry, and treat a failed flag write as a failed reset that retries."
+  },
+  "x10": {
+    "status": "deferred",
+    "reason": "The load run and the compose check read the env file without stripping quotes, so a quoted key skips the real-key check and quoted codes make bad cookies. Operator tooling; the example file uses unquoted values. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Parse the env file with compose's own rules (python-dotenv) in both scripts."
+  },
+  "x11": {
+    "status": "deferred",
+    "reason": "The load run's up-failure path prints compose stderr, which can quote an env value. Filed with f8 and s1, the same class. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Print only the failing setting's name, never compose's raw stderr."
+  },
+  "x12": {
+    "status": "deferred",
+    "reason": "The load run ignores the exit codes of its down -v calls, and an interruption during up skips cleanup. Load harness only. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Check both down exit codes and start the try before up."
+  },
+  "x13": {
+    "status": "deferred",
+    "reason": "The runbook's volume backup loop can exit zero after a failed archive. The pg_dump part is fixed. Operator runbook; the deploy will run each backup and check its output by hand. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Fail the loop on any archive error (set -e inside, or track a status)."
+  },
+  "x14": {
+    "status": "deferred",
+    "reason": "The runbook hardcodes port 8001, while compose lets the operator choose DOCKET_PORT. The deploy uses 8001. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Use ${DOCKET_PORT:-8001} in the runbook's checks and Caddy block, or drop the setting."
+  },
+  "x15": {
+    "status": "deferred",
+    "reason": "ADR-009 says the nightly reset removes Temporal history; it does not, and Temporal keeps closed runs for the namespace retention. Docs only. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Correct ADR-009 and state the retention the dev server uses."
+  },
+  "x16": {
+    "status": "deferred",
+    "reason": "ADR-009 quotes load-run figures that no tracked output backs. Docs only. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Commit the load run's JSON output beside the ADR."
+  },
+  "x17": {
+    "status": "deferred",
+    "reason": "A Dockerfile comment says the index digest gives both platforms the same layers. Comment only. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Say it pins the base per platform."
+  },
+  "x18": {
+    "status": "deferred",
+    "reason": "A Dockerfile comment implies the API writes a ready file. Comment only. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Name the worker and the reset as the services with ready files."
+  },
+  "x19": {
+    "status": "deferred",
+    "reason": "The example env says any blank value stops compose; a blank DOCKET_PORT falls back to 8001. Comment only. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Note the DOCKET_PORT default."
+  },
+  "x20": {
+    "status": "deferred",
+    "reason": "Two secret-scan pragmas on dummy key fixtures, each limited to its line. Informational. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "None needed."
+  },
+  "x21": {
+    "status": "deferred",
+    "reason": "The compose check and the load run parse the env file without stripping quotes, so a value comparison can fail open. Same cause as x10. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Same fix as x10."
+  },
+  "x22": {
+    "status": "deferred",
+    "reason": "The load run's stub-call proof counts its own probe. Same cause as x5. Tracked in builds/beta/plan.md, PR D carry-ins.",
+    "fix": "Same fix as x5."
+  }
+}

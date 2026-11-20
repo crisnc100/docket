@@ -1,11 +1,43 @@
 {
-  "s1": {"status": "fixed", "response": "real"},
-  "s2": {"status": "fixed", "response": "real"},
-  "s3": {"status": "fixed", "response": "real"},
-  "s4": {"status": "fixed", "response": "real"},
-  "x1": {"status": "deferred", "reason": "Nothing is deployed until PR C, so no visitor can reach this before PR B lands. Fixed first in PR B.", "fix": "Refuse dismiss reasons that do not encode as UTF-8, in both modes.", "trackedIn": "builds/beta/plan.md, PR B carry-ins"},
-  "x2": {"status": "deferred", "reason": "Doc off-by-one with no runtime effect. Fixed first in PR B.", "fix": "Say the lockout starts at 10 wrong codes.", "trackedIn": "builds/beta/plan.md, PR B carry-ins"},
-  "x3": {"status": "deferred", "reason": "Only a local database that ran the unmerged earlier migration is affected; nothing is deployed. Fixed first in PR B.", "fix": "Document a one-line local reset.", "trackedIn": "builds/beta/plan.md, PR B carry-ins"},
-  "x4": {"status": "deferred", "reason": "Beta is not deployed and runs only from compose.prod.yaml, which arrives in PR C. The dev compose ignoring DOCKET_ENV is fixed first in PR B, and PR C's C2 checks every service gets it.", "fix": "Make beta mode impossible to half-enable from the dev compose.", "trackedIn": "builds/beta/plan.md, PR B carry-ins"},
-  "x5": {"status": "deferred", "reason": "Needs a custom DATABASE_URL password and a test timeout to leak, on the developer's own machine. Fixed first in PR B.", "fix": "Pass the database URL to docker run through the environment.", "trackedIn": "builds/beta/plan.md, PR B carry-ins"}
+  "s1": {
+    "status": "fixed",
+    "response": "real"
+  },
+  "s2": {
+    "status": "fixed",
+    "response": "real"
+  },
+  "s3": {
+    "status": "fixed",
+    "response": "real"
+  },
+  "s4": {
+    "status": "fixed",
+    "response": "real"
+  },
+  "x1": {
+    "status": "deferred",
+    "reason": "Nothing is deployed until PR C, so no visitor can reach this before PR B lands. Fixed first in PR B. Tracked in builds/beta/plan.md, PR B carry-ins.",
+    "fix": "Refuse dismiss reasons that do not encode as UTF-8, in both modes."
+  },
+  "x2": {
+    "status": "deferred",
+    "reason": "Doc off-by-one with no runtime effect. Fixed first in PR B. Tracked in builds/beta/plan.md, PR B carry-ins.",
+    "fix": "Say the lockout starts at 10 wrong codes."
+  },
+  "x3": {
+    "status": "deferred",
+    "reason": "Only a local database that ran the unmerged earlier migration is affected; nothing is deployed. Fixed first in PR B. Tracked in builds/beta/plan.md, PR B carry-ins.",
+    "fix": "Document a one-line local reset."
+  },
+  "x4": {
+    "status": "deferred",
+    "reason": "Beta is not deployed and runs only from compose.prod.yaml, which arrives in PR C. The dev compose ignoring DOCKET_ENV is fixed first in PR B, and PR C's C2 checks every service gets it. Tracked in builds/beta/plan.md, PR B carry-ins.",
+    "fix": "Make beta mode impossible to half-enable from the dev compose."
+  },
+  "x5": {
+    "status": "deferred",
+    "reason": "Needs a custom DATABASE_URL password and a test timeout to leak, on the developer's own machine. Fixed first in PR B. Tracked in builds/beta/plan.md, PR B carry-ins.",
+    "fix": "Pass the database URL to docker run through the environment."
+  }
 }

@@ -824,3 +824,29 @@ async def test_a_pasted_code_with_spaces_signs_in_and_counts_nothing(postgres_en
     with Session(postgres_engine) as session:
         assert session.query(SigninFailure).count() == 0
     assert "signIn(input.value.trim())" in Path("web/login.html").read_text()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b'"\\ud800"',
+        b'["\\ud800"]',
+        b"1e999999",
+        b"[",
+        b"\xff\xfe",
+        b"null",
+        b'{"\\ud800": "x"}',
+        b"[" * 5000 + b"]" * 5000,
+    ],
+)
+async def test_a_malformed_signin_body_is_a_fixed_422_and_counts_nothing(postgres_engine, body):
+    async with beta_client(engine=postgres_engine) as (http, _, _, _):
+        response = await http.post(
+            "/reviewer/session",
+            content=body,
+            headers=forwarded("192.0.2.52") | {"Content-Type": "application/json"},
+        )
+        assert response.status_code == 422, response.text
+        assert response.json() == {"detail": "Send one invite code as text."}
+    with Session(postgres_engine) as session:
+        assert session.query(SigninFailure).count() == 0

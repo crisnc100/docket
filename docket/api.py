@@ -1,14 +1,16 @@
+import asyncio
 import base64
 import binascii
+import json
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowUpdateFailedError
@@ -70,6 +72,16 @@ class InviteCode(BaseModel):
 
 
 BETA_MAX_REASON = 300
+
+
+async def read_json[T: BaseModel](request: Request, model: type[T], message: str) -> T:
+    """Parse the raw body here, with one fixed message for every bad body. FastAPI's own 422
+    echoes the input, and an input holding a lone surrogate such as "\\ud800" cannot be
+    written into that JSON reply."""
+    try:
+        return model.model_validate(json.loads(await request.body()))
+    except (ValueError, RecursionError) as exc:
+        raise HTTPException(422, message) from exc
 
 
 def document_candidates(session: Session, document_id: uuid.UUID) -> set[str]:
@@ -299,29 +311,26 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         return reviewer_page(access="invite" if beta else "token")
 
     @app.post("/reviewer/session", include_in_schema=False)
-    def reviewer_session(request: Request, payload: dict[str, Any]):
+    async def reviewer_session(request: Request):
         settings = app.state.runtime.settings
         if settings.docket_env != "beta":
             raise HTTPException(404, "Not found")
-        # Validated here with fixed messages: FastAPI's own 422 echoes the input, and a lone
-        # surrogate such as "\ud800" cannot be written into that JSON reply.
-        try:
-            body = InviteCode.model_validate(payload)
-        except ValidationError as exc:
-            raise HTTPException(422, "Send one invite code as text.") from exc
+        body = await read_json(request, InviteCode, "Send one invite code as text.")
         if not encodes_as_utf8(body.code):
             raise HTTPException(422, "The code must be valid UTF-8 text")
+        engine = app.state.runtime.engine
         address = client_address(request.scope, settings)
-        attempt = reserve_attempt(app.state.runtime.engine, address)
+        attempt = await asyncio.to_thread(reserve_attempt, engine, address)
         if attempt is None:
+            wait = await asyncio.to_thread(retry_after, engine, address)
             raise HTTPException(
                 429,
                 "Too many wrong codes from this address. Try again later.",
-                headers={"Retry-After": str(retry_after(app.state.runtime.engine, address))},
+                headers={"Retry-After": str(wait)},
             )
         if not known_code(settings, body.code):
             raise HTTPException(401, "That invite code is not valid.")
-        release_attempt(app.state.runtime.engine, attempt)
+        await asyncio.to_thread(release_attempt, engine, attempt)
         return Response(
             status_code=204,
             headers={

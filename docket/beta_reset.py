@@ -1,6 +1,7 @@
 """The hosted beta's nightly reset: back to a starting queue of held seed-11 documents."""
 
 import asyncio
+import hashlib
 import logging
 import math
 import uuid
@@ -8,7 +9,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import Engine, delete, func, select, text
+from sqlalchemy import Connection, Engine, delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowExecutionStatus
@@ -47,8 +48,14 @@ STARTING_QUEUE = (
 COUNTER_WINDOW = timedelta(hours=1)
 READY_FILE = Path("/tmp/docket-reset-ready")
 RETRY_SECONDS = 300
+# Held by the one reset that is running. A key of its own: samples wait on RESET_LOCK.
+RUNNER_LOCK = int.from_bytes(hashlib.sha256(b"beta-reset-runner").digest()[:8], signed=True)
 
 log = logging.getLogger(__name__)
+
+
+class AlreadyRunning(RuntimeError):
+    """Another reset holds the single-runner lock."""
 
 
 class IncompleteQueue(RuntimeError):
@@ -203,11 +210,48 @@ async def settled(engine: Engine, ids: list[str], timeout: float) -> dict[str, i
         await asyncio.sleep(0.2)
 
 
+def take_runner_lock(engine: Engine) -> Connection | None:
+    """Hold the single-runner lock on a connection of its own, or return None if another
+    reset holds it. The connection leaves the pool, because returning it there would keep
+    the session lock."""
+    connection = engine.connect()
+    connection.detach()
+    taken = connection.execute(select(func.pg_try_advisory_lock(RUNNER_LOCK))).scalar_one()
+    # The lock is held by the session, so the transaction can end now rather than sit idle.
+    connection.commit()
+    if not taken:
+        connection.close()
+        return None
+    return connection
+
+
+def release_runner_lock(connection: Connection) -> None:
+    try:
+        connection.execute(select(func.pg_advisory_unlock(RUNNER_LOCK)))
+        connection.commit()
+    finally:
+        connection.close()
+
+
 async def reset(
     runtime: Runtime, temporal: Client, settle_timeout: float = 120, lock_timeout_ms: int = 10_000
 ) -> dict:
-    """Run the nightly reset once. If any step fails, the flag stays set, so samples keep
-    getting a 503 and the next run starts again from the first step."""
+    """Run the nightly reset once, or refuse with AlreadyRunning while another runs. A
+    refusal leaves the flag as it was; the running reset owns it."""
+    runner = await asyncio.to_thread(take_runner_lock, runtime.engine)
+    if runner is None:
+        raise AlreadyRunning("A reset is already running.")
+    try:
+        return await run_steps(runtime, temporal, settle_timeout, lock_timeout_ms)
+    finally:
+        await asyncio.to_thread(release_runner_lock, runner)
+
+
+async def run_steps(
+    runtime: Runtime, temporal: Client, settle_timeout: float, lock_timeout_ms: int
+) -> dict:
+    """The reset's steps. If any fails, the flag stays set, so samples keep getting a 503 and
+    the next run starts again from the first step."""
     engine = runtime.engine
     try:
         await asyncio.to_thread(begin, engine, lock_timeout_ms)
@@ -241,6 +285,14 @@ async def run_service(
         if due(*await asyncio.to_thread(reset_record, runtime.engine), now()):
             try:
                 print(f"Beta reset: {await reset(runtime, temporal)}", flush=True)
+            except AlreadyRunning:
+                print(
+                    "Beta reset skipped: another reset is running. "
+                    f"Checking again in {RETRY_SECONDS} seconds.",
+                    flush=True,
+                )
+                await sleep(RETRY_SECONDS)
+                continue
             except Exception:
                 log.exception("Beta reset failed; trying again in %s seconds", RETRY_SECONDS)
                 await sleep(RETRY_SECONDS)

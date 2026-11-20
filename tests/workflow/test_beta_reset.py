@@ -10,7 +10,7 @@ from typing import cast
 
 import httpx
 import pytest
-from sqlalchemy import func, insert, select, text
+from sqlalchemy import create_engine, func, insert, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowExecutionStatus
@@ -373,3 +373,80 @@ async def test_a_reset_whose_queue_does_not_all_end_held_fails_and_keeps_the_fla
     with pytest.raises(beta_reset.IncompleteQueue, match="did not settle"):
         await reset(cast(Runtime, EngineOnly(postgres_engine)), cast(Client, None))
     assert beta_reset.reset_record(postgres_engine) == (True, None)
+
+
+# f3: one reset at a time
+
+
+def other_engine(engine):
+    """A second engine, as a second process would have. Advisory locks span the database."""
+    return create_engine(engine.url.render_as_string(hide_password=False))
+
+
+async def test_a_reset_refuses_while_another_holds_the_runner_lock_and_leaves_the_flag(
+    postgres_engine, monkeypatch
+):
+    began = []
+    monkeypatch.setattr(beta_reset, "begin", lambda *args: began.append(args))
+    second = other_engine(postgres_engine)
+    try:
+        with second.connect() as holder:
+            assert holder.execute(
+                select(func.pg_try_advisory_lock(beta_reset.RUNNER_LOCK))
+            ).scalar_one()
+            with pytest.raises(beta_reset.AlreadyRunning, match="already running"):
+                await reset(cast(Runtime, EngineOnly(postgres_engine)), cast(Client, None))
+            holder.execute(select(func.pg_advisory_unlock(beta_reset.RUNNER_LOCK)))
+    finally:
+        second.dispose()
+    assert began == []
+    assert beta_reset.reset_record(postgres_engine) == (False, None)
+
+
+async def test_a_reset_that_fails_midway_lets_the_next_one_take_the_runner_lock(
+    postgres_engine, monkeypatch
+):
+    async def failing(temporal, documents):
+        raise RuntimeError("Temporal unreachable")
+
+    monkeypatch.setattr(beta_reset, "close_workflows", failing)
+    with pytest.raises(RuntimeError, match="unreachable"):
+        await reset(cast(Runtime, EngineOnly(postgres_engine)), cast(Client, None))
+    second = other_engine(postgres_engine)
+    try:
+        with second.connect() as next_run:
+            assert next_run.execute(
+                select(func.pg_try_advisory_lock(beta_reset.RUNNER_LOCK))
+            ).scalar_one()
+            next_run.execute(select(func.pg_advisory_unlock(beta_reset.RUNNER_LOCK)))
+    finally:
+        second.dispose()
+
+
+async def test_the_service_logs_one_plain_line_when_another_reset_is_running(
+    postgres_engine, monkeypatch, tmp_path, capsys, caplog
+):
+    async def refused(runtime, temporal):
+        raise beta_reset.AlreadyRunning("A reset is already running.")
+
+    class Stop(Exception):
+        pass
+
+    waits = []
+
+    async def stop_second(seconds):
+        waits.append(seconds)
+        if len(waits) == 2:
+            raise Stop
+
+    monkeypatch.setattr(beta_reset, "reset", refused)
+    monkeypatch.setattr(beta_reset, "READY_FILE", tmp_path / "ready")
+    with pytest.raises(Stop):
+        await run_service(
+            cast(Runtime, EngineOnly(postgres_engine)), cast(Client, None), sleep=stop_second
+        )
+    assert waits[0] == beta_reset.RETRY_SECONDS
+    assert capsys.readouterr().out.startswith(
+        "Beta reset skipped: another reset is running. Checking again in 300 seconds.\n"
+    )
+    assert "Traceback" not in caplog.text

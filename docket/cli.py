@@ -295,7 +295,7 @@ def beta_reset(
     from temporalio.client import Client
 
     from docket.beta import refuse_unsafe_start
-    from docket.beta_reset import reset, run_service
+    from docket.beta_reset import AlreadyRunning, reset, run_service
     from docket.runtime import Runtime
     from docket.settings import Settings
 
@@ -313,7 +313,11 @@ def beta_reset(
             if daily:
                 await run_service(runtime, client)
             else:
-                typer.echo(f"Beta reset: {await reset(runtime, client)}")
+                try:
+                    typer.echo(f"Beta reset: {await reset(runtime, client)}")
+                except AlreadyRunning as exc:
+                    typer.echo(str(exc), err=True)
+                    raise typer.Exit(1) from exc
         finally:
             runtime.close()
 

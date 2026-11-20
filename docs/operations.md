@@ -437,7 +437,8 @@ falls below its floor in `scripts/check_coverage.py`. Last, it reproduces the
 held-out report and runs detect-secrets, which also scans the archives' contents.
 The scan skips the local `.env`, which holds keys, and `verify.sh` fails if git
 does not ignore `.env`.
-CI runs `./verify.sh` and `./verify.sh --fault`.
+CI runs these checks as parallel GitHub Actions jobs. Pull requests skip the fault suite
+described below; every push to main, a nightly run and a manual run include it.
 
 `./verify.sh --fault` also runs the fault suite in `tests/fault/`.
 `docket/failpoints.py` stops a process at a named point when `DOCKET_FAILPOINT`

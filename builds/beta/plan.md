@@ -107,14 +107,6 @@ Nothing changes what the model is for. The rules decide automatic filing. The mo
 
 ## PR B: Sample documents
 
-**First, the PR A fix-check carry-ins** (fix check fix-1795143453425-68cfc5 on review 2026-11-20-02-47-52-1b2819). Fix these in PR B's first commit:
-- **x4 HIGH:** the dev `compose.yaml` does not pass `DOCKET_ENV` to the api or worker, so setting it there silently stays local. Make beta mode impossible to half-enable: either pass the beta settings through and let the startup refusals do their work, or document that beta runs only from `compose.prod.yaml` and make the refusal fire when the variable is set but not reaching the process. PR C's C2 also checks that every service gets `DOCKET_ENV`.
-- **x1 MEDIUM:** a dismiss reason containing a lone UTF-16 surrogate passes the API and strands the document, just as a NUL did. Refuse any reason that does not encode as UTF-8, in both modes.
-- **x5 MEDIUM:** the beta browser test puts the database URL in `docker run` arguments, so a timeout prints the password. Pass it through the environment instead.
-- **x2 LOW:** docs/operations.md says the lockout starts after more than 10 wrong codes. It starts at 10.
-- **x3 LOW:** migration b7e2c41a9d05 was rewritten in place. A local database that ran the earlier version keeps the old table, so the runbook or the operations doc needs a one-line reset step.
-
-**Builds:**
 
 1. **A one-document generator.** A new function makes one PDF of one case type from a seed.
    - `corpus.generate` and its random draws stay unchanged.

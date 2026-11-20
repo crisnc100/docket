@@ -1,14 +1,151 @@
 name: verify
-on: [push, pull_request]
+on:
+  push:
+    branches: [main, ci-speed]
+  pull_request:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# The same cache folders verify.sh uses, so the setup action's caches are the ones it reads.
+env:
+  UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
+  UV_PYTHON_INSTALL_DIR: ${{ github.workspace }}/.cache/python
+  npm_config_cache: ${{ github.workspace }}/.cache/npm
+
 jobs:
-  verify:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - uses: astral-sh/setup-uv@v6
+      - uses: ./.github/actions/setup
+      - run: ./verify.sh --step lint
+      - run: ./verify.sh --step secrets
+
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
       - run: docker compose up -d --wait postgres temporal seaweedfs
-      - run: ./verify.sh
-      - run: ./verify.sh --fault
+      - run: uv run alembic upgrade head
+      - run: ./verify.sh --step eval
+
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: docker compose up -d --wait postgres temporal seaweedfs
+      - run: ./verify.sh --step web
+      - run: uv run alembic upgrade head
+      # pytest-split balances the groups by .test_durations; tests missing from it still
+      # run, counted at the average duration.
+      - run: >-
+          uv run pytest tests --ignore=tests/fault --ignore=tests/browser
+          --splits 4 --group ${{ matrix.group }} --splitting-algorithm least_duration
+          --cov=docket.core --cov-branch --cov-report= --junitxml=.cache/ci/junit.xml
+        env:
+          COVERAGE_FILE: .cache/ci/coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tests-${{ matrix.group }}
+          path: .cache/ci/
+          include-hidden-files: true
+          if-no-files-found: error
+
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: docker/setup-buildx-action@v3
+      # Builds every image compose.yaml defines, the browser test stage included.
+      - uses: docker/bake-action@v6
+        with:
+          source: .
+          files: compose.yaml
+          load: true
+          set: |
+            *.cache-from=type=gha,scope=app
+            browser.cache-from=type=gha,scope=browser
+            api.cache-to=type=gha,scope=app,mode=max
+            browser.cache-to=type=gha,scope=browser,mode=max
+      - run: docker compose up -d --wait postgres temporal seaweedfs
+      - run: uv run alembic upgrade head
+      - run: >-
+          uv run pytest tests/browser
+          --cov=docket.core --cov-branch --cov-report= --junitxml=.cache/ci/junit.xml
+        env:
+          COVERAGE_FILE: .cache/ci/coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tests-browser
+          path: .cache/ci/
+          include-hidden-files: true
+          if-no-files-found: error
+
+  fault:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/bake-action@v6
+        with:
+          source: .
+          files: compose.yaml
+          targets: api,migrate,worker
+          load: true
+          set: |
+            *.cache-from=type=gha,scope=app
+      - run: docker compose up -d --wait
+      - run: uv run alembic upgrade head
+      - run: >-
+          uv run pytest tests/fault
+          --cov=docket.core --cov-branch --cov-report= --junitxml=.cache/ci/junit.xml
+        env:
+          COVERAGE_FILE: .cache/ci/coverage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tests-fault
+          path: .cache/ci/
+          include-hidden-files: true
+          if-no-files-found: error
+
+  # verify.sh checks coverage twice: without the fault tests, then with them.
+  coverage:
+    needs: [tests, browser, fault]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-local-path: ${{ github.workspace }}/.cache/uv
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tests-*
+          path: .cache/ci
+      - name: Coverage without the fault tests
+        run: |
+          uv run coverage combine --keep --data-file=.cache/plain.coverage \
+            .cache/ci/tests-[0-9]*/coverage .cache/ci/tests-browser/coverage
+          uv run coverage report -m --data-file=.cache/plain.coverage
+          uv run coverage json --data-file=.cache/plain.coverage -o .cache/plain.json
+          uv run python scripts/check_coverage.py .cache/plain.json
+      - name: Coverage with the fault tests
+        run: |
+          uv run coverage combine --keep --data-file=.cache/all.coverage .cache/ci/tests-*/coverage
+          uv run coverage report -m --data-file=.cache/all.coverage
+          uv run coverage json --data-file=.cache/all.coverage -o .cache/all.json
+          uv run python scripts/check_coverage.py .cache/all.json
+      - name: Tests run across the jobs
+        run: cat .cache/ci/tests-*/junit.xml | grep -o '<testcase ' | wc -l

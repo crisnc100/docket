@@ -107,6 +107,8 @@ Nothing changes what the model is for. The rules decide automatic filing. The mo
 
 ## PR B: Sample documents
 
+**PR A carry-in:** read the `/reviewer/session` body as raw bytes and validate it in the handler. Two hand-made malformed bodies still get 500 instead of 422 (fix check fix-1795149841455-f60646 x1). It fails closed.
+
 
 1. **A one-document generator.** A new function makes one PDF of one case type from a seed.
    - `corpus.generate` and its random draws stay unchanged.
@@ -180,6 +182,7 @@ Nothing changes what the model is for. The rules decide automatic filing. The mo
    - every beta setting by name, with placeholders that the startup refusals reject;
    - `DOCKET_DAILY_BUDGET_USD=1.00`, `DOCKET_TRUST_PROXY=1`, `DOCKET_REVIEW_TIMEOUT_SECONDS=86400`;
    - no `DOCKET_REVIEW_TOKEN`.
+4b. **No sub-path (PR A carry-in, fix check fix-1795149841455-f60646 x2):** in beta, refuse any request whose ASGI `root_path` is not empty, and make it a startup refusal too. The gate and the router read paths differently under a root path.
 5. **Dockerfile:**
    - `.dockerignore` excludes `.env*`, so add `!.env.beta.example`. Without it, the startup refusal that rejects codes copied from the example cannot read the example inside the image (found while building PR A).
    - the app stages run as a non-root user;

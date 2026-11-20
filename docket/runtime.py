@@ -17,7 +17,7 @@ from docket.llm.replay import ReplayStore
 from docket.settings import Settings
 
 # Live documents each get a gateway, which holds the document's run cap in memory, so the
-# worker keeps only the most recent ones (about 23 MiB at this size). An evicted document
+# worker keeps only the most recent ones. An evicted document
 # that calls again, like any document after a restart, starts a fresh run cap. The daily
 # ledger in Postgres is the hard bound on spend.
 MAX_GATEWAYS = 10_000

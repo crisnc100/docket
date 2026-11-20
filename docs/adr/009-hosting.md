@@ -22,7 +22,7 @@ The dev server fits this demo:
 
 The load run (`scripts/load/beta_load.py`, on an Apple Silicon Mac under Docker Desktop)
 sent 60 samples in 10 minutes from four test addresses, made 20 review actions, and
-ran one reset by hand halfway through, while `docker stats` was read every second. The
+ran one reset by hand halfway through, while `docker stats` was read in a loop. The
 worker's model calls went to a local stand-in for the Anthropic API, so the run spent
 nothing and still went through the live gateway, the budget ledger and the kill switch.
 
@@ -36,7 +36,9 @@ nothing and still went through the live gateway, the budget ledger and the kill 
 | reset (the service, idle) | 256 MB | 197 MB | 9% |
 | reset by hand (its own container) | 256 MB | 179 MB | 50% |
 
-The peaks add up to 1.4 GB against the 3.3 GB of limits. The `reset` service, at 77% of
+The peaks add up to 1.4 GB against the 3.3 GB of limits. The sum counts the reset
+service and the reset run by hand as two containers, and the peaks did not all
+happen at the same moment. The `reset` service, at 77% of
 its 256 MB, is the closest to its limit; the API is next, at 51% of its 512 MB. Every
 sample was accepted, with no 429 or 503. The 31 sent before the reset were deleted by it,
 as the reset is meant to do. Of the 29 sent after it, 10 were filed by the rules, 17 were

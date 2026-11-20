@@ -285,7 +285,8 @@ minutes later. In order, a reset:
    for review, and none calls the model;
 6. clears the `resetting` row. Its `updated_at` is then the time the reset finished.
 
-If a step fails, the lock timeout included, the row stays set, so samples keep getting
+If a step fails, the lock timeout and a starting queue that did not end all held included,
+the row stays set, so samples keep getting
 503 until a reset finishes, and the next run starts again from step 1.
 `docket beta-reset --daily` is the `reset` service in `compose.prod.yaml`: it resets at
 08:00 UTC every day. At start, it resets at once if none has finished since the latest
@@ -295,8 +296,8 @@ caught up. After a failure it tries again in five minutes. In beta, held documen
 lasts until the next reset.
 
 **Health check.** In beta, `GET /healthz` also returns `resetting` and
-`last_reset_age_seconds`, the seconds since the last reset finished (`null` while one runs
-or before the first). It reads the database, so it fails when Postgres is down.
+`last_reset_age_seconds`, the seconds since the last reset finished (`null` while one runs,
+after one failed, or before the first). It reads the database, so it fails when Postgres is down.
 
 ## Storage and the ledger
 

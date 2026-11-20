@@ -139,6 +139,10 @@ jobs:
         with:
           pattern: tests-*
           path: .cache/ci
+      - name: Every job's results, and every collected test run
+        run: >-
+          uv run python scripts/check_ci_results.py .cache/ci
+          tests-1 tests-2 tests-3 tests-4 tests-browser tests-fault-1 tests-fault-2
       - name: Coverage without the fault tests
         run: |
           uv run coverage combine --keep --data-file=.cache/plain.coverage \
@@ -152,5 +156,3 @@ jobs:
           uv run coverage report -m --data-file=.cache/all.coverage
           uv run coverage json --data-file=.cache/all.coverage -o .cache/all.json
           uv run python scripts/check_coverage.py .cache/all.json
-      - name: Tests run across the jobs
-        run: cat .cache/ci/tests-*/junit.xml | grep -o '<testcase ' | wc -l

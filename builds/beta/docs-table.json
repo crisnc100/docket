@@ -265,6 +265,13 @@
           ]
         }
       ]
+    },
+    {
+      "behavior": "The local 10 MB body limit also covers a path ending in a line feed",
+      "files": [
+        "docket/webhook.py"
+      ],
+      "none": "It hardens an existing limit; what the limit is and which routes it covers are unchanged, so no doc claim changes."
     }
   ]
 }

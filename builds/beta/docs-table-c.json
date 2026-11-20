@@ -1,0 +1,263 @@
+{
+  "rows": [
+    {
+      "behavior": "Nightly reset: runner lock, steps in order, 12-held check, flag kept on failure, 5-minute retry, catch-up at start, healthz fields",
+      "files": [
+        "docket/beta_reset.py",
+        "docket/cli.py",
+        "docket/beta_samples.py",
+        "docket/ingress.py",
+        "docket/api.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "A second reset prints 'A reset is already running.', exits non-zero, leaves the resetting row alone",
+              "at": "docket/beta_reset.py:243"
+            },
+            {
+              "claim": "Reset lock taken exclusively with a 10-second lock timeout, flag set in the same transaction",
+              "at": "docket/beta_reset.py:142"
+            },
+            {
+              "claim": "Samples take the lock shared only while writing the document row and read the flag after taking it",
+              "at": "docket/beta_samples.py:85"
+            },
+            {
+              "claim": "Terminates the workflow of every non-final document and waits until each is closed",
+              "at": "docket/beta_reset.py:106"
+            },
+            {
+              "claim": "One TRUNCATE of documents, sources, events and filings; empties the bucket",
+              "at": "docket/beta_reset.py:163"
+            },
+            {
+              "claim": "Deletes signin_failures and sample_sends rows more than an hour old; ledger and day count stay",
+              "at": "docket/beta_reset.py:166"
+            },
+            {
+              "claim": "Seeds 12 seed-11 documents in replay mode, waits up to 120 s, all must be held",
+              "at": "docket/beta_reset.py:186"
+            },
+            {
+              "claim": "Flag cleared last; its updated_at is the finish time",
+              "at": "docket/beta_reset.py:272"
+            },
+            {
+              "claim": "On failure the flag stays set; a lock-timeout failure sets it explicitly",
+              "at": "docket/beta_reset.py:256"
+            },
+            {
+              "claim": "Service resets at 08:00 UTC, at start when due, retries every 5 minutes after failure or refusal",
+              "at": "docket/beta_reset.py:96"
+            },
+            {
+              "claim": "Review timeout keeps the seeded queue until the next reset",
+              "at": "docket/ingress.py:134"
+            },
+            {
+              "claim": "healthz in beta returns resetting and last_reset_age_seconds, null while running, after a failure or before the first",
+              "at": "docket/beta_reset.py:65"
+            },
+            {
+              "claim": "Samples get 503 'The demo is being reset...' and state resetting",
+              "at": "docket/api.py:363"
+            }
+          ]
+        },
+        {
+          "path": "README.md",
+          "claims": [
+            {
+              "claim": "First start resets at once because no reset has finished",
+              "at": "docket/beta_reset.py:99"
+            },
+            {
+              "claim": "Manual reset prints the Beta reset result line and exits 1 while another runs",
+              "at": "docket/cli.py:313"
+            },
+            {
+              "claim": "healthz example output",
+              "at": "docket/api.py:145"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Production compose, env example, image, compose check",
+      "files": [
+        "compose.prod.yaml",
+        ".env.beta.example",
+        "Dockerfile",
+        ".dockerignore",
+        ".gitignore",
+        "scripts/check_prod_compose.py"
+      ],
+      "docs": [
+        {
+          "path": "README.md",
+          "claims": [
+            {
+              "claim": "Six services with memory limits 768/512/512/512/768/256 MB, total 3.3 GB",
+              "at": "compose.prod.yaml:52"
+            },
+            {
+              "claim": "Only the API publishes a port, on 127.0.0.1:${DOCKET_PORT:-8001}",
+              "at": "compose.prod.yaml:125"
+            },
+            {
+              "claim": "Only the worker has the model key",
+              "at": "compose.prod.yaml:153"
+            },
+            {
+              "claim": "check_prod_compose prints 'OK: 8 services.' and stops when a setting is also in the shell",
+              "at": "scripts/check_prod_compose.py:99"
+            },
+            {
+              "claim": "migrate and temporal-data-init run once",
+              "at": "compose.prod.yaml:32"
+            },
+            {
+              "claim": "Caddy max_size 32KB sits above Docket's 16 KB limit; last X-Forwarded-For hop is read",
+              "at": "docket/review_access.py:21"
+            }
+          ]
+        },
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "The image ships .env.beta.example for the placeholder-code check",
+              "at": ".dockerignore:5"
+            },
+            {
+              "claim": "Startup refusal for UVICORN_ROOT_PATH; beta-reset runs the refusals",
+              "at": "docket/beta.py:76"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Load run and measured peaks",
+      "files": [
+        "scripts/load/beta_load.py",
+        "scripts/load/compose.load.yaml",
+        "scripts/load/stub_anthropic.py"
+      ],
+      "docs": [
+        {
+          "path": "README.md",
+          "claims": [
+            {
+              "claim": "60 samples in 10 minutes from four addresses, own project docket-load, refuses unless the worker points at the stub and the key is not a real one",
+              "at": "scripts/load/beta_load.py:29"
+            },
+            {
+              "claim": "Total of peaks counts every container except the stub, so both reset containers",
+              "at": "scripts/load/beta_load.py:223"
+            }
+          ]
+        },
+        {
+          "path": "docs/adr/009-hosting.md",
+          "claims": [
+            {
+              "claim": "20 review actions, one reset by hand at the halfway sample, 31 samples before and 29 after",
+              "at": "scripts/load/beta_load.py:188"
+            },
+            {
+              "claim": "No 429 or 503 and every sample settled",
+              "at": "scripts/load/beta_load.py:230"
+            },
+            {
+              "claim": "Reset service limit 256 MB matches compose",
+              "at": "compose.prod.yaml:183"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Gateway cache of 10,000 and shared transports; run cap best effort",
+      "files": [
+        "docket/runtime.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "Worker keeps the 10,000 most recent gateways, one transport per provider and model; evicted documents or a restart start a fresh run cap",
+              "at": "docket/runtime.py:19"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Gateway gives a reservation back when the kill-switch read fails; refund failure fails closed and is logged",
+      "files": [
+        "docket/llm/anthropic.py",
+        "docket/llm/gateway.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "A stopped classify call ends failed with budget_exceeded; a stopped choose call leaves no suggested record and the document is filed or held as usual",
+              "at": "docket/workflows.py:15"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Root path refusal: 500 on every route when root_path is set",
+      "files": [
+        "docket/review_access.py",
+        "docket/beta.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "Non-empty root_path gets 500 'The beta must be served at the site root.' on every route",
+              "at": "docket/review_access.py:170"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Samples use DOCKET_MODEL_MODE; resetting state",
+      "files": [
+        "docket/beta_samples.py",
+        "docket/api.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "GET /beta/samples state may be off, paused or resetting",
+              "at": "docket/beta_samples.py:60"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Sample panel shows the resetting text and redraws the detail pane when nothing is open",
+      "files": [
+        "web/src/main.ts"
+      ],
+      "none": "DESIGN.md is owned by the design pass; the panel text matches RESET_RUNNING at docket/beta_samples.py:48"
+    }
+  ]
+}

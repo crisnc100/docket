@@ -23,6 +23,7 @@ from docket.beta_samples import (
     address_capped,
     document_ceiling,
     live_answers_on,
+    no_reset_running,
     set_live_answers,
 )
 from docket.cli import app as cli
@@ -109,6 +110,7 @@ async def test_a_sample_goes_to_ingress_with_server_made_bytes_and_counts_once(p
         assert uuid.UUID(response.json()["document_id"])
     [(content, filename, kwargs)] = ingress.submitted
     assert content.startswith(b"%PDF-") and filename == "sample-clean.pdf"
+    assert kwargs.pop("guard") is no_reset_running
     assert kwargs == {"source": "sample", "sender": SAMPLE_SENDER}
     assert counts(postgres_engine) == {"address:198.51.100.8": 1, "day": 1}
 
@@ -466,6 +468,60 @@ async def test_the_switch_also_stops_the_resend_after_a_schema_refusal(
     # Nothing was billed, so the reservation is given back.
     with Session(postgres_engine) as session:
         assert session.scalar(select(BudgetLedger.spent_usd)) == 0
+
+
+async def test_a_failed_switch_read_at_the_transport_gives_the_reservation_back(
+    postgres_engine, monkeypatch
+):
+    api = FakeApi(message('{"category":"lease"}'))
+    runtime = live_runtime(postgres_engine, monkeypatch, api)
+    gateway = runtime.gateway(live_request())
+    reads = []
+
+    def reader():
+        # The gateway's own read passes; the transport's read, and every read after it, fail.
+        reads.append(len(reads))
+        if len(reads) > 1:
+            raise OSError("database unreachable")
+        return True
+
+    async def no_wait(seconds):
+        pass
+
+    gateway.live_allowed = gateway.transport.live_allowed = reader
+    gateway.sleep = no_wait
+    with pytest.raises(OSError, match="unreachable"):
+        await gateway.call(**classify_request("Lease for unit 1"), source="sample")
+    assert api.requests == [] and len(reads) == 3
+    with Session(postgres_engine) as session:
+        assert session.scalar(select(BudgetLedger.spent_usd)) == 0
+
+
+async def test_a_refund_that_cannot_be_written_stops_the_call_and_is_logged(
+    postgres_engine, monkeypatch, caplog
+):
+    api = FakeApi(message('{"category":"lease"}'))
+    runtime = live_runtime(postgres_engine, monkeypatch, api)
+    gateway = runtime.gateway(live_request())
+    reads = []
+
+    def reader():
+        reads.append(1)
+        if len(reads) > 1:
+            raise OSError("database unreachable")
+        return True
+
+    def settle(*args):
+        raise OSError("database unreachable during the refund")
+
+    gateway.live_allowed = gateway.transport.live_allowed = reader
+    assert gateway.budget is not None
+    monkeypatch.setattr(gateway.budget.daily, "settle", settle)
+    with pytest.raises(OSError, match="during the refund"):
+        await gateway.call(**classify_request("Lease for unit 1"), source="sample")
+    # Fails closed: no request went out, and the stuck reservation is named in the log.
+    assert api.requests == [] and len(reads) == 2
+    assert "Could not give back a $" in caplog.text
 
 
 async def test_local_gateways_never_read_the_switch(postgres_engine, monkeypatch):

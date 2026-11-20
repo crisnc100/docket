@@ -73,6 +73,8 @@ def startup_problems(
         problems.append(f"DOCKET_DAILY_BUDGET_USD must be at most {MAX_DAILY_BUDGET_USD:.2f}.")
     if settings.docket_model_mode not in {"live", "replay"}:
         problems.append("DOCKET_MODEL_MODE must be live or replay in beta.")
+    if environ.get("UVICORN_ROOT_PATH"):
+        problems.append("UVICORN_ROOT_PATH must be unset: the beta is served at the site root.")
     return problems
 
 

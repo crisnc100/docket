@@ -164,8 +164,15 @@ class AnthropicTransport:
             return await self._send(prompt, schema, system_prompt)
 
     async def _send(self, prompt: str, schema: type[BaseModel], system_prompt: str) -> Reply:
-        if self.live_allowed is not None and not self.live_allowed():
-            raise BudgetExceeded("Live answers are turned off")
+        if self.live_allowed is not None:
+            try:
+                allowed = self.live_allowed()
+            except Exception as exc:
+                # The switch is read before the request, so nothing was sent or billed, and the
+                # gateway gives the reservation back.
+                raise NotSent(f"Kill switch unread: {type(exc).__name__}") from exc
+            if not allowed:
+                raise BudgetExceeded("Live answers are turned off")
         mode = self.mode.current
         started = self.clock()
         try:

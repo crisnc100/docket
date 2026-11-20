@@ -72,7 +72,7 @@ Locally, every route except the webhook, the health check and the front page wit
 With `DOCKET_ENV=beta` the review page and every API route need an invite-code session instead;
 only the front page, the health check and the sign-in stay open, and visitors cannot upload.
 They send server-made sample documents instead, within per-address and daily caps and behind a kill switch.
-The hosted beta's deployment and nightly reset are not built yet.
+The demo resets every night; [Run the hosted beta](#run-the-hosted-beta) is the runbook.
 The webhook uses a shared-secret signature and a timestamp within five minutes.
 See [operations](docs/operations.md) for headers, routes, settings, services and
 [beta mode](docs/operations.md#hosted-beta-mode).
@@ -200,6 +200,106 @@ See [ADR 007](docs/adr/007-temporal-recovery.md) for the measured scope.
   through silent truncation. [Operations](docs/operations.md#how-a-document-is-matched) gives the limits.
 - Local Compose uses a Temporal development server, one API process and one shared reviewer token.
   This is not a measured production deployment or an individual-user permissions system.
+
+## Run the hosted beta
+
+The hosted beta, <https://docket.cristianortega.dev>, runs `compose.prod.yaml` on one
+host behind [Caddy](https://caddyserver.com), which handles HTTPS. Its six services each
+have a memory and CPU limit, restart unless stopped, and rotate their logs:
+
+| Service | Memory limit | Peak in the load run |
+| --- | --- | --- |
+| `temporal`: the Temporal dev server, on a SQLite file ([ADR 009](docs/adr/009-hosting.md)) | 768 MB | 310 MB |
+| `postgres` | 512 MB | 73 MB |
+| `seaweedfs`: the S3 store | 512 MB | 129 MB |
+| `api`, the only service with a published port, on `127.0.0.1` | 512 MB | 260 MB |
+| `worker`, the only service with the model key | 768 MB | 276 MB |
+| `reset`: the nightly reset at 08:00 UTC | 256 MB | 197 MB; 179 MB for a reset run by hand |
+| **Total** | **3.3 GB** | **1.4 GB**, counting both reset containers |
+
+`migrate` and `temporal-data-init` run once at start and exit. The load run
+(`scripts/load/beta_load.py`) sent 60 samples in 10 minutes from four addresses, with
+review actions and one reset, against a local stand-in for the model API. It runs as
+its own Compose project, `docket-load`, on fresh volumes, and sends nothing until it has
+checked that the worker's model address is the stand-in and the key is not a real one. [ADR 009](docs/adr/009-hosting.md) has the details.
+
+Every command below runs in the release folder on the host. Compose reads the settings
+from `.env.beta` only through `--env-file .env.beta`. Without it, compose stops and names
+the first missing setting.
+
+1. **Settings.** `cp .env.beta.example .env.beta && chmod 600 .env.beta`, then fill in
+   every blank and replace both placeholder codes. `openssl rand -hex 32` makes each random
+   value. The API key is the beta's own, with a monthly spend limit set at the provider.
+2. **Check the settings.** `python3 scripts/check_prod_compose.py .env.beta` prints
+   `OK: 8 services.` and what it checked: only the API is published, on 127.0.0.1;
+   every service has limits and log rotation; only the worker gets the model key; no
+   secret is on a command line. It never prints a value. It stops if one of the settings
+   is also set in the shell, because compose would use the shell's value.
+3. **Start.** `docker compose -f compose.prod.yaml --env-file .env.beta up -d --build --wait`
+   builds the image, runs the migrations and returns once every service is healthy. On a
+   first start, `reset` finds no reset since 08:00 UTC and seeds the queue at once.
+4. **Check it.** `curl -s http://127.0.0.1:8001/healthz` prints
+   `{"status":"ok","resetting":false,"last_reset_age_seconds":42}`, and
+   `curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8001/review` prints `401`.
+   `docker compose -f compose.prod.yaml --env-file .env.beta ps` lists the six services
+   as `healthy`.
+5. **Caddy.** Back up the Caddyfile, add this block beside the others, validate, then
+   reload:
+
+   ```
+   docket.cristianortega.dev {
+       request_body {
+           max_size 32KB
+       }
+       reverse_proxy 127.0.0.1:8001
+   }
+   ```
+
+   `max_size` stops a large body at Caddy. It sits above Docket's own 16 KB limit, so
+   Docket's refusal is the one visitors see. Caddy appends the client address to
+   `X-Forwarded-For`, which `DOCKET_TRUST_PROXY=1` reads.
+
+   ```sh
+   sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak-$(date +%Y%m%d-%H%M%S)
+   sudo caddy validate --config /etc/caddy/Caddyfile   # must end "Valid configuration"
+   sudo systemctl reload caddy
+   ```
+
+   Never reload a file that did not validate. To roll back, copy the backup over
+   `/etc/caddy/Caddyfile`, validate it, and reload.
+
+Day to day, define `compose() { docker compose -f compose.prod.yaml --env-file .env.beta "$@"; }`
+in the shell first:
+
+- **Live answers off and on.** `compose exec -T api docket beta-switch off` prints
+  `Live answers are off.`, and `... beta-switch on` prints `Live answers are on.` Samples
+  get 503 while it is off. No restart is needed.
+- **Reset by hand.** `compose run --rm --no-deps reset docket beta-reset` prints
+  `Beta reset: {'terminated': ..., 'objects_removed': ..., 'seeded': {'needs_review': 12}}`.
+  It runs in its own container, so it never shares the `reset` service's memory limit.
+  While another reset runs, it prints `A reset is already running.` and exits 1.
+- **Logs.** `compose logs --tail 50 reset` shows the result line of each reset the service
+  ran. A reset by hand prints its own.
+- **Back up.** Postgres holds the spend ledger and the day's sample count, the state that
+  outlives a reset. Each backup is written to a `.partial` file and moved into place
+  only if every step succeeded, so a failed dump exits non-zero and never replaces a good
+  backup:
+
+  ```sh
+  (set -o pipefail; f=docket-$(date +%F).sql.gz
+   compose exec -T postgres pg_dump -U docket docket | gzip > "$f.partial" && mv "$f.partial" "$f")
+  ```
+
+  For a copy of all three volumes, run `compose stop`, then this, then `compose start`:
+
+  ```sh
+  for v in postgres-data temporal-data seaweedfs-data; do
+    docker run --rm --user 0 -v docket-hosted_$v:/data:ro -v "$PWD":/backup docket-hosted-app \
+      sh -c "tar czf /backup/$v.tgz.partial -C /data . && mv /backup/$v.tgz.partial /backup/$v.tgz" ||
+      { echo "backup of $v failed"; break; }
+  done
+  ```
+- **Stop.** `compose down` stops and removes the containers. The volumes stay.
 
 ## Check and explore
 

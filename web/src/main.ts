@@ -356,10 +356,11 @@ async function refresh() {
   items = (await request<{ items: ReviewItem[] }>('/review')).items;
   await openDocument();
 }
-type SampleOptions = { state: 'ready' | 'off' | 'paused'; case_types: { value: string; label: string }[] };
+type SampleOptions = { state: 'ready' | 'off' | 'paused' | 'resetting'; case_types: { value: string; label: string }[] };
 const SAMPLE_STATES: Record<string, string> = {
   off: 'Live answers are turned off right now.',
   paused: 'Live answers are paused for today. Try again tomorrow.',
+  resetting: 'The demo is being reset. Try again in a minute.',
 };
 const OUTCOME_WORDS: Record<string, string> = {
   filed: 'The sample was filed by the rules.',
@@ -444,11 +445,13 @@ async function sendSample(caseType: string, send: HTMLButtonElement, kinds: HTML
   }
 }
 // The visitor may have moved on to review another document while the sample was read, so only
-// the queue is redrawn; the open document is redrawn only when it is the sample, which keeps a
-// half-written dismiss reason or a picked candidate.
+// the queue is redrawn then, which keeps a half-written dismiss reason or a picked candidate.
+// The pane is redrawn when it shows the sample or no document, since "Nothing waiting" may
+// no longer be true.
 async function refreshAfterSample(id: string) {
   items = (await request<{ items: ReviewItem[] }>('/review')).items;
-  if (documentId() === id) await openDocument();
+  const open = documentId();
+  if (open === id || open === undefined) await openDocument();
   else renderQueue();
 }
 window.addEventListener('hashchange', () => { void openDocument().catch(showError); });

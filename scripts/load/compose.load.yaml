@@ -1,0 +1,25 @@
+# The load run's additions to compose.prod.yaml (scripts/load/beta_load.py). The worker's
+# model calls go to a local stub, so the run spends nothing. Never use this file on the host.
+# Its own project, so it never shares containers or volumes with a beta on this machine.
+name: docket-load
+
+services:
+  # Its own image tag too, so a build here never replaces the beta's image.
+  migrate:
+    image: docket-load-app
+  api:
+    image: docket-load-app
+  reset:
+    image: docket-load-app
+  stub:
+    image: docket-load-app
+    command: ["python", "scripts/load/stub_anthropic.py"]
+    mem_limit: 128m
+    cpus: 0.5
+  worker:
+    image: docket-load-app
+    environment:
+      ANTHROPIC_BASE_URL: http://stub:8080
+    depends_on:
+      stub:
+        condition: service_started

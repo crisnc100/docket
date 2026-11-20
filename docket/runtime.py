@@ -16,10 +16,11 @@ from docket.llm.gateway import MAX_OUTPUT_TOKENS, Gateway, Mode, OpenRouterTrans
 from docket.llm.replay import ReplayStore
 from docket.settings import Settings
 
-# Live documents each get a gateway, so the worker keeps only the most recent ones. An
-# evicted document that calls again gets a new gateway with a fresh per-document budget; the
-# daily ledger still binds it.
-MAX_GATEWAYS = 256
+# Live documents each get a gateway, which holds the document's run cap in memory, so the
+# worker keeps only the most recent ones (about 23 MiB at this size). An evicted document
+# that calls again, like any document after a restart, starts a fresh run cap. The daily
+# ledger in Postgres is the hard bound on spend.
+MAX_GATEWAYS = 10_000
 
 
 class Runtime:

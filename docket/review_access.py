@@ -167,6 +167,12 @@ class ReviewerAccess:
         """Beta access is the session cookie alone: a Bearer token grants nothing, whether or
         not one is configured."""
         method, path = scope["method"], scope["path"]
+        # Under a root path the router matches the path without it while this gate reads the
+        # full path, so a private route could pass as a public one.
+        if scope.get("root_path"):
+            return await refuse(500, "The beta must be served at the site root.")(
+                scope, receive, send
+            )
         # The router's patterns end in "$", which also matches before a trailing line feed, so
         # "/documents\n" would reach the upload handler. No real path has a control character.
         if any(ord(char) < 0x20 or ord(char) == 0x7F for char in path):

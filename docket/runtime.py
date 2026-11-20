@@ -1,6 +1,7 @@
+from collections import OrderedDict
 from decimal import Decimal
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import boto3
 from botocore.config import Config
@@ -14,6 +15,11 @@ from docket.llm.budget import Budget, DailyBudget, RunBudget, load_prices
 from docket.llm.gateway import MAX_OUTPUT_TOKENS, Gateway, Mode, OpenRouterTransport
 from docket.llm.replay import ReplayStore
 from docket.settings import Settings
+
+# Live documents each get a gateway, so the worker keeps only the most recent ones. An
+# evicted document that calls again gets a new gateway with a fresh per-document budget; the
+# daily ledger still binds it.
+MAX_GATEWAYS = 256
 
 
 class Runtime:
@@ -34,7 +40,9 @@ class Runtime:
             ),
         )
         self.storage = S3Storage(cast(S3Client, self.s3), self.settings.s3_bucket)
-        self.gateways: dict[tuple[str, str, str, str], Gateway] = {}
+        self.gateways: OrderedDict[tuple[str, str, str, str], Gateway] = OrderedDict()
+        # One transport per provider and model, so evicting a gateway closes no HTTP client.
+        self.transports: dict[tuple[str, str], Any] = {}
 
     def ensure_bucket(self) -> None:
         try:
@@ -52,17 +60,22 @@ class Runtime:
         # Live documents have separate budgets; observe runs share their evaluation budget.
         document = request["document_id"] if request["run_id"] == "live" else ""
         key = (request["run_id"], document, request["model_mode"], request["model"])
-        if key not in self.gateways:
+        if key in self.gateways:
+            self.gateways.move_to_end(key)
+        else:
             mode = Mode(request["model_mode"])
             settings = self.settings.model_copy(update={"docket_model": request["model"]})
             kwargs = {}
             if mode in {Mode.RECORD, Mode.LIVE}:
                 prices = load_prices().ceiling(request["model"])
-                transport = (
-                    AnthropicTransport(settings, MAX_OUTPUT_TOKENS)
-                    if settings.docket_model_provider == "anthropic"
-                    else OpenRouterTransport(settings, prices, MAX_OUTPUT_TOKENS)
-                )
+                provider = settings.docket_model_provider
+                if (provider, request["model"]) not in self.transports:
+                    self.transports[provider, request["model"]] = (
+                        AnthropicTransport(settings, MAX_OUTPUT_TOKENS)
+                        if provider == "anthropic"
+                        else OpenRouterTransport(settings, prices, MAX_OUTPUT_TOKENS)
+                    )
+                transport = self.transports[provider, request["model"]]
                 if settings.docket_env == "beta":
                     kwargs["live_allowed"] = lambda: live_answers_on(self.engine)
                 kwargs |= {
@@ -80,6 +93,8 @@ class Runtime:
                 provider=settings.docket_model_provider,
                 **kwargs,
             )
+            if len(self.gateways) > MAX_GATEWAYS:
+                self.gateways.popitem(last=False)
         return self.gateways[key]
 
     def read(self, key: str) -> bytes:

@@ -1,0 +1,14 @@
+# The load run's additions to compose.prod.yaml (scripts/load/beta_load.py). The worker's
+# model calls go to a local stub, so the run spends nothing. Never use this file on the host.
+services:
+  stub:
+    image: docket-hosted-app
+    command: ["python", "scripts/load/stub_anthropic.py"]
+    mem_limit: 128m
+    cpus: 0.5
+  worker:
+    environment:
+      ANTHROPIC_BASE_URL: http://stub:8080
+    depends_on:
+      stub:
+        condition: service_started

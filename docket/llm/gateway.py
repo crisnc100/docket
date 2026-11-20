@@ -209,7 +209,7 @@ class Gateway:
         worst = self.prices.worst_case(canonical(request), self.max_output_tokens)
         for attempt in range(len(RETRY_DELAYS) + 1):
             if self.live_allowed is not None and not self.live_allowed():
-                raise BudgetExceeded("Live model answers are turned off")
+                raise BudgetExceeded("Live answers are turned off")
             day = self.budget.reserve(worst)
             self.call_count += 1
             try:

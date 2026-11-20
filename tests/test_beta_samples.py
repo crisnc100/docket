@@ -15,12 +15,12 @@ from sqlalchemy.orm import Session
 from typer.testing import CliRunner
 
 from docket.beta_samples import (
-    ADDRESS_CAPPED,
     DAY_CAPPED,
     PAUSED,
     SAMPLE_LABELS,
     SAMPLE_SENDER,
     TURNED_OFF,
+    address_capped,
     document_ceiling,
     live_answers_on,
     set_live_answers,
@@ -212,8 +212,9 @@ async def test_fifty_parallel_samples_from_one_address_let_exactly_twenty_throug
         statuses = [response.status_code for response in responses]
         assert statuses.count(200) == 20 and statuses.count(429) == 30
         refused = next(response for response in responses if response.status_code == 429)
-        assert refused.json() == {"detail": ADDRESS_CAPPED}
-        assert 1 <= int(refused.headers["retry-after"]) <= 3600
+        wait = int(refused.headers["retry-after"])
+        assert 1 <= wait <= 3600
+        assert refused.json() == {"detail": address_capped(wait)}
         other = await http.post(
             "/beta/samples", json={"case_type": "clean"}, headers=visitor("198.51.100.99")
         )
@@ -275,8 +276,9 @@ async def test_the_address_cap_rolls_across_the_clock_hour(postgres_engine):
             "/beta/samples", json={"case_type": "clean"}, headers=visitor(address)
         )
         assert response.status_code == 429
-        assert response.json() == {"detail": ADDRESS_CAPPED}
-        assert 1 <= int(response.headers["retry-after"]) <= 3600
+        wait = int(response.headers["retry-after"])
+        assert 1 <= wait <= 3600
+        assert response.json() == {"detail": address_capped(wait)}
     assert ingress.submitted == []
     assert counts(postgres_engine) == {"address:" + address: 20}
 
@@ -334,7 +336,36 @@ def test_one_documents_ceiling_covers_both_calls_on_the_longest_text():
 def test_the_page_explains_a_budget_failure_in_plain_words():
     page = Path("web/src/main.ts").read_text()
     assert "budget_exceeded:" in page
-    assert "today's budget ran out" in page
+    assert (
+        "Live answers stopped before this document finished. Today's budget ran out, or live "
+        "answers were turned off."
+    ) in page
+
+
+@pytest.mark.parametrize(
+    "seconds,text",
+    [
+        (1, "Try again in 1 minute."),
+        (60, "Try again in 1 minute."),
+        (61, "Try again in 2 minutes."),
+        (3600, "Try again in 60 minutes."),
+    ],
+)
+def test_the_capped_message_names_the_wait_in_whole_minutes_rounded_up(seconds, text):
+    assert address_capped(seconds) == f"You can send 20 samples an hour. {text}"
+
+
+async def test_the_pause_lifts_when_the_utc_day_changes(postgres_engine):
+    from datetime import UTC, datetime, timedelta
+
+    yesterday = datetime.now(UTC).date() - timedelta(days=1)
+    with Session(postgres_engine) as session, session.begin():
+        session.execute(insert(BudgetLedger).values(day=yesterday, spent_usd=Decimal("1.00")))
+    async with beta_client(engine=postgres_engine) as (http, _, _, _):
+        assert (await http.get("/beta/samples", headers=visitor())).json()["state"] == "ready"
+    spend(postgres_engine, Decimal("1.00"))
+    async with beta_client(engine=postgres_engine) as (http, _, _, _):
+        assert (await http.get("/beta/samples", headers=visitor())).json()["state"] == "paused"
 
 
 # B5

@@ -18,6 +18,8 @@ type ReviewItem = {
   suggested_record_id: string | null;
 };
 type Trace = {
+  filename: string;
+  sender: string;
   status: string;
   reason: string;
   record_id: string | null;
@@ -129,7 +131,7 @@ const TIER_WORDS: Record<string, string> = {
 };
 // Plain-language versions of failure reasons a visitor can cause in the beta.
 const FAILED_BECAUSE: Record<string, string> = {
-  budget_exceeded: "Live answers stopped before this document finished: today's budget ran out, or live answers were turned off.",
+  budget_exceeded: "Live answers stopped before this document finished. Today's budget ran out, or live answers were turned off.",
 };
 const short = (value: string | number) => Number(value).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
 
@@ -201,6 +203,11 @@ function outcome(trace: Trace, conflict: boolean) {
       element('strong', 'Filed'),
       element('p', trace.reason === 'review_approved' ? 'Approved by a reviewer.' : 'Filed by the rules: the clues agreed and the score reached the filing line.'));
   }
+  if (trace.status === 'received' || trace.status === 'processing') {
+    const reading = block('div', 'outcome', element('p', 'Docket is reading this document.'));
+    if (trace.reason) reading.append(block('p', 'code', `Reason: ${trace.reason}`));
+    return reading;
+  }
   const plain = trace.status === 'failed' ? FAILED_BECAUSE[trace.reason] : undefined;
   if (plain) {
     return block('div', 'outcome',
@@ -223,13 +230,13 @@ function pickCard(heading: string, note: string, id: string | null, empty: strin
 }
 function renderDocument(item: ReviewItem | undefined, trace: Trace, pdfUrl?: string) {
   detail.replaceChildren();
-  const head = block('div', 'doc-head', element('h2', item?.filename || 'Document'));
+  const head = block('div', 'doc-head', element('h2', item?.filename || trace.filename || 'Document'));
   const state = element('p', `Status: ${trace.status}`);
   state.dataset.testid = 'document-status';
   state.className = 'status' + (trace.status === 'needs_review' ? ' held' : trace.status === 'filed' ? ' filed' : '');
   head.append(state);
   const facts = block('div', 'facts');
-  if (item) facts.append(element('p', `Sender: ${item.sender || 'Unknown sender'}`));
+  facts.append(element('p', `Sender: ${item?.sender || trace.sender || 'Unknown sender'}`));
   if (trace.record_id) facts.append(block('p', '', 'Record: ', unit(trace.record_id)));
   head.append(facts);
   detail.append(head);
@@ -351,8 +358,8 @@ async function refresh() {
 }
 type SampleOptions = { state: 'ready' | 'off' | 'paused'; case_types: { value: string; label: string }[] };
 const SAMPLE_STATES: Record<string, string> = {
-  off: 'Live model answers are turned off right now.',
-  paused: 'Live answers are paused for today.',
+  off: 'Live answers are turned off right now.',
+  paused: 'Live answers are paused for today. Try again tomorrow.',
 };
 const OUTCOME_WORDS: Record<string, string> = {
   filed: 'The sample was filed by the rules.',
@@ -392,7 +399,11 @@ function samplePanel() {
   void request<SampleOptions>('/beta/samples').then(options => {
     kinds.replaceChildren(...options.case_types.map(item => new Option(item.label, item.value)));
     settle(options.state === 'ready', SAMPLE_STATES[options.state] || '');
-  }).catch(() => settle(false, 'Samples could not be loaded. Reload the page to try again.'));
+  }).catch(() => {
+    // With no list there is nothing to pick or send, so only the status line remains.
+    label.hidden = send.hidden = true;
+    settle(false, 'Samples could not be loaded. Reload the page to try again.');
+  });
 
   send.addEventListener('click', () => {
     if (!ready) return;

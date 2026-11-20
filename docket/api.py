@@ -207,8 +207,16 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
             events = session.scalars(
                 select(Event).where(Event.document_id == document_id).order_by(Event.id)
             ).all()
+            received = next((event.detail for event in events if event.step == "received"), {})
+            source = session.scalar(
+                select(DocumentSource)
+                .where(DocumentSource.document_id == document_id)
+                .order_by(DocumentSource.id)
+            )
             return {
                 "document_id": str(document.id),
+                "filename": received.get("workflow_input", {}).get("filename", ""),
+                "sender": source.sender if source else "",
                 "status": document.status,
                 "reason": document.status_reason,
                 "record_id": document.record_id,

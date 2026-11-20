@@ -281,4 +281,4 @@ def beta_switch(position: str = typer.Argument(..., metavar="on|off")) -> None:
         set_live_answers(engine, position == "on")
     finally:
         engine.dispose()
-    typer.echo(f"Live model answers are {position}.")
+    typer.echo(f"Live answers are {position}.")

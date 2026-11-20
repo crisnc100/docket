@@ -38,10 +38,17 @@ SAMPLE_LABELS = {
     "graded_evidence": "Partial or slightly wrong clues",
 }
 
-TURNED_OFF = "Live model answers are turned off right now."
-PAUSED = "Live answers are paused for today."
-ADDRESS_CAPPED = f"You can send {ADDRESS_LIMIT} samples an hour. Try again later."
+TURNED_OFF = "Live answers are turned off right now."
+# The pause follows the daily ledger, whose day is the UTC day.
+PAUSED = "Live answers are paused for today. Try again tomorrow."
 DAY_CAPPED = f"Today's {DAILY_LIMIT} samples have all been sent. Try again tomorrow."
+
+
+def address_capped(seconds: int) -> str:
+    minutes = math.ceil(seconds / 60)
+    wait = "1 minute" if minutes == 1 else f"{minutes} minutes"
+    return f"You can send {ADDRESS_LIMIT} samples an hour. Try again in {wait}."
+
 
 type SampleState = Literal["ready", "off", "paused"]
 
@@ -142,7 +149,8 @@ def take_slot(engine: Engine, address: str) -> tuple[str, int] | None:
                 select(func.extract("epoch", oldest.scalar_subquery() - window_start))
             )
             session.rollback()
-            return ADDRESS_CAPPED, max(1, math.ceil(seconds or 1))
+            wait = max(1, math.ceil(seconds or 1))
+            return address_capped(wait), wait
         day = cast(func.timezone("UTC", func.now()), Date)
         counted = session.execute(
             insert(SampleCount)

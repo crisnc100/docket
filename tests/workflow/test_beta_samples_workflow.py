@@ -19,7 +19,7 @@ from temporalio.worker import Worker
 
 from docket.activities import Activities
 from docket.api import create_app
-from docket.beta_samples import set_live_answers
+from docket.beta_samples import SAMPLE_SENDER, set_live_answers
 from docket.core.storage import StorageConflict
 from docket.corpus import SAMPLE_CASE_TYPES
 from docket.db import Document, DocumentSource, Event, FiledDocument
@@ -213,6 +213,8 @@ async def test_a_budget_refusal_mid_way_ends_failed_with_the_budget_reason(
                 assert (result["status"], result["reason"]) == ("failed", "budget_exceeded")
                 trace = (await http.get("/documents/" + document_id, headers=visitor(1))).json()
                 assert (trace["status"], trace["reason"]) == ("failed", "budget_exceeded")
+                # A failed sample is not in the queue, so the pane takes these from here.
+                assert (trace["filename"], trace["sender"]) == ("sample-clean.pdf", SAMPLE_SENDER)
     assert model.calls == ["classify"]
 
 

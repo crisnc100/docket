@@ -71,6 +71,7 @@ button:disabled, button:disabled:hover { background: var(--soft); color: var(--i
 .outcome { padding: 10px 12px; background: var(--soft); }
 .outcome strong { display: block; font-size: 0.9375rem; font-weight: 650; letter-spacing: -0.01em; }
 .outcome p { margin: 4px 0 0; font-size: 0.875rem; color: var(--ink-2); }
+.outcome > p:first-child { margin-top: 0; }
 .outcome .code { font: 0.8125rem/1.5 var(--mono); }
 .outcome.held { background: var(--held-bg); color: var(--held); }
 .outcome.held p { color: var(--held-text); }
@@ -133,7 +134,8 @@ select:disabled, textarea:disabled { background: var(--soft); color: var(--ink-m
 }
 
 .side { display: grid; gap: 28px; align-content: start; min-width: 0; }
-.sample { display: grid; gap: 10px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+/* The rule under the panel bleeds as far as the queue rows below it. */
+.sample { display: grid; gap: 10px; margin: 0 -12px; padding: 0 12px 24px; border-bottom: 1px solid var(--line); }
 .sample h2 { font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.01em; }
 .sample label { font-size: 0.875rem; font-weight: 600; letter-spacing: -0.01em; }
 .sample select { font-family: inherit; }
@@ -141,3 +143,6 @@ select:disabled, textarea:disabled { background: var(--soft); color: var(--ink-m
 .sample-note { margin: 0; color: var(--ink-2); font-size: 0.8125rem; }
 .sample-state { margin: 0; font-size: 0.875rem; }
 .sample-state:empty { display: none; }
+/* Buttons set their own display, which would otherwise override the hidden attribute. */
+.sample [hidden] { display: none; }
+@media (max-width: 760px) { .sample { margin: 0; padding-inline: 0; } }

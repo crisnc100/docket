@@ -497,6 +497,33 @@ async def test_a_failed_switch_read_at_the_transport_gives_the_reservation_back(
         assert session.scalar(select(BudgetLedger.spent_usd)) == 0
 
 
+async def test_a_refund_that_cannot_be_written_stops_the_call_and_is_logged(
+    postgres_engine, monkeypatch, caplog
+):
+    api = FakeApi(message('{"category":"lease"}'))
+    runtime = live_runtime(postgres_engine, monkeypatch, api)
+    gateway = runtime.gateway(live_request())
+    reads = []
+
+    def reader():
+        reads.append(1)
+        if len(reads) > 1:
+            raise OSError("database unreachable")
+        return True
+
+    def settle(*args):
+        raise OSError("database unreachable during the refund")
+
+    gateway.live_allowed = gateway.transport.live_allowed = reader
+    assert gateway.budget is not None
+    monkeypatch.setattr(gateway.budget.daily, "settle", settle)
+    with pytest.raises(OSError, match="during the refund"):
+        await gateway.call(**classify_request("Lease for unit 1"), source="sample")
+    # Fails closed: no request went out, and the stuck reservation is named in the log.
+    assert api.requests == [] and len(reads) == 2
+    assert "Could not give back a $" in caplog.text
+
+
 async def test_local_gateways_never_read_the_switch(postgres_engine, monkeypatch):
     api = FakeApi(message('{"category":"lease"}'))
     runtime = live_runtime(postgres_engine, monkeypatch, api, docket_env="local")

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -34,6 +35,7 @@ from docket.llm.replay import Recording, ReplayStore, canonical, replay_key
 from docket.settings import Settings
 
 RETRY_DELAYS = (1, 2, 4, 8)
+log = logging.getLogger(__name__)
 MAX_OUTPUT_TOKENS = 256
 
 
@@ -240,7 +242,7 @@ class Gateway:
             except BudgetExceeded:
                 # Only the kill switch raises this in a transport, and before that request is
                 # sent. A schema refusal earlier in the same attempt is a 400, which is not billed.
-                self.budget.settle(day, worst, Decimal(0))
+                self._release(day, worst)
                 raise
             except MaybeBilled:
                 # The reservation stays: the call is charged at its worst case.
@@ -248,7 +250,7 @@ class Gateway:
                 raise
             except Exception as exc:
                 if isinstance(exc, NotSent) or getattr(exc, "status_code", None) == 429:
-                    self.budget.settle(day, worst, Decimal(0))
+                    self._release(day, worst)
                     if attempt < len(RETRY_DELAYS):
                         await self.sleep(RETRY_DELAYS[attempt])
                         continue
@@ -290,6 +292,19 @@ class Gateway:
                     self.store.append(entry)
             return output
         raise AssertionError("Unreachable retry state")
+
+    def _release(self, day: Any, worst: Decimal) -> None:
+        """Give back a reservation for a request that was never sent or billed."""
+        assert self.budget is not None
+        try:
+            self.budget.settle(day, worst, Decimal(0))
+        except Exception:
+            # No request goes out after this: the error stops the call. The amount stays
+            # counted in the day's ledger, so the cap errs toward spending less.
+            log.error(
+                "Could not give back a $%s reservation on %s; the ledger keeps it", worst, day
+            )
+            raise
 
     def _settle_reply[T: BaseModel](
         self,

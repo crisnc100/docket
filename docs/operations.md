@@ -168,11 +168,17 @@ is read, so visitors cannot send their own documents. Every other body is limite
 16 KB.
 
 **Lockout.** Each sign-in attempt is stored as a row in the `signin_failures` table,
-and a right code deletes its row. An address with more than 10 wrong codes in the last
-60 minutes gets 429 with a `Retry-After` header. The count is kept in Postgres, so it
+and a right code deletes its row. Once an address has 10 wrong codes in the last
+60 minutes, its next attempt gets 429 with a `Retry-After` header, even with the right
+code. The count is kept in Postgres, so it
 survives a restart. With `DOCKET_TRUST_PROXY=1` the address is the last
 `X-Forwarded-For` hop, because the proxy appends it and anything before it came from
 the client. Set it only behind such a proxy.
+
+A local database that ran the first version of migration `b7e2c41a9d05` has the old
+table shape. Drop the table and run the migration again:
+`docker compose exec postgres psql -U docket -d docket -c "DROP TABLE signin_failures"`,
+then `uv run alembic stamp 690f4793dd3f` and `uv run alembic upgrade head`.
 
 **Review actions.** A dismiss reason must not be blank and has at most 300 characters.
 An approve must name one of the candidates the review page offers for that document.

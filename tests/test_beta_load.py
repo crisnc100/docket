@@ -13,6 +13,7 @@ def no_shell_settings(monkeypatch):
     # overrides the env file for compose.
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
+
 GOOD = {
     "samples_planned": 60,
     "samples_accepted": 60,

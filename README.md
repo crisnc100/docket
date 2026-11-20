@@ -68,9 +68,13 @@ It plays back recorded seed-11 results for four test documents; nothing is uploa
 Upload with `POST /documents`, or send a signed email payload to `POST /inbound`.
 Both have a **10 MB limit (10 MiB, 10 × 1,024 × 1,024 bytes)** on the whole request,
 including upload or encoding overhead. Oversize requests return 413.
-Every route except the webhook, the health check and the front page with its files needs a reviewer Bearer token.
+Locally, every route except the webhook, the health check and the front page with its files needs a reviewer Bearer token.
+With `DOCKET_ENV=beta` the review page and every API route need an invite-code session instead;
+only the front page, the health check and the sign-in stay open, and visitors cannot upload.
+The hosted beta's deployment, samples, spending caps and nightly reset are not built yet.
 The webhook uses a shared-secret signature and a timestamp within five minutes.
-See [operations](docs/operations.md) for headers, routes, settings and services.
+See [operations](docs/operations.md) for headers, routes, settings, services and
+[beta mode](docs/operations.md#hosted-beta-mode).
 
 ## Held-out results
 

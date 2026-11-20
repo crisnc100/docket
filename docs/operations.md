@@ -101,7 +101,7 @@ from a different message also return the existing document. A NUL character in
 
 Set `DOCKET_REVIEW_TOKEN` to a long random secret in the API environment.
 The CLI reads the same variable.
-Every route except `POST /inbound`, `GET /healthz`, `GET /` and `GET /home/{file}` requires this header:
+In local mode, every route except `POST /inbound`, `GET /healthz`, `GET /` and `GET /home/{file}` requires this header:
 
 ```http
 Authorization: Bearer <the value of DOCKET_REVIEW_TOKEN>
@@ -119,6 +119,7 @@ A 401 clears its saved token; a server or network failure keeps it for retry.
 | `GET /` | Open the public front page; no token needed |
 | `GET /home/{file}` | Read the front page's own files; no token needed |
 | `GET /reviewer` | Open the review page |
+| `POST /reviewer/session` | Beta only: send JSON with `code` to sign in |
 | `GET /review` | List act-mode documents waiting for review, oldest first |
 | `GET /documents/{id}` | Read status, reason and the event trace |
 | `GET /documents/{id}/file` | Read the PDF preview with reviewer authorization |
@@ -126,8 +127,72 @@ A 401 clears its saved token; a server or network failure keeps it for retry.
 | `POST /review/{id}/dismiss` | Send JSON with a nonempty `reason` to dismiss |
 
 A terminal document or duplicate, late or invalid review action returns 409.
+So does an action other than `approve` or `dismiss`.
+A NUL character in a dismiss reason returns 422.
+Both checks run before the request reaches Temporal, which keeps every update it
+receives, even one the workflow then rejects.
 Approving a known record files the document to that record.
 The model suggestion cannot approve it for the reviewer.
+
+## Hosted beta mode
+
+Beta mode is for a shared demo that visitors reach without a reviewer token.
+Local use is unchanged. The beta's deployment, sample documents, spending caps,
+kill switch and nightly reset are not built yet.
+
+Set `DOCKET_ENV=beta` to turn it on. These settings apply:
+
+| Setting | What it does |
+| --- | --- |
+| `DOCKET_ENV` | `local` (the default) or `beta` |
+| `DOCKET_INVITE_CODES` | Valid invite codes, separated by commas |
+| `DOCKET_SESSION_KEY` | The secret that signs session cookies |
+| `DOCKET_TRUST_PROXY` | `1` reads the client address from `X-Forwarded-For` |
+| `DOCKET_BASE_URL` | The site's own origin, such as `https://demo.example`; every `POST` must come from it |
+
+**Sign-in.** A visitor enters an invite code on the review page. The server answers
+with the cookie `__Host-docket_session`, which is `HttpOnly`, `Secure` and
+`SameSite=Strict`. The cookie holds the time it was issued and a keyed hash of that time
+and the code, never the code itself. It is refused after seven days, or as soon as its
+code is removed from `DOCKET_INVITE_CODES`. A Bearer token grants nothing in beta,
+whether or not one is configured.
+
+**Public routes.** Only four need no session: `GET /`, `GET /home/{file}`,
+`GET /healthz` and `POST /reviewer/session`, the sign-in. Everything else returns 401,
+and `GET /reviewer` shows the invite-code form. `POST /inbound` is not public in beta.
+
+**Request limits.** Every request that is not a `GET` must carry an `Origin` header that
+matches `DOCKET_BASE_URL`, or it returns 403. An unset `DOCKET_BASE_URL` therefore
+refuses every `POST`. `POST /documents` and `POST /inbound` return 403 before any body
+is read, so visitors cannot send their own documents. Every other body is limited to
+16 KB.
+
+**Lockout.** Each sign-in attempt is stored as a row in the `signin_failures` table,
+and a right code deletes its row. An address with more than 10 wrong codes in the last
+60 minutes gets 429 with a `Retry-After` header. The count is kept in Postgres, so it
+survives a restart. With `DOCKET_TRUST_PROXY=1` the address is the last
+`X-Forwarded-For` hop, because the proxy appends it and anything before it came from
+the client. Set it only behind such a proxy.
+
+**Review actions.** A dismiss reason must not be blank and has at most 300 characters.
+An approve must name one of the candidates the review page offers for that document.
+Both break the rule with 422.
+
+**Startup refusals.** The API, the worker, `docket reconcile`, `docket eval` and
+`docket spike-models` exit before doing any work when the configuration is unsafe, and
+print every problem. They never print a secret value. They refuse when:
+
+- `DOCKET_INVITE_CODES` is unset, has a blank entry, or has a code shorter than 16
+  characters;
+- a code appears in `.env.beta.example` (that file is not shipped yet, so this check
+  finds nothing until it is);
+- `DOCKET_SESSION_KEY` is shorter than 32 bytes;
+- `DOCKET_REVIEW_TOKEN` is set to anything but blank;
+- `DOCKET_TRUST_PROXY` is off;
+- any variable starting with `DOCKET_FAILPOINT` is set;
+- `DOCKET_DAILY_BUDGET_USD` is not set explicitly, or is above 1.00;
+- the model mode is not `live` or `replay`. `docket eval` checks its `--mode`, and
+  `docket spike-models` is checked as `live`, because each uses that mode.
 
 ## Storage and the ledger
 
@@ -254,7 +319,9 @@ archive, builds the Vite review page and Docker images, and creates the database
 tables. Then it runs pytest. That includes Playwright browser tests against
 their own API and worker containers in replay mode: one approves a suggested record
 end to end, and one checks that a script-like file name and sender show as plain
-text. Nine more check token retention after access and asset failures. Chromium runs in a separate test image, not in the API or worker images.
+text. A beta test signs in with an invite code and reviews a document. Its browser joins the
+beta API container's network, because the `Secure` session cookie reaches only an HTTPS
+site or `localhost`, and Chromium treats `localhost` as secure only from there. Nine more check token retention after access and asset failures. Chromium runs in a separate test image, not in the API or worker images.
 `verify.sh` fails if any test is skipped, or if branch coverage of a core module
 falls below its floor in `scripts/check_coverage.py`. Last, it reproduces the
 held-out report and runs detect-secrets, which also scans the archives' contents.
@@ -279,7 +346,8 @@ document is never filed twice and still reaches a final status.
 | `docket/activities.py`    | The workflow's steps, run by `docket/worker.py`       |
 | `docket/api.py`           | Upload, webhook, status and review endpoints          |
 | `docket/webhook.py`       | Webhook signature check, size limit and rate limit    |
-| `docket/review_access.py` | Reviewer token check and the token entry page         |
+| `docket/review_access.py` | Reviewer access: token check, beta session check, entry page |
+| `docket/beta.py`          | Beta rules: startup refusals, sessions and the lockout |
 | `docket/evaluation.py`    | Evaluation runs and reports                           |
 | `docket/cli.py`           | The `docket` command                                  |
 | `docket/front_demo.py`    | Builds the front page's demo data from committed reports |

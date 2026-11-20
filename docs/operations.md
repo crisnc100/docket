@@ -262,7 +262,10 @@ path the router matches the path without it while the gate reads the full path, 
 private route could pass as a public one. Serve the beta at the root of its own host name.
 
 **Nightly reset.** `docket beta-reset` puts the beta back to a starting queue. It refuses
-to run unless `DOCKET_ENV=beta`, and it runs the startup refusals. In order, it:
+to run unless `DOCKET_ENV=beta`, and it runs the startup refusals. Only one reset runs at
+a time: a reset started while another runs prints "A reset is already running.", exits
+non-zero and leaves the `resetting` row alone, and the `reset` service checks again five
+minutes later. In order, a reset:
 
 1. takes the reset lock exclusively, with a 10-second lock timeout, and sets the
    `resetting` row in `beta_flags` in the same transaction. A sample takes that lock
@@ -341,9 +344,11 @@ the model's record suggestion does not affect its score, tier or filing decision
   (`DOCKET_RUN_BUDGET_USD`, default $2.00); an evaluation run shares one. An
   evaluation refuses a run budget above `DOCKET_RUN_BUDGET_CAP_USD` (default $5.00).
   The daily cap is shared by all calls and defaults to $1.50 (`DOCKET_DAILY_BUDGET_USD`).
-  The worker keeps the gateways of the 256 most recent documents, and one HTTP client
-  per provider and model. A document whose gateway was dropped gets a new one with a
-  fresh run cap; the daily cap still binds it.
+  A live document's run cap lives in the worker's memory, in that document's gateway.
+  The worker keeps the gateways of the 10,000 most recent documents, and one HTTP client
+  per provider and model. A document whose gateway was dropped, or any document after the
+  worker restarts, starts again with a fresh run cap. The daily cap in Postgres is the
+  hard bound on spend.
   After the call it charges the real cost: for Anthropic, the tokens the API reports
   times the prices in [config/model_prices.yaml](../config/model_prices.yaml).
 - **Retries.** A rate limit is not billed, and on Anthropic neither is a server error

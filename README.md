@@ -277,6 +277,7 @@ in the shell first:
 - **Reset by hand.** `compose run --rm --no-deps reset docket beta-reset` prints
   `Beta reset: {'terminated': ..., 'objects_removed': ..., 'seeded': {'needs_review': 12}}`.
   It runs in its own container, so it never shares the `reset` service's memory limit.
+  While another reset runs, it prints `A reset is already running.` and exits 1.
 - **Logs.** `compose logs --tail 50 reset` shows the result line of each reset the service
   ran. A reset by hand prints its own.
 - **Back up.** Postgres holds the spend ledger and the day's sample count, the state that

@@ -428,15 +428,28 @@ async function sendSample(caseType: string, send: HTMLButtonElement, kinds: HTML
   const id = String(body.document_id);
   state.textContent = 'Sample sent. Docket is reading it…';
   window.location.hash = id;
-  for (let attempt = 0; attempt < 240; attempt++) {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const trace = await request<Trace>(`/documents/${id}`);
-    if (['received', 'processing'].includes(trace.status)) continue;
-    await refresh();
-    const failed = trace.status === 'failed' ? FAILED_BECAUSE[trace.reason] : undefined;
-    return { canSend: true, text: OUTCOME_WORDS[trace.status] || failed || `The sample ended ${trace.status}.` };
+  // From here the sample exists, so no error below may suggest sending it again.
+  try {
+    for (let attempt = 0; attempt < 240; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const trace = await request<Trace>(`/documents/${id}`);
+      if (['received', 'processing'].includes(trace.status)) continue;
+      await refreshAfterSample(id);
+      const failed = trace.status === 'failed' ? FAILED_BECAUSE[trace.reason] : undefined;
+      return { canSend: true, text: OUTCOME_WORDS[trace.status] || failed || `The sample ended ${trace.status}.` };
+    }
+    return { canSend: true, text: 'The sample is still being read. Refresh the queue to check on it.' };
+  } catch {
+    return { canSend: true, text: 'The sample was sent. Refresh the queue to see it.' };
   }
-  return { canSend: true, text: 'The sample is still being read. Refresh the queue to check on it.' };
+}
+// The visitor may have moved on to review another document while the sample was read, so only
+// the queue is redrawn; the open document is redrawn only when it is the sample, which keeps a
+// half-written dismiss reason or a picked candidate.
+async function refreshAfterSample(id: string) {
+  items = (await request<{ items: ReviewItem[] }>('/review')).items;
+  if (documentId() === id) await openDocument();
+  else renderQueue();
 }
 window.addEventListener('hashchange', () => { void openDocument().catch(showError); });
 void refresh().catch(showError);

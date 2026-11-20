@@ -1,4 +1,4 @@
-# Docket hosted beta: plan (rev 4, 2026-11-19, draft for Cristian)
+# Docket hosted beta: plan (rev 4, 2026-11-19, approved by Cristian 2026-11-19)
 
 This revises PR4 of `builds/v02/plan.md`, which Cristian approved on 2026-11-12. Since then:
 - **Redesign (#7, #8):** `/` became a public front page, and the review page moved to `/reviewer`.
@@ -218,7 +218,7 @@ Nothing changes what the model is for. The rules decide automatic filing. The mo
 1. **Before deploying, Cristian:**
    - creates a separate Anthropic API key for the Docket beta;
    - sets a monthly spend limit on it at the provider (about $31, which is $1 a day);
-   - puts the key in a file on Atlas only. The deploy reads it from there, and it never passes through a transcript.
+   - puts the key in a file on Atlas only (approved 2026-11-19). The deploy reads it from there, and it never passes through a transcript.
 2. **Check Atlas:** free RAM and disk.
 3. **DNS:** add a Vercel A record, docket → 2.25.132.209.
 4. **Start the stack:**

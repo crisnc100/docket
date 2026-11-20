@@ -7,6 +7,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from sqlalchemy import create_engine
 
+from docket.beta_samples import live_answers_on
 from docket.core.storage import S3Client, S3Storage
 from docket.llm.anthropic import AnthropicTransport
 from docket.llm.budget import Budget, DailyBudget, RunBudget, load_prices
@@ -62,7 +63,9 @@ class Runtime:
                     if settings.docket_model_provider == "anthropic"
                     else OpenRouterTransport(settings, prices, MAX_OUTPUT_TOKENS)
                 )
-                kwargs = {
+                if settings.docket_env == "beta":
+                    kwargs["live_allowed"] = lambda: live_answers_on(self.engine)
+                kwargs |= {
                     "budget": Budget(
                         RunBudget(Decimal(request["budget"])),
                         DailyBudget(self.engine, Decimal(str(settings.docket_daily_budget_usd))),

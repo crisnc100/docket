@@ -2,6 +2,7 @@ import asyncio
 import base64
 import binascii
 import json
+import secrets
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -26,7 +27,16 @@ from docket.beta import (
     session_cookie,
     session_value,
 )
+from docket.beta_samples import (
+    PAUSED,
+    SAMPLE_LABELS,
+    SAMPLE_SENDER,
+    TURNED_OFF,
+    SampleGate,
+    take_slot,
+)
 from docket.core.ledger import TERMINAL_STATUSES
+from docket.corpus import SAMPLE_CASE_TYPES, sample_document
 from docket.db import Document, DocumentSource, Event
 from docket.ingress import Ingress
 from docket.review_access import ReviewerAccess, reviewer_page
@@ -71,6 +81,11 @@ class InviteCode(BaseModel):
     code: str = Field(min_length=1, max_length=256)
 
 
+class SampleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    case_type: str
+
+
 BETA_MAX_REASON = 300
 
 
@@ -105,6 +120,9 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         )
         app.state.rate_limit = RateLimit(app.state.runtime.settings.docket_webhook_rate_limit)
         app.state.ingress = Ingress(app.state.runtime, app.state.temporal)
+        settings = app.state.runtime.settings
+        beta = settings.docket_env == "beta"
+        app.state.sample_gate = SampleGate(app.state.runtime.engine, settings) if beta else None
         yield
         if runtime is None:
             app.state.runtime.close()
@@ -300,6 +318,42 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         except (WorkflowUpdateFailedError, RPCError) as exc:
             raise HTTPException(409, "Duplicate, late or invalid review action") from exc
         return {"accepted": True}
+
+    def sample_gate() -> SampleGate:
+        if app.state.sample_gate is None:
+            raise HTTPException(404, "Not found")
+        return app.state.sample_gate
+
+    @app.get("/beta/samples", include_in_schema=False)
+    async def sample_options():
+        gate = sample_gate()
+        return {
+            "state": await asyncio.to_thread(gate.state),
+            "case_types": [
+                {"value": value, "label": SAMPLE_LABELS[value]} for value in SAMPLE_CASE_TYPES
+            ],
+        }
+
+    @app.post("/beta/samples", include_in_schema=False)
+    async def send_sample(request: Request):
+        gate = sample_gate()
+        body = await read_json(request, SampleRequest, "Send one case type from the list.")
+        if body.case_type not in SAMPLE_CASE_TYPES:
+            raise HTTPException(422, "Send one case type from the list.")
+        state = await asyncio.to_thread(gate.state)
+        if state != "ready":
+            raise HTTPException(503, TURNED_OFF if state == "off" else PAUSED)
+        address = client_address(request.scope, gate.settings)
+        refused = await asyncio.to_thread(take_slot, gate.engine, address)
+        if refused is not None:
+            text, wait = refused
+            raise HTTPException(429, text, headers={"Retry-After": str(wait)})
+        # A fresh seed from the server for every sample: a visitor never sends one.
+        sample = await asyncio.to_thread(sample_document, body.case_type, secrets.randbits(63))
+        document_id = await app.state.ingress.submit(
+            sample.content, sample.filename, source="sample", sender=SAMPLE_SENDER
+        )
+        return {"document_id": document_id}
 
     static = Path(__file__).resolve().parent.parent / "web" / "dist"
     app.mount("/assets", StaticFiles(directory=static / "assets", check_dir=False), name="assets")

@@ -19,6 +19,7 @@ from pydantic import BaseModel, ValidationError
 from docket.llm.anthropic import Reply
 from docket.llm.budget import Budget, PriceCeiling
 from docket.llm.errors import (
+    BudgetExceeded,
     ExportPending,
     MaybeBilled,
     NoAnswer,
@@ -39,6 +40,16 @@ MAX_OUTPUT_TOKENS = 256
 def gateway_worst_seconds(request_timeout: float) -> float:
     """The longest one gateway call can take: every attempt times out, with every backoff."""
     return (len(RETRY_DELAYS) + 1) * request_timeout + sum(RETRY_DELAYS)
+
+
+def model_request(
+    *, inputs: Any, prompt: str, schema: type[BaseModel], system_prompt: str = ""
+) -> dict[str, Any]:
+    """What one call sends, as hashed for its replay key and priced for its worst case."""
+    request = {"inputs": inputs, "prompt": prompt, "schema": schema.model_json_schema()}
+    if system_prompt:
+        request["system_prompt"] = system_prompt
+    return request
 
 
 class Mode(StrEnum):
@@ -127,6 +138,7 @@ class Gateway:
         exchange: Exchange | None = None,
         provider: str = "openrouter",
         today: Callable[[], str] = lambda: datetime.now(UTC).date().isoformat(),
+        live_allowed: Callable[[], bool] | None = None,
     ):
         self.mode = Mode(mode)
         self.model = model
@@ -142,6 +154,8 @@ class Gateway:
         self.actual_cost_usd = Decimal(0)
         self.provider = provider
         self.today = today
+        # The beta's kill switch. It is read before every live attempt, retries included.
+        self.live_allowed = live_allowed
 
     async def call[T: BaseModel](
         self,
@@ -156,9 +170,9 @@ class Gateway:
     ) -> T:
         if self.mode in {Mode.RECORD, Mode.EXPORT, Mode.IMPORT} and source != "synthetic_corpus":
             raise RecordRefused("Record mode accepts only the synthetic corpus")
-        request = {"inputs": inputs, "prompt": prompt, "schema": schema.model_json_schema()}
-        if system_prompt:
-            request["system_prompt"] = system_prompt
+        request = model_request(
+            inputs=inputs, prompt=prompt, schema=schema, system_prompt=system_prompt
+        )
         key = replay_key(activity, prompt_version, self.model, request)
 
         def pending() -> PendingRequest:
@@ -194,6 +208,8 @@ class Gateway:
             raise ValueError("Live and record calls require a budget and transport")
         worst = self.prices.worst_case(canonical(request), self.max_output_tokens)
         for attempt in range(len(RETRY_DELAYS) + 1):
+            if self.live_allowed is not None and not self.live_allowed():
+                raise BudgetExceeded("Live model answers are turned off")
             day = self.budget.reserve(worst)
             self.call_count += 1
             try:

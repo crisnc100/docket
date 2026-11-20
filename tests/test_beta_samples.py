@@ -428,3 +428,21 @@ async def test_no_beta_route_lets_visitor_bytes_reach_ingress_or_storage(postgre
     assert filename == "sample-injection.pdf"
     assert kwargs["sender"] == SAMPLE_SENDER
     assert b"visitor" not in content
+
+
+async def test_the_spike_command_reads_the_switch_in_beta(postgres_engine, tmp_path, monkeypatch):
+    from docket.llm import spike as spike_module
+
+    api = FakeApi()
+
+    def transport(settings, max_output_tokens):
+        client = httpx2.AsyncClient(transport=httpx2.MockTransport(api))
+        return AnthropicTransport(settings, max_output_tokens, client)
+
+    monkeypatch.setattr(spike_module, "create_engine", lambda url: postgres_engine)
+    monkeypatch.setattr(spike_module, "AnthropicTransport", transport)
+    set_live_answers(postgres_engine, False)
+    settings = beta_settings(anthropic_api_key=SecretStr("test-key"))  # pragma: allowlist secret
+    with pytest.raises(BudgetExceeded, match="turned off"):
+        await spike_module.run_spike(settings, tmp_path / "spike.json", tmp_path / "adr.md")
+    assert api.requests == []

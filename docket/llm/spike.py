@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import create_engine
 
+from docket.beta_samples import live_answers_on
 from docket.llm.anthropic import AnthropicTransport
 from docket.llm.budget import Budget, DailyBudget, PriceCeiling, RunBudget, load_prices
 from docket.llm.gateway import Gateway, Mode, OpenRouterTransport
@@ -48,6 +49,9 @@ async def run_spike(settings: Settings, output: Path, adr_path: Path) -> dict[st
             prices=prices,
             max_output_tokens=64,
             provider=settings.docket_model_provider,
+            live_allowed=(lambda: live_answers_on(engine))
+            if settings.docket_env == "beta"
+            else None,
         )
         cases = [(FirstEnum, "UNIT-0001", "UNIT-0199"), (SecondEnum, "UNIT-0199", "UNIT-0001")]
         results = []

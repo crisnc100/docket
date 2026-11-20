@@ -23,6 +23,7 @@ from docket.beta_samples import (
     address_capped,
     document_ceiling,
     live_answers_on,
+    no_reset_running,
     set_live_answers,
 )
 from docket.cli import app as cli
@@ -109,6 +110,7 @@ async def test_a_sample_goes_to_ingress_with_server_made_bytes_and_counts_once(p
         assert uuid.UUID(response.json()["document_id"])
     [(content, filename, kwargs)] = ingress.submitted
     assert content.startswith(b"%PDF-") and filename == "sample-clean.pdf"
+    assert kwargs.pop("guard") is no_reset_running
     assert kwargs == {"source": "sample", "sender": SAMPLE_SENDER}
     assert counts(postgres_engine) == {"address:198.51.100.8": 1, "day": 1}
 

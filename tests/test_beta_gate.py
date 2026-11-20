@@ -850,3 +850,26 @@ async def test_a_malformed_signin_body_is_a_fixed_422_and_counts_nothing(postgre
         assert response.json() == {"detail": "Send one invite code as text."}
     with Session(postgres_engine) as session:
         assert session.query(SigninFailure).count() == 0
+
+
+@pytest.mark.parametrize("mode", ["beta", "local"])
+@pytest.mark.parametrize("body", [b'"\\ud800"', b'["\\ud800"]', b"1e999999"])
+async def test_a_malformed_review_body_is_a_fixed_422_and_never_reaches_temporal(
+    mode, body, postgres_engine
+):
+    document = held_document(postgres_engine)
+    token = secrets.token_hex(16)
+    if mode == "beta":
+        settings, headers = beta_settings(), signed_in()
+    else:
+        settings = Settings(_env_file=None, docket_review_token=SecretStr(token))
+        headers = {"Authorization": "Bearer " + token}
+    async with beta_client(settings, postgres_engine) as (http, _, temporal, _):
+        response = await http.post(
+            f"/review/{document}/dismiss",
+            content=body,
+            headers=headers | {"Content-Type": "application/json"},
+        )
+        assert response.status_code == 422, response.text
+        assert response.json() == {"detail": "Send the review decision as JSON text."}
+        assert temporal.updates == []

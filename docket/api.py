@@ -11,7 +11,7 @@ from typing import Annotated
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, RootModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowUpdateFailedError
@@ -79,6 +79,10 @@ class InviteCode(BaseModel):
     # Pasted codes often carry spaces; stripping them keeps a right code from counting as wrong.
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     code: str = Field(min_length=1, max_length=256)
+
+
+class ReviewBody(RootModel[dict[str, str]]):
+    pass
 
 
 class SampleRequest(BaseModel):
@@ -281,7 +285,8 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
             return {"items": items}
 
     @app.post("/review/{document_id}/{action}")
-    async def review(document_id: uuid.UUID, action: str, body: dict[str, str]):
+    async def review(document_id: uuid.UUID, action: str, request: Request):
+        body = (await read_json(request, ReviewBody, "Send the review decision as JSON text.")).root
         beta = app.state.runtime.settings.docket_env == "beta"
         with Session(app.state.runtime.engine) as session:
             document = session.get(Document, document_id)

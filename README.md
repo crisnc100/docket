@@ -71,7 +71,8 @@ including upload or encoding overhead. Oversize requests return 413.
 Locally, every route except the webhook, the health check and the front page with its files needs a reviewer Bearer token.
 With `DOCKET_ENV=beta` the review page and every API route need an invite-code session instead;
 only the front page, the health check and the sign-in stay open, and visitors cannot upload.
-The hosted beta's deployment, samples, spending caps and nightly reset are not built yet.
+They send server-made sample documents instead, within per-address and daily caps and behind a kill switch.
+The hosted beta's deployment and nightly reset are not built yet.
 The webhook uses a shared-secret signature and a timestamp within five minutes.
 See [operations](docs/operations.md) for headers, routes, settings, services and
 [beta mode](docs/operations.md#hosted-beta-mode).

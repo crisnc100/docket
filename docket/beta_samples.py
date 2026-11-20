@@ -25,6 +25,10 @@ LIVE_ANSWERS = "live_answers"
 # True while docket beta-reset runs. Once it is cleared, its updated_at is when the last
 # reset finished.
 RESETTING = "resetting"
+# Samples take it shared while they write their document; the reset takes it exclusive to
+# set its flag, so no sample that read the flag as clear is still writing after the reset
+# begins.
+RESET_LOCK = int.from_bytes(hashlib.sha256(b"beta-reset").digest()[:8], signed=True)
 SAMPLE_SENDER = "Sample generator"
 SAMPLE_LABELS = {
     "clean": "Every clue agrees",
@@ -70,6 +74,18 @@ def set_flag(engine: Engine, name: str, value: bool) -> None:
                 index_elements=[BetaFlag.name], set_={"value": value, "updated_at": func.now()}
             )
         )
+
+
+class ResetRunning(Exception):
+    """A sample arrived while the reset runs."""
+
+
+def no_reset_running(session: Session) -> None:
+    """Ingress's guard for samples. The flag is read after the shared lock is held, so a
+    reset that has set it is always seen."""
+    session.execute(select(func.pg_advisory_xact_lock_shared(RESET_LOCK)))
+    if session.scalar(select(BetaFlag.value).where(BetaFlag.name == RESETTING)):
+        raise ResetRunning
 
 
 def live_answers_on(engine: Engine) -> bool:

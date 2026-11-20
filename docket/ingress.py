@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import uuid
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 
@@ -49,7 +50,10 @@ class Ingress:
         model_mode: str | None = None,
         budget: str | None = None,
         review_timeout_seconds: float | None = None,
+        guard: Callable[[Session], None] | None = None,
     ) -> str:
+        """guard, if given, runs first inside the transaction that writes the document, and
+        may raise to stop it."""
         if mode not in {"act", "observe"}:
             raise ValueError("Invalid mode")
         if mode == "act":
@@ -67,6 +71,8 @@ class Ingress:
 
         def persist():
             with Session(self.runtime.engine) as session, session.begin():
+                if guard is not None:
+                    guard(session)
                 new_id = uuid.uuid4()
                 created = session.execute(
                     insert(Document)

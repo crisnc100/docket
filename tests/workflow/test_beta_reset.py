@@ -2,6 +2,7 @@
 
 import json
 import os
+import threading
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -10,6 +11,7 @@ from typing import cast
 import httpx
 import pytest
 from sqlalchemy import func, insert, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowExecutionStatus
 from temporalio.testing import WorkflowEnvironment
@@ -20,7 +22,14 @@ from docket import beta_reset
 from docket.activities import Activities
 from docket.api import create_app
 from docket.beta_reset import STARTING_QUEUE, due, next_slot, reset, run_service
-from docket.beta_samples import RESET_RUNNING
+from docket.beta_samples import (
+    RESET_RUNNING,
+    RESETTING,
+    ResetRunning,
+    SampleGate,
+    flag,
+    no_reset_running,
+)
 from docket.cli import app as cli
 from docket.db import (
     BudgetLedger,
@@ -33,9 +42,14 @@ from docket.db import (
 )
 from docket.runtime import Runtime
 from docket.workflows import FileDocumentWorkflow
-from tests.test_beta_gate import BASE, beta_settings, cookie
+from tests.test_beta_gate import BASE, FakeTemporal, beta_settings, cookie
 
 DAY = timedelta(days=1)
+
+
+class EngineOnly:
+    def __init__(self, engine):
+        self.engine = engine
 
 
 @pytest.fixture(autouse=True)
@@ -236,16 +250,105 @@ async def test_the_service_catches_up_a_missed_reset_at_startup(
             raise Stop
         clock[0] += timedelta(seconds=seconds)
 
-    class EngineOnly:
-        engine = postgres_engine
-
     monkeypatch.setattr(beta_reset, "reset", fake_reset)
     monkeypatch.setattr(beta_reset, "READY_FILE", tmp_path / "ready")
     with pytest.raises(Stop):
         await run_service(
-            cast(Runtime, EngineOnly()), cast(Client, None), now=lambda: clock[0], sleep=fake_sleep
+            cast(Runtime, EngineOnly(postgres_engine)),
+            cast(Client, None),
+            now=lambda: clock[0],
+            sleep=fake_sleep,
         )
     # Caught up at startup, then at the next 08:00, and not again in between.
     assert runs == [at("2026-11-20T10:00:00"), at("2026-11-21T08:00:00")]
     assert waits[0] == (at("2026-11-21T08:00:00") - at("2026-11-20T10:00:00")).total_seconds()
     assert (tmp_path / "ready").is_file()
+
+
+# The reset lock, per the advisor's design: samples hold it shared only while they write
+# their document; the reset takes it exclusive to set its flag.
+
+
+def test_the_reset_waits_for_a_sample_writing_its_document_and_later_samples_see_the_flag(
+    postgres_engine,
+):
+    sample = Session(postgres_engine)
+    sample.begin()
+    started = threading.Thread(target=beta_reset.begin, args=(postgres_engine, 5_000))
+    try:
+        no_reset_running(sample)
+        started.start()
+        started.join(0.5)
+        # The reset is still waiting for the lock, so the flag is not set yet.
+        assert started.is_alive() and flag(postgres_engine, RESETTING) is None
+    finally:
+        sample.rollback()
+        sample.close()
+    started.join(5)
+    assert not started.is_alive() and flag(postgres_engine, RESETTING) is True
+    with Session(postgres_engine) as later, later.begin(), pytest.raises(ResetRunning):
+        no_reset_running(later)
+
+
+async def test_a_lock_timeout_still_leaves_the_flag_set(postgres_engine):
+    sample = Session(postgres_engine)
+    sample.begin()
+    no_reset_running(sample)
+    try:
+        with pytest.raises(OperationalError, match="lock timeout"):
+            await reset(
+                cast(Runtime, EngineOnly(postgres_engine)), cast(Client, None), lock_timeout_ms=200
+            )
+    finally:
+        sample.rollback()
+        sample.close()
+    assert beta_reset.reset_record(postgres_engine) == (True, None)
+
+
+async def test_a_failed_reset_leaves_the_flag_set_and_reruns_from_the_start(
+    postgres_engine, monkeypatch, tmp_path
+):
+    steps = []
+
+    async def failing(temporal, documents):
+        steps.append("close")
+        raise RuntimeError("Temporal unreachable")
+
+    begin = beta_reset.begin
+    monkeypatch.setattr(beta_reset, "begin", lambda *args: steps.append("begin") or begin(*args))
+    monkeypatch.setattr(beta_reset, "close_workflows", failing)
+    runtime = cast(Runtime, EngineOnly(postgres_engine))
+    with pytest.raises(RuntimeError, match="unreachable"):
+        await reset(runtime, cast(Client, None))
+    running, finished = beta_reset.reset_record(postgres_engine)
+    assert (running, finished) == (True, None)
+    assert flag(postgres_engine, RESETTING) is True
+    assert due(running, finished, at("2026-11-20T08:30:00"))
+
+    # At the next start the service runs the whole reset again, from setting the flag.
+    class Stop(Exception):
+        pass
+
+    async def stop(seconds):
+        raise Stop
+
+    monkeypatch.setattr(beta_reset, "READY_FILE", tmp_path / "ready")
+    with pytest.raises(Stop):
+        await run_service(runtime, cast(Client, None), sleep=stop)
+    assert steps == ["begin", "close", "begin", "close"]
+
+
+async def test_a_sample_past_the_state_check_is_refused_at_ingress_during_a_reset(
+    beta_runtime, monkeypatch
+):
+    # The race: the sample read the state as ready just before the reset set its flag.
+    monkeypatch.setattr(SampleGate, "state", lambda self: "ready")
+    beta_reset.begin(beta_runtime.engine, 1000)
+    app = create_app(beta_runtime, FakeTemporal())
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url=BASE) as http,
+    ):
+        response = await http.post("/beta/samples", json={"case_type": "clean"}, headers=visitor())
+    assert response.status_code == 503 and response.json() == {"detail": RESET_RUNNING}
+    assert statuses(beta_runtime.engine) == []

@@ -8,19 +8,17 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import Engine, delete, func, select
+from sqlalchemy import Engine, delete, func, select, text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowExecutionStatus
 from temporalio.service import RPCError, RPCStatusCode
 
-from docket.beta_samples import RESETTING, SAMPLE_SENDER, set_flag
+from docket.beta_samples import RESET_LOCK, RESETTING, SAMPLE_SENDER, set_flag
 from docket.core.ledger import TERMINAL_STATUSES
 from docket.db import (
     BetaFlag,
     Document,
-    DocumentSource,
-    Event,
-    FiledDocument,
     SampleSend,
     SigninFailure,
 )
@@ -130,13 +128,33 @@ async def close_workflows(temporal: Client, documents: list[uuid.UUID]) -> None:
             raise TimeoutError(f"Workflow {handle.id} did not close")
 
 
+def begin(engine: Engine, lock_timeout_ms: int) -> None:
+    """Set the flag while holding the reset lock exclusively. That waits for any sample still
+    writing its document, and every sample after it sees the flag."""
+    with Session(engine) as session, session.begin():
+        session.execute(text(f"SET LOCAL lock_timeout = {int(lock_timeout_ms)}"))
+        session.execute(select(func.pg_advisory_xact_lock(RESET_LOCK)))
+        session.execute(
+            insert(BetaFlag)
+            .values(name=RESETTING, value=True)
+            .on_conflict_do_update(
+                index_elements=[BetaFlag.name], set_={"value": True, "updated_at": func.now()}
+            )
+        )
+
+
 def clear_tables(engine: Engine) -> None:
-    """Delete every document and its rows. The spend ledger and the day's sample count stay,
-    so a reset never lifts a daily cap."""
+    """Remove every document and its rows in one statement, so a late write from a
+    terminated workflow's activity lands either before it, and goes, or after it, and fails
+    on the missing document. The spend ledger and the day's sample count stay, so a reset
+    never lifts a daily cap."""
+    with Session(engine) as session, session.begin():
+        session.execute(text("TRUNCATE events, document_sources, filed_documents, documents"))
+
+
+def prune_counters(engine: Engine) -> None:
     window_start = func.now() - COUNTER_WINDOW
     with Session(engine) as session, session.begin():
-        for table in (Event, DocumentSource, FiledDocument, Document):
-            session.execute(delete(table))
         session.execute(delete(SigninFailure).where(SigninFailure.at <= window_start))
         session.execute(delete(SampleSend).where(SampleSend.at <= window_start))
 
@@ -181,15 +199,23 @@ async def settled(engine: Engine, ids: list[str], timeout: float) -> dict[str, i
         await asyncio.sleep(0.2)
 
 
-async def reset(runtime: Runtime, temporal: Client, settle_timeout: float = 120) -> dict:
+async def reset(
+    runtime: Runtime, temporal: Client, settle_timeout: float = 120, lock_timeout_ms: int = 10_000
+) -> dict:
     """Run the nightly reset once. If any step fails, the flag stays set, so samples keep
-    getting a 503 until a reset finishes."""
+    getting a 503 and the next run starts again from the first step."""
     engine = runtime.engine
-    set_flag(engine, RESETTING, True)
+    try:
+        await asyncio.to_thread(begin, engine, lock_timeout_ms)
+    except Exception:
+        # The lock was not taken, so the flag set with it was rolled back; set it anyway.
+        set_flag(engine, RESETTING, True)
+        raise
     documents = await asyncio.to_thread(open_documents, engine)
     await close_workflows(temporal, documents)
     await asyncio.to_thread(clear_tables, engine)
     removed = await asyncio.to_thread(empty_bucket, runtime)
+    await asyncio.to_thread(prune_counters, engine)
     ids = await reseed(runtime, temporal)
     statuses = await settled(engine, ids, settle_timeout)
     set_flag(engine, RESETTING, False)

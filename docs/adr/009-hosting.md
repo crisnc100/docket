@@ -50,6 +50,17 @@ with `docker compose run --rm`, in a container of its own.
 The peaks are from one 10-minute run on one machine. Atlas is x86_64 and runs other
 services, so its numbers will differ; the deploy step checks its free memory first.
 
+## Accepted leftovers of a reset
+
+A sample that races the reset can leave two things behind, and the next reset removes
+both:
+
+- A sample written just before the reset takes its lock, whose workflow has not started
+  when the reset lists the open documents, starts against a deleted row. Its workflow then
+  fails in Temporal. No document row is left.
+- A sample refused at its document write has already put its PDF in the bucket, so at
+  most one `raw/` object per refused sample stays until the next reset.
+
 ## What a production setup would need instead (not measured)
 
 None of this is built or measured.

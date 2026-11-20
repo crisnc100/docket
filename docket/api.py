@@ -34,7 +34,9 @@ from docket.beta_samples import (
     SAMPLE_LABELS,
     SAMPLE_SENDER,
     TURNED_OFF,
+    ResetRunning,
     SampleGate,
+    no_reset_running,
     take_slot,
 )
 from docket.core.ledger import TERMINAL_STATUSES
@@ -369,9 +371,16 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
             raise HTTPException(429, text, headers={"Retry-After": str(wait)})
         # A fresh seed from the server for every sample: a visitor never sends one.
         sample = await asyncio.to_thread(sample_document, body.case_type, secrets.randbits(63))
-        document_id = await app.state.ingress.submit(
-            sample.content, sample.filename, source="sample", sender=SAMPLE_SENDER
-        )
+        try:
+            document_id = await app.state.ingress.submit(
+                sample.content,
+                sample.filename,
+                source="sample",
+                sender=SAMPLE_SENDER,
+                guard=no_reset_running,
+            )
+        except ResetRunning as exc:
+            raise HTTPException(503, RESET_RUNNING) from exc
         return {"document_id": document_id}
 
     static = Path(__file__).resolve().parent.parent / "web" / "dist"

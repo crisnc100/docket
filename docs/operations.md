@@ -264,11 +264,16 @@ private route could pass as a public one. Serve the beta at the root of its own 
 **Nightly reset.** `docket beta-reset` puts the beta back to a starting queue. It refuses
 to run unless `DOCKET_ENV=beta`, and it runs the startup refusals. In order, it:
 
-1. sets the `resetting` row in `beta_flags`, so samples get 503 "The demo is being reset.
-   Try again in a minute." and `GET /beta/samples` reports the state `resetting`;
+1. takes the reset lock exclusively, with a 10-second lock timeout, and sets the
+   `resetting` row in `beta_flags` in the same transaction. A sample takes that lock
+   shared only while it writes its document row, and reads the row after taking it, so
+   the reset waits for any sample still writing, and every later sample sees the row.
+   Samples then get 503 "The demo is being reset. Try again in a minute.", and
+   `GET /beta/samples` reports the state `resetting`;
 2. terminates the workflow of every document not in a final status, and waits until
    Temporal reports each one closed;
-3. deletes every document with its sources, events and filings, and empties the bucket;
+3. empties the documents, sources, events and filings tables in one `TRUNCATE`, and
+   empties the bucket;
 4. deletes `signin_failures` and `sample_sends` rows more than an hour old, which no
    longer count toward any limit. The spend ledger and the day's sample count stay, so a
    reset never lifts a daily cap;
@@ -277,7 +282,8 @@ to run unless `DOCKET_ENV=beta`, and it runs the startup refusals. In order, it:
    for review, and none calls the model;
 6. clears the `resetting` row. Its `updated_at` is then the time the reset finished.
 
-If a step fails, the row stays set, so samples keep getting 503 until a reset finishes.
+If a step fails, the lock timeout included, the row stays set, so samples keep getting
+503 until a reset finishes, and the next run starts again from step 1.
 `docket beta-reset --daily` is the `reset` service in `compose.prod.yaml`: it resets at
 08:00 UTC every day. At start, it resets at once if none has finished since the latest
 08:00 UTC, or if the last one never finished, so a run missed while the host was down is

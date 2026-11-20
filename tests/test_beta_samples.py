@@ -468,6 +468,33 @@ async def test_the_switch_also_stops_the_resend_after_a_schema_refusal(
         assert session.scalar(select(BudgetLedger.spent_usd)) == 0
 
 
+async def test_a_failed_switch_read_at_the_transport_gives_the_reservation_back(
+    postgres_engine, monkeypatch
+):
+    api = FakeApi(message('{"category":"lease"}'))
+    runtime = live_runtime(postgres_engine, monkeypatch, api)
+    gateway = runtime.gateway(live_request())
+    reads = []
+
+    def reader():
+        # The gateway's own read passes; the transport's read, and every read after it, fail.
+        reads.append(len(reads))
+        if len(reads) > 1:
+            raise OSError("database unreachable")
+        return True
+
+    async def no_wait(seconds):
+        pass
+
+    gateway.live_allowed = gateway.transport.live_allowed = reader
+    gateway.sleep = no_wait
+    with pytest.raises(OSError, match="unreachable"):
+        await gateway.call(**classify_request("Lease for unit 1"), source="sample")
+    assert api.requests == [] and len(reads) == 3
+    with Session(postgres_engine) as session:
+        assert session.scalar(select(BudgetLedger.spent_usd)) == 0
+
+
 async def test_local_gateways_never_read_the_switch(postgres_engine, monkeypatch):
     api = FakeApi(message('{"category":"lease"}'))
     runtime = live_runtime(postgres_engine, monkeypatch, api, docket_env="local")

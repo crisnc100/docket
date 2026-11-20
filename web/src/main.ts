@@ -444,11 +444,13 @@ async function sendSample(caseType: string, send: HTMLButtonElement, kinds: HTML
   }
 }
 // The visitor may have moved on to review another document while the sample was read, so only
-// the queue is redrawn; the open document is redrawn only when it is the sample, which keeps a
-// half-written dismiss reason or a picked candidate.
+// the queue is redrawn then, which keeps a half-written dismiss reason or a picked candidate.
+// The pane is redrawn when it shows the sample or no document, since "Nothing waiting" may
+// no longer be true.
 async function refreshAfterSample(id: string) {
   items = (await request<{ items: ReviewItem[] }>('/review')).items;
-  if (documentId() === id) await openDocument();
+  const open = documentId();
+  if (open === id || open === undefined) await openDocument();
   else renderQueue();
 }
 window.addEventListener('hashchange', () => { void openDocument().catch(showError); });

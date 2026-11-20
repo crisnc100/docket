@@ -186,7 +186,10 @@ Both break the rule with 422.
 
 **Sample documents.** A visitor cannot upload, so the beta offers samples instead: the
 server makes one synthetic PDF of a case type the visitor picks and runs it through the
-normal pipeline with live model answers. The sender shows as "Sample generator". Two
+normal pipeline. The model is called in the configured `DOCKET_MODEL_MODE`, which is
+`live` on the hosted beta. In `replay`, a fresh sample has no recording and ends
+`failed` with `replay_miss`. A document with no candidate record never reaches the model
+in either mode. The sender shows as "Sample generator". Two
 routes serve this, and both return 404 outside beta:
 
 - `GET /beta/samples` lists the case types with plain labels, and a `state` of `ready`,
@@ -203,7 +206,9 @@ and `non_pdf` always end rejected; `empty_text_layer` is the same file for every
 
 - Live answers are off: 503 with the message "Live answers are turned off right now."
 - Live answers are paused: 503. Today's spend plus the most one document can cost is
-  above `DOCKET_DAILY_BUDGET_USD`. The pause ends with the UTC day.
+  above `DOCKET_DAILY_BUDGET_USD`. The check runs again on every request, so the pause
+  lasts until enough of today's budget is free. That is normally when the UTC day
+  changes, but a call that costs less than it reserved frees some sooner.
 - The address has sent 20 samples in the last 60 minutes: 429 with a `Retry-After`
   header and a message naming the wait in whole minutes. The window rolls, so a slot
   frees 60 minutes after the send that took it.
@@ -218,14 +223,17 @@ a restart.
 `docket beta-switch on` resumes them. It writes one row to the `beta_flags` table, and
 it refuses to run unless `DOCKET_ENV=beta`. With no row, answers are on. Every process
 reads the row before each live model request, so no restart is needed. A document whose
-model call is stopped ends `failed` with the reason `budget_exceeded`, the same
-reason as an exhausted budget. A document already waiting for review stays reviewable.
+classify call is stopped ends `failed` with the reason `budget_exceeded`, the same
+reason as an exhausted budget. A stopped choose call leaves the document without a
+suggested record, and it is then filed or held as usual. A document already waiting for
+review stays reviewable.
 `docket spike-models` reads the switch too.
 
 **Request bodies.** `POST /reviewer/session`, `POST /beta/samples` and
 `POST /review/{id}/{action}` read their bodies as raw JSON text. A body that is not valid
-JSON of the right shape returns 422 with a fixed message that never repeats the input,
-in beta and in local mode.
+JSON of the right shape returns 422 with a fixed message that never repeats the input.
+Review actions do this in both modes. Sign-in and samples do it in beta; in local mode
+those two routes return 404 before reading the body.
 
 **Document trace.** `GET /documents/{id}` also returns `filename` and `sender`, so the
 review page can show a document that is not in the queue, such as a sample being read.

@@ -3,7 +3,7 @@
 import sqlalchemy as sa
 from alembic import op
 
-revision = "b7e2c41a9d05"
+revision = "b7e2c41a9d05"  # pragma: allowlist secret
 down_revision = "690f4793dd3f"
 branch_labels = None
 depends_on = None

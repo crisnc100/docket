@@ -3,6 +3,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
 
 concurrency:
   group: verify-${{ github.ref }}
@@ -90,12 +93,15 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
+  # The fault tests take minutes of real crashes and outages, so pull requests skip them;
+  # every push to main, the nightly run and a manual run include them.
   fault:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        group: [1, 2]
+        group: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -112,22 +118,20 @@ jobs:
       - run: uv run alembic upgrade head
       - run: >-
           uv run pytest tests/fault
-          --splits 2 --group ${{ matrix.group }} --splitting-algorithm least_duration
-          --cov=docket.core --cov-branch --cov-report= --junitxml=.cache/ci/junit.xml
-        env:
-          COVERAGE_FILE: .cache/ci/coverage
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tests-fault-${{ matrix.group }}
-          path: .cache/ci/
-          include-hidden-files: true
-          if-no-files-found: error
+          --splits 3 --group ${{ matrix.group }} --splitting-algorithm least_duration
 
-  # Both coverage floors must hold, as in the two verify.sh modes: without the fault tests (./verify.sh), then with them (--fault).
-  coverage:
-    needs: [tests, browser, fault]
+  # One row for the whole run: it fails if any job failed or was cancelled, then checks
+  # the coverage floors on the merged coverage of the shards and the browser tests.
+  verify:
+    needs: [lint, eval, tests, browser, fault]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
+      - name: Every job passed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo '${{ toJSON(needs.*.result) }}'
+          exit 1
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
@@ -139,20 +143,9 @@ jobs:
         with:
           pattern: tests-*
           path: .cache/ci
-      - name: Every job's results, and every collected test run
-        run: >-
-          uv run python scripts/check_ci_results.py .cache/ci
-          tests-1 tests-2 tests-3 tests-4 tests-browser tests-fault-1 tests-fault-2
-      - name: Coverage without the fault tests
+      - name: Coverage floors
         run: |
-          uv run coverage combine --keep --data-file=.cache/plain.coverage \
-            .cache/ci/tests-[0-9]*/coverage .cache/ci/tests-browser/coverage
-          uv run coverage report -m --data-file=.cache/plain.coverage
-          uv run coverage json --data-file=.cache/plain.coverage -o .cache/plain.json
-          uv run python scripts/check_coverage.py .cache/plain.json
-      - name: Coverage with the fault tests
-        run: |
-          uv run coverage combine --keep --data-file=.cache/all.coverage .cache/ci/tests-*/coverage
-          uv run coverage report -m --data-file=.cache/all.coverage
-          uv run coverage json --data-file=.cache/all.coverage -o .cache/all.json
-          uv run python scripts/check_coverage.py .cache/all.json
+          uv run coverage combine --keep --data-file=.cache/ci.coverage .cache/ci/tests-*/coverage
+          uv run coverage report -m --data-file=.cache/ci.coverage
+          uv run coverage json --data-file=.cache/ci.coverage -o .cache/ci.json
+          uv run python scripts/check_coverage.py .cache/ci.json

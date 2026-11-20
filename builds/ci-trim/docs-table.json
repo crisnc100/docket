@@ -1,0 +1,80 @@
+{
+  "rows": [
+    {
+      "behavior": "CI jobs, triggers and the fault schedule",
+      "files": [
+        ".github/workflows/verify.yml"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "Pull requests skip the fault suite",
+              "at": ".github/workflows/verify.yml:99"
+            },
+            {
+              "claim": "Pushes to main run the workflow",
+              "at": ".github/workflows/verify.yml:4"
+            },
+            {
+              "claim": "A nightly run at 07:00 UTC",
+              "at": ".github/workflows/verify.yml:7"
+            },
+            {
+              "claim": "A manual run",
+              "at": ".github/workflows/verify.yml:8"
+            },
+            {
+              "claim": "The final job is named verify",
+              "at": ".github/workflows/verify.yml:125"
+            },
+            {
+              "claim": "verify fails if any other job failed or was cancelled",
+              "at": ".github/workflows/verify.yml:131"
+            },
+            {
+              "claim": "verify merges coverage from the test shards and the browser tests",
+              "at": ".github/workflows/verify.yml:144"
+            },
+            {
+              "claim": "The coverage floors are checked once",
+              "at": ".github/workflows/verify.yml:151"
+            }
+          ]
+        },
+        {
+          "path": "README.md",
+          "claims": [
+            {
+              "claim": "Pull requests skip the fault suite",
+              "at": ".github/workflows/verify.yml:99"
+            },
+            {
+              "claim": "Nightly run",
+              "at": ".github/workflows/verify.yml:7"
+            },
+            {
+              "claim": "Manual runs",
+              "at": ".github/workflows/verify.yml:8"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Deleted script scripts/check_ci_results.py, replaced by the verify job's result check",
+      "files": [
+        "scripts/check_ci_results.py"
+      ],
+      "none": "The file is deleted and nothing documents it; the verify job's check is covered in the first row."
+    },
+    {
+      "behavior": "Refreshed test durations for pytest-split",
+      "files": [
+        ".test_durations"
+      ],
+      "none": "Generated timing data; no doc describes it."
+    }
+  ]
+}

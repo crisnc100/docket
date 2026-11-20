@@ -1,0 +1,13 @@
+{
+  "mode": "pr",
+  "purpose": "Cristian asked for a harsh cut of tests and CI steps that are not needed, so PR CI takes about 3 minutes with nothing real lost.",
+  "mechanism": "Deleted 17 tests and merged 6 overlapping test functions into 3; each commit message names what still guards each. CI (.github/workflows/verify.yml): fault tests run on push to main, nightly at 07:00 UTC and workflow_dispatch, not on pull_request, in 3 duration-balanced groups; coverage is merged from the 4 shards and the browser job and the floor checked once; scripts/check_ci_results.py is removed; the final job is named verify, needs every job, runs unless cancelled, fails if any needed job failed or was cancelled, then checks coverage. .test_durations is refreshed from a full run of 942 tests. Local ./verify.sh and ./verify.sh --fault are unchanged.",
+  "decisions": "Fault tests leave PRs because they set the PR wall time; an outage-handling bug now surfaces on main or nightly instead. Tests that turned out to be the only guard of something were kept. Service images are not cached: saving and loading them takes as long as pulling them.",
+  "readers": "docs/operations.md and README.md: people running Docket's checks. Comments in .github/workflows/verify.yml: the next maintainer.",
+  "base": "origin/main",
+  "docMap": [
+    {"behavior": "CI jobs, triggers and the fault schedule", "docs": ["docs/operations.md", "README.md"]},
+    {"behavior": "Deleted and merged tests", "docs": []}
+  ],
+  "untouchable": ["tests/**", "builds/**", ".test_durations", "PRODUCT.md", "DESIGN.md", ".impeccable/**", "corpus/**", "evals/**"]
+}

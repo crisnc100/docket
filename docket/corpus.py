@@ -2,7 +2,6 @@ import io
 import json
 import random
 import re
-import tempfile
 from pathlib import Path
 from typing import Literal
 
@@ -290,12 +289,17 @@ def generate(
     return labels
 
 
-# Case types that cannot be fresh standalone samples. Four end rejected, so they never reach
-# filing or review. The empty text layer is the same file for every seed, and ingress returns
-# the earlier document for a repeated file. A duplicate needs the document it copies.
-NOT_SAMPLES = frozenset(
-    {"corrupt", "encrypted", "zero_byte", "non_pdf", "empty_text_layer", "exact_duplicate"}
-)
+# Case types that cannot be fresh standalone samples, and why. A repeated file matters
+# because ingress returns the earlier document for it, while the sample still takes a slot.
+NOT_SAMPLES = {
+    "corrupt": "ends rejected",
+    "encrypted": "ends rejected",
+    "zero_byte": "ends rejected",
+    "non_pdf": "ends rejected",
+    "empty_text_layer": "the same file for every seed",
+    "exact_duplicate": "needs the document it copies",
+    "graded_evidence": "about 2,000 possible files, one per record and profile, so seeds repeat",
+}
 SAMPLE_CASE_TYPES = tuple(case_type for case_type in CASE_TYPES if case_type not in NOT_SAMPLES)
 
 
@@ -318,18 +322,6 @@ def sample_document(
         raise ValueError(f"Not a sample case type: {case_type}")
     records = load_records(records_path)
     rng = random.Random(seed)
-    if case_type == "graded_evidence":
-        profile = rng.randrange(10)
-        with tempfile.TemporaryDirectory() as folder:
-            label = graded_documents(rng.getrandbits(63), Path(folder), records)[profile]
-            content = (Path(folder) / label.filename).read_bytes()
-        assert label.expected != "rejected"
-        return Sample(
-            filename=f"sample-{case_type}.pdf",
-            content=content,
-            case_type=case_type,
-            expected=label.expected,
-        )
     fake = Faker("en_US")
     fake.seed_instance(seed)
 

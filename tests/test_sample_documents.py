@@ -38,7 +38,8 @@ def test_committed_corpora_still_regenerate_byte_for_byte(seed, tmp_path):
 
 
 def test_sample_case_types_are_the_case_types_minus_the_named_exclusions():
-    assert NOT_SAMPLES < set(CASE_TYPES)
+    assert set(NOT_SAMPLES) < set(CASE_TYPES)
+    assert all(reason.strip() for reason in NOT_SAMPLES.values())
     assert SAMPLE_CASE_TYPES == tuple(item for item in CASE_TYPES if item not in NOT_SAMPLES)
     assert set(NOT_SAMPLES) == {
         "corrupt",
@@ -47,8 +48,9 @@ def test_sample_case_types_are_the_case_types_minus_the_named_exclusions():
         "non_pdf",
         "empty_text_layer",
         "exact_duplicate",
+        "graded_evidence",
     }
-    assert len(SAMPLE_CASE_TYPES) == 12
+    assert len(SAMPLE_CASE_TYPES) == 11
 
 
 @pytest.mark.parametrize("case_type", sorted(NOT_SAMPLES) + ["", "CLEAN", "../clean"])

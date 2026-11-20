@@ -35,7 +35,6 @@ SAMPLE_LABELS = {
     "no_record": "Address not on file",
     "injection": "Hidden instructions to the model",
     "very_long": "Very long report",
-    "graded_evidence": "Partial or slightly wrong clues",
 }
 
 TURNED_OFF = "Live answers are turned off right now."

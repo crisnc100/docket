@@ -279,11 +279,24 @@ in the shell first:
 - **Logs.** `compose logs --tail 50 reset` shows the result line of each reset the service
   ran. A reset by hand prints its own.
 - **Back up.** Postgres holds the spend ledger and the day's sample count, the state that
-  outlives a reset: `compose exec -T postgres pg_dump -U docket docket | gzip >
-  docket-$(date +%F).sql.gz`. For a copy of all three volumes, run `compose stop`, then
-  for each of `postgres-data`, `temporal-data` and `seaweedfs-data`:
-  `docker run --rm --user 0 -v docket-hosted_<volume>:/data:ro -v "$PWD":/backup docket-hosted-app tar czf /backup/<volume>.tgz -C /data .`,
-  then `compose start`.
+  outlives a reset. Each backup is written to a `.partial` file and moved into place
+  only if every step succeeded, so a failed dump exits non-zero and never replaces a good
+  backup:
+
+  ```sh
+  (set -o pipefail; f=docket-$(date +%F).sql.gz
+   compose exec -T postgres pg_dump -U docket docket | gzip > "$f.partial" && mv "$f.partial" "$f")
+  ```
+
+  For a copy of all three volumes, run `compose stop`, then this, then `compose start`:
+
+  ```sh
+  for v in postgres-data temporal-data seaweedfs-data; do
+    docker run --rm --user 0 -v docket-hosted_$v:/data:ro -v "$PWD":/backup docket-hosted-app \
+      sh -c "tar czf /backup/$v.tgz.partial -C /data . && mv /backup/$v.tgz.partial /backup/$v.tgz" ||
+      { echo "backup of $v failed"; break; }
+  done
+  ```
 - **Stop.** `compose down` stops and removes the containers. The volumes stay.
 
 ## Check and explore

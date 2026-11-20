@@ -309,7 +309,7 @@ async def test_switching_off_refuses_samples_with_no_restart_and_on_restores_the
 def live_runtime(engine, monkeypatch, api, **settings) -> Runtime:
     runtime = Runtime(
         beta_settings(
-            anthropic_api_key=SecretStr("test-key"),  # pragma: allowlist secret
+            anthropic_api_key=SecretStr("test-key"),
             docket_model_mode="live",
             **settings,
         )
@@ -442,7 +442,7 @@ async def test_the_spike_command_reads_the_switch_in_beta(postgres_engine, tmp_p
     monkeypatch.setattr(spike_module, "create_engine", lambda url: postgres_engine)
     monkeypatch.setattr(spike_module, "AnthropicTransport", transport)
     set_live_answers(postgres_engine, False)
-    settings = beta_settings(anthropic_api_key=SecretStr("test-key"))  # pragma: allowlist secret
+    settings = beta_settings(anthropic_api_key=SecretStr("test-key"))
     with pytest.raises(BudgetExceeded, match="turned off"):
         await spike_module.run_spike(settings, tmp_path / "spike.json", tmp_path / "adr.md")
     assert api.requests == []

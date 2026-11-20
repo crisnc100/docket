@@ -23,3 +23,27 @@ Choices made while building, and why.
 
 - **No startup refusal for `DOCKET_BASE_URL`.** If it is missing, no origin matches, so every POST is refused, sign-in included. The gate fails closed without a new rule.
 - **Pruning the lockout rows (PR C).** The nightly reset should delete `signin_failures` rows that are more than an hour old. It should not reset a count. Each counted attempt is a row, and the window rolls.
+
+## PR B: Sample documents
+
+Choices made while building, and why.
+
+- **The sign-in body is parsed in the handler.** FastAPI's own 422 echoes the input. A body that is not an object and holds a lone surrogate, or a number JSON cannot hold, made that echo unwritable, so the reply was a 500. `read_json` parses the raw bytes and gives one fixed message for every bad body. `/beta/samples` uses it too.
+- **Sample case types.** The 18 case types minus six. Four end rejected: corrupt, encrypted, zero_byte and non_pdf. `empty_text_layer` is the same file for every seed: the empty PDF draws only a rectangle, and ingress returns the earlier document for a repeated file. The plan's list missed it. `exact_duplicate` needs the document it copies. That leaves 12.
+- **The generator.** `sample_document` repeats each listed case type's content rules from `generate`, drawing from its own seeded generator, so `generate` and its draws are untouched. For `graded_evidence` it calls `graded_documents` in a temporary folder and keeps one profile, rather than repeating ten profiles of rules.
+- **Byte-for-byte corpus check.** 171 of the 181 committed files per seed match a fresh run. The 10 encrypted files never match, even on `main`, because pypdf encrypts with random bytes. `test_corpus.py` already compares their decrypted text.
+- **Cap windows.** One row per address per clock hour (UTC), and one row per UTC day. Each count is a single `INSERT ... ON CONFLICT DO UPDATE ... WHERE count < limit`. Both run in one transaction, so a refusal on either gives the other back. At an hour boundary, one address can send 20 just before and 20 just after. A strict rolling window would need PR A's rows plus an advisory lock.
+- **Order of the sample checks.** The kill switch, then the daily headroom, then the caps, then the generator, then ingress. A slot used by a request whose ingress then fails stays used, so the caps fail closed.
+- **One document's price ceiling.** The gateway's own `worst_case` for the classify and choose calls, for the longest text the model is given (8,000 characters, at 4 UTF-8 bytes each), with every record as a candidate. About $0.015 at Haiku prices. Samples pause when today's ledger has less than that left.
+- **The kill switch ends a document the budget way.** When it is off, the gateway raises the existing `BudgetExceeded` before every live attempt. A document mid-workflow ends `failed` with `budget_exceeded`, so the workflow needs no change. The page wording covers both causes. As before, a refusal in `choose` falls back to no suggestion, and the document still ends held or filed.
+- **The switch is read only in beta.** The runtime and the spike command pass the switch reader to their gateways only when `DOCKET_ENV=beta`, so local live runs are unchanged. A missing row means on. `docket beta-switch` refuses outside beta.
+- **A gated `GET /beta/samples`.** It lists the case types with plain labels and says whether samples are ready, off or paused. The page builds its picker from it. Both sample routes are registered in both modes and answer 404 locally, like the sign-in route.
+- **Samples arrive as `source="sample"`** from "Sample generator", with the server's file name. Their events match an upload of the same bytes (`tests/workflow/test_beta_samples_workflow.py`).
+- **Workflow tests without S3.** The beta workflow tests swap in an in-memory store, so they need only Postgres and Temporal's test server.
+- **No code default change for the review timeout.** The 24-hour wait comes from `DOCKET_REVIEW_TIMEOUT_SECONDS` in PR C's env file. Ingress already reads it into each workflow.
+
+## Filed for PR B
+
+- **The review route has the same 500.** `POST /review/{id}/{action}` still takes `body: dict[str, str]`, so `"\ud800"`, `["\ud800"]` or `1e999999` as the body get a 500, in both modes. It fails closed. The fix is `read_json` there too, which changes the local 422's body.
+- **No plain words for a refused suggestion.** When the budget or the switch refuses the `choose` call, the document is still held, with `suggestion_failure_reason: budget_exceeded` in its trace. The page shows only "No record suggested".
+- **Pruning the per-address rows (PR C).** The nightly reset should delete `sample_counts` rows for past hours, and keep the day row.

@@ -224,7 +224,7 @@ async def test_switching_off_mid_workflow_refuses_the_next_live_call_at_the_tran
 ):
     beta_runtime.settings = beta_settings(
         s3_bucket="unused",
-        anthropic_api_key=SecretStr("test-key"),  # pragma: allowlist secret
+        anthropic_api_key=SecretStr("test-key"),
         docket_model_mode="live",
     )
     api = FakeApi()

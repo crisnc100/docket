@@ -123,7 +123,7 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
-  # verify.sh checks coverage twice: without the fault tests, then with them.
+  # Both coverage floors must hold, as in the two verify.sh modes: without the fault tests (./verify.sh), then with them (--fault).
   coverage:
     needs: [tests, browser, fault]
     runs-on: ubuntu-latest

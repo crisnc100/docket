@@ -92,6 +92,10 @@ jobs:
 
   fault:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -108,12 +112,13 @@ jobs:
       - run: uv run alembic upgrade head
       - run: >-
           uv run pytest tests/fault
+          --splits 2 --group ${{ matrix.group }} --splitting-algorithm least_duration
           --cov=docket.core --cov-branch --cov-report= --junitxml=.cache/ci/junit.xml
         env:
           COVERAGE_FILE: .cache/ci/coverage
       - uses: actions/upload-artifact@v4
         with:
-          name: tests-fault
+          name: tests-fault-${{ matrix.group }}
           path: .cache/ci/
           include-hidden-files: true
           if-no-files-found: error

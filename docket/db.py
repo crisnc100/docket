@@ -97,14 +97,22 @@ class SigninFailure(Base):
 
 
 class SampleCount(Base):
-    """Beta samples sent in one window: one row per address per hour, and one row per UTC day
-    for all addresses together."""
+    """Beta samples sent on one UTC day, from every address together."""
 
     __tablename__ = "sample_counts"
     __table_args__ = (CheckConstraint("count >= 0"),)
-    scope: Mapped[str] = mapped_column(String, primary_key=True)
-    window: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
     count: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class SampleSend(Base):
+    """One beta sample sent from an address. The rows from the last 60 minutes count toward
+    that address's cap."""
+
+    __tablename__ = "sample_sends"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    address: Mapped[str] = mapped_column(String, index=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class BetaFlag(Base):

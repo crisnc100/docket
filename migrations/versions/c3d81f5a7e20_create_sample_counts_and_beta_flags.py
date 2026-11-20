@@ -1,4 +1,4 @@
-"""Create beta sample counts and beta flags"""
+"""Create beta sample counts, sample sends and beta flags"""
 
 import sqlalchemy as sa
 from alembic import op
@@ -12,12 +12,21 @@ depends_on = None
 def upgrade():
     op.create_table(
         "sample_counts",
-        sa.Column("scope", sa.String(), nullable=False),
-        sa.Column("window", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("day", sa.Date(), nullable=False),
         sa.Column("count", sa.Integer(), nullable=False),
         sa.CheckConstraint("count >= 0"),
-        sa.PrimaryKeyConstraint("scope", "window"),
+        sa.PrimaryKeyConstraint("day"),
     )
+    op.create_table(
+        "sample_sends",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("address", sa.String(), nullable=False),
+        sa.Column(
+            "at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_sample_sends_address"), "sample_sends", ["address"], unique=False)
     op.create_table(
         "beta_flags",
         sa.Column("name", sa.String(), nullable=False),
@@ -34,4 +43,6 @@ def upgrade():
 
 def downgrade():
     op.drop_table("beta_flags")
+    op.drop_index(op.f("ix_sample_sends_address"), table_name="sample_sends")
+    op.drop_table("sample_sends")
     op.drop_table("sample_counts")

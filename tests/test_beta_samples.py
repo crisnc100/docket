@@ -10,7 +10,7 @@ from urllib.parse import quote
 import httpx2
 import pytest
 from pydantic import SecretStr
-from sqlalchemy import insert, select, text
+from sqlalchemy import func, insert, select, text
 from sqlalchemy.orm import Session
 from typer.testing import CliRunner
 
@@ -28,7 +28,7 @@ from docket.beta_samples import (
 from docket.cli import app as cli
 from docket.config import load_records
 from docket.corpus import NOT_SAMPLES, SAMPLE_CASE_TYPES
-from docket.db import BudgetLedger, SampleCount
+from docket.db import BudgetLedger, SampleCount, SampleSend
 from docket.llm.anthropic import AnthropicTransport
 from docket.llm.budget import load_prices
 from docket.llm.errors import BudgetExceeded
@@ -59,8 +59,15 @@ def visitor(address: str = "198.51.100.7") -> dict:
 
 
 def counts(engine) -> dict[str, int]:
+    """Samples counted so far: per address in the rolling window, and for the day."""
     with Session(engine) as session:
-        return {row.scope: row.count for row in session.scalars(select(SampleCount))}
+        sends = session.execute(
+            select(SampleSend.address, func.count()).group_by(SampleSend.address)
+        ).all()
+        days = session.scalars(select(SampleCount.count)).all()
+    return {"address:" + address: total for address, total in sends} | (
+        {"day": sum(days)} if days else {}
+    )
 
 
 def spend(engine, amount: Decimal) -> None:
@@ -230,7 +237,7 @@ async def test_the_days_301st_sample_is_refused_and_takes_no_address_slot(postgr
             await http.post("/beta/samples", json={"case_type": "clean"}, headers=visitor())
         ).status_code == 200
     with Session(postgres_engine) as session, session.begin():
-        session.execute(text("UPDATE sample_counts SET count = 299 WHERE scope = 'day'"))
+        session.execute(text("UPDATE sample_counts SET count = 299"))
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = ingress = FakeIngress()
         last = await http.post(
@@ -246,6 +253,49 @@ async def test_the_days_301st_sample_is_refused_and_takes_no_address_slot(postgr
     assert len(ingress.submitted) == 1
     assert counts(postgres_engine)["day"] == 300
     assert "address:198.51.100.21" not in counts(postgres_engine)
+
+
+def sent_earlier(engine, address: str, when: str, times: int = 20) -> None:
+    with Session(engine) as session, session.begin():
+        for _ in range(times):
+            session.execute(
+                text(f"INSERT INTO sample_sends (address, at) VALUES (:address, {when})"),
+                {"address": address},
+            )
+
+
+async def test_the_address_cap_rolls_across_the_clock_hour(postgres_engine):
+    address = "198.51.100.30"
+    # Twenty samples in the last moment of the previous clock hour: the 21st, sent in this
+    # clock hour and within 60 minutes of them, is refused.
+    sent_earlier(postgres_engine, address, "date_trunc('hour', now()) - interval '1 millisecond'")
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = ingress = FakeIngress()
+        response = await http.post(
+            "/beta/samples", json={"case_type": "clean"}, headers=visitor(address)
+        )
+        assert response.status_code == 429
+        assert response.json() == {"detail": ADDRESS_CAPPED}
+        assert 1 <= int(response.headers["retry-after"]) <= 3600
+    assert ingress.submitted == []
+    assert counts(postgres_engine) == {"address:" + address: 20}
+
+
+async def test_samples_older_than_sixty_minutes_stop_counting(postgres_engine):
+    address = "198.51.100.31"
+    sent_earlier(postgres_engine, address, "now() - interval '61 minutes'")
+    sent_earlier(postgres_engine, address, "now() - interval '59 minutes'", times=19)
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = FakeIngress()
+        body = {"case_type": "clean"}
+        assert (
+            await http.post("/beta/samples", json=body, headers=visitor(address))
+        ).status_code == 200
+        refused = await http.post("/beta/samples", json=body, headers=visitor(address))
+        assert refused.status_code == 429
+        # The oldest counted sample leaves the window in about one minute.
+        assert 1 <= int(refused.headers["retry-after"]) <= 61
+    assert counts(postgres_engine) == {"address:" + address: 20, "day": 1}
 
 
 # B4

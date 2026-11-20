@@ -1,23 +1,25 @@
 """The hosted beta's sample documents: the caps, the kill switch and the daily headroom."""
 
+import hashlib
 import math
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 
-from sqlalchemy import Engine, func, literal_column, select
+from sqlalchemy import Date, Engine, cast, delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from docket.config import load_records
-from docket.db import BetaFlag, BudgetLedger, SampleCount
+from docket.db import BetaFlag, BudgetLedger, SampleCount, SampleSend
 from docket.llm.budget import PriceCeiling, load_prices, money
 from docket.llm.gateway import MAX_OUTPUT_TOKENS, model_request
 from docket.llm.replay import canonical
 from docket.prompts import choose_request, classify_request
 from docket.settings import Settings
 
-ADDRESS_HOURLY_LIMIT = 20
+ADDRESS_LIMIT = 20
+ADDRESS_WINDOW = 3600
 DAILY_LIMIT = 300
 LIVE_ANSWERS = "live_answers"
 SAMPLE_SENDER = "Sample generator"
@@ -38,7 +40,7 @@ SAMPLE_LABELS = {
 
 TURNED_OFF = "Live model answers are turned off right now."
 PAUSED = "Live answers are paused for today."
-ADDRESS_CAPPED = f"You can send {ADDRESS_HOURLY_LIMIT} samples an hour. Try again later."
+ADDRESS_CAPPED = f"You can send {ADDRESS_LIMIT} samples an hour. Try again later."
 DAY_CAPPED = f"Today's {DAILY_LIMIT} samples have all been sent. Try again tomorrow."
 
 type SampleState = Literal["ready", "off", "paused"]
@@ -113,32 +115,50 @@ class SampleGate:
         return "ready"
 
 
-def take_slot(engine: Engine, address: str) -> tuple[str, int] | None:
-    """Count one sample against the address's hour and the whole day, or against neither.
+def _address_lock(address: str) -> int:
+    return int.from_bytes(hashlib.sha256(b"sample:" + address.encode()).digest()[:8], signed=True)
 
-    Each count is one conditional upsert, so parallel requests never pass a limit. Both run
-    in one transaction, so a refusal on either gives the other back. Returns None when the
-    sample may go ahead, or else the refusal message and the seconds until its window ends."""
+
+def take_slot(engine: Engine, address: str) -> tuple[str, int] | None:
+    """Count one sample against the address's last 60 minutes and against the UTC day, or
+    against neither.
+
+    The address cap counts rows under a lock for that address, so parallel requests never
+    pass it and the window rolls rather than resetting on the hour. The day cap is one
+    conditional upsert. Both run in one transaction, so a refusal on either takes neither.
+    Returns None when the sample may go ahead, or else the refusal message and the seconds
+    until a slot frees up. The time comes from the database's clock, so every API process
+    uses the same window."""
+    window_start = func.now() - timedelta(seconds=ADDRESS_WINDOW)
     with Session(engine) as session:
-        for scope, unit, limit, message in (
-            ("address:" + address, "hour", ADDRESS_HOURLY_LIMIT, ADDRESS_CAPPED),
-            ("day", "day", DAILY_LIMIT, DAY_CAPPED),
-        ):
-            window = func.date_trunc(unit, func.now(), "UTC")
-            counted = session.execute(
-                insert(SampleCount)
-                .values(scope=scope, window=window, count=1)
-                .on_conflict_do_update(
-                    index_elements=[SampleCount.scope, SampleCount.window],
-                    set_={"count": SampleCount.count + 1},
-                    where=SampleCount.count < limit,
-                )
-                .returning(SampleCount.count)
-            ).scalar_one_or_none()
-            if counted is None:
-                ends = window + literal_column(f"interval '1 {unit}'")
-                seconds = session.scalar(select(func.extract("epoch", ends - func.now())))
-                session.rollback()
-                return message, max(1, math.ceil(seconds or 1))
+        session.execute(select(func.pg_advisory_xact_lock(_address_lock(address))))
+        session.execute(
+            delete(SampleSend).where(SampleSend.address == address, SampleSend.at <= window_start)
+        )
+        recent = session.scalar(select(func.count()).where(SampleSend.address == address))
+        if recent is not None and recent >= ADDRESS_LIMIT:
+            oldest = select(func.min(SampleSend.at)).where(SampleSend.address == address)
+            seconds = session.scalar(
+                select(func.extract("epoch", oldest.scalar_subquery() - window_start))
+            )
+            session.rollback()
+            return ADDRESS_CAPPED, max(1, math.ceil(seconds or 1))
+        day = cast(func.timezone("UTC", func.now()), Date)
+        counted = session.execute(
+            insert(SampleCount)
+            .values(day=day, count=1)
+            .on_conflict_do_update(
+                index_elements=[SampleCount.day],
+                set_={"count": SampleCount.count + 1},
+                where=SampleCount.count < DAILY_LIMIT,
+            )
+            .returning(SampleCount.count)
+        ).scalar_one_or_none()
+        if counted is None:
+            midnight = func.date_trunc("day", func.now(), "UTC") + timedelta(days=1)
+            seconds = session.scalar(select(func.extract("epoch", midnight - func.now())))
+            session.rollback()
+            return DAY_CAPPED, max(1, math.ceil(seconds or 1))
+        session.execute(insert(SampleSend).values(address=address))
         session.commit()
     return None

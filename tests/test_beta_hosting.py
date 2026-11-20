@@ -87,6 +87,10 @@ def test_the_worker_keeps_a_bounded_number_of_gateways_and_one_transport(monkeyp
         return object()
 
     monkeypatch.setattr(runtime_module, "AnthropicTransport", transport)
+    assert MAX_GATEWAYS == 10_000
+    # The same eviction at a smaller cap, so the loop stays fast.
+    cap = 256
+    monkeypatch.setattr(runtime_module, "MAX_GATEWAYS", cap)
     runtime = Runtime(
         Settings(_env_file=None, anthropic_api_key=SecretStr("test-key"), s3_bucket="unused")
     )
@@ -102,12 +106,12 @@ def test_the_worker_keeps_a_bounded_number_of_gateways_and_one_transport(monkeyp
             }
 
         first = runtime.gateway(request("first"))
-        for index in range(MAX_GATEWAYS + 50):
+        for index in range(cap + 50):
             runtime.gateway(request(str(index)))
             # A document still being read keeps its gateway while newer ones arrive.
             assert runtime.gateway(request("first")) is first
-        assert len(runtime.gateways) == MAX_GATEWAYS
-        assert runtime.gateway(request("0")) is not None and len(runtime.gateways) == MAX_GATEWAYS
+        assert len(runtime.gateways) == cap
+        assert runtime.gateway(request("0")) is not None and len(runtime.gateways) == cap
         assert built == ["claude-haiku-5-5"]
         assert len({id(gateway.transport) for gateway in runtime.gateways.values()}) == 1
     finally:

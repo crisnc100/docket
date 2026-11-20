@@ -118,6 +118,35 @@ def test_the_worker_keeps_a_bounded_number_of_gateways_and_one_transport(monkeyp
         runtime.close()
 
 
+def test_the_production_cap_itself_bounds_the_cache(monkeypatch):
+    # A stand-in gateway keeps 10,000 entries fast; the cache logic under test is unchanged.
+    monkeypatch.setattr(runtime_module, "Gateway", lambda **kwargs: object())
+    runtime = Runtime(Settings(_env_file=None, s3_bucket="unused"))
+    try:
+
+        def request(document_id):
+            return {
+                "document_id": document_id,
+                "run_id": "live",
+                "model_mode": "replay",
+                "model": "claude-haiku-5-5",
+                "budget": "1.00",
+            }
+
+        first = runtime.gateway(request("first"))
+        for index in range(MAX_GATEWAYS + 50):
+            runtime.gateway(request(str(index)))
+            if index % 100 == 0:
+                assert runtime.gateway(request("first")) is first
+        assert len(runtime.gateways) == MAX_GATEWAYS == 10_000
+        assert runtime.gateway(request("first")) is first
+        # The oldest untouched documents went first.
+        assert ("live", "0", "replay", "claude-haiku-5-5") not in runtime.gateways
+        assert ("live", str(MAX_GATEWAYS + 49), "replay", "claude-haiku-5-5") in runtime.gateways
+    finally:
+        runtime.close()
+
+
 # Build 5: the image
 
 

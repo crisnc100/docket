@@ -214,6 +214,10 @@ Both enforce zero skipped tests, coverage floors, formatting, type checks, brows
 Docker builds, the saved-answer archive and secret scanning.
 They also replay seed 11 and compare it with the saved results, without a model call.
 
+`./verify.sh --step lint|web|eval|secrets` runs one part of these checks. GitHub Actions runs the
+parts and the test suite as parallel jobs, as [verify.yml](.github/workflows/verify.yml) shows;
+the two commands above run everything on one machine.
+
 - [Product brief](docs/product-brief.md): users, scope and measures.
 - [Decision records](docs/adr/README.md): choices and measured limits.
 - [Build log](docs/build-log.md): dated decisions and what review caught.

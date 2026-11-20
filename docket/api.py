@@ -27,8 +27,10 @@ from docket.beta import (
     session_cookie,
     session_value,
 )
+from docket.beta_reset import reset_status
 from docket.beta_samples import (
     PAUSED,
+    RESET_RUNNING,
     SAMPLE_LABELS,
     SAMPLE_SENDER,
     TURNED_OFF,
@@ -91,6 +93,7 @@ class SampleRequest(BaseModel):
 
 
 BETA_MAX_REASON = 300
+REFUSALS = {"off": TURNED_OFF, "paused": PAUSED, "resetting": RESET_RUNNING}
 
 
 async def read_json[T: BaseModel](request: Request, model: type[T], message: str) -> T:
@@ -137,7 +140,10 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
 
     @app.get("/healthz")
     async def health():
-        return {"status": "ok"}
+        if app.state.runtime.settings.docket_env != "beta":
+            return {"status": "ok"}
+        running, age = await asyncio.to_thread(reset_status, app.state.runtime.engine)
+        return {"status": "ok", "resetting": running, "last_reset_age_seconds": age}
 
     @app.post("/inbound")
     async def inbound(request: Request):
@@ -355,7 +361,7 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
             raise HTTPException(422, "Send one case type from the list.")
         state = await asyncio.to_thread(gate.state)
         if state != "ready":
-            raise HTTPException(503, TURNED_OFF if state == "off" else PAUSED)
+            raise HTTPException(503, REFUSALS[state])
         address = client_address(request.scope, gate.settings)
         refused = await asyncio.to_thread(take_slot, gate.engine, address)
         if refused is not None:

@@ -22,6 +22,9 @@ ADDRESS_LIMIT = 20
 ADDRESS_WINDOW = 3600
 DAILY_LIMIT = 300
 LIVE_ANSWERS = "live_answers"
+# True while docket beta-reset runs. Once it is cleared, its updated_at is when the last
+# reset finished.
+RESETTING = "resetting"
 SAMPLE_SENDER = "Sample generator"
 SAMPLE_LABELS = {
     "clean": "Every clue agrees",
@@ -38,6 +41,7 @@ SAMPLE_LABELS = {
 }
 
 TURNED_OFF = "Live answers are turned off right now."
+RESET_RUNNING = "The demo is being reset. Try again in a minute."
 # The pause follows the daily ledger, whose day is the UTC day.
 PAUSED = "Live answers are paused for today. Try again tomorrow."
 DAY_CAPPED = f"Today's {DAILY_LIMIT} samples have all been sent. Try again tomorrow."
@@ -49,24 +53,31 @@ def address_capped(seconds: int) -> str:
     return f"You can send {ADDRESS_LIMIT} samples an hour. Try again in {wait}."
 
 
-type SampleState = Literal["ready", "off", "paused"]
+type SampleState = Literal["ready", "off", "paused", "resetting"]
 
 
-def live_answers_on(engine: Engine) -> bool:
+def flag(engine: Engine, name: str) -> bool | None:
     with Session(engine) as session:
-        value = session.scalar(select(BetaFlag.value).where(BetaFlag.name == LIVE_ANSWERS))
-    return value is not False
+        return session.scalar(select(BetaFlag.value).where(BetaFlag.name == name))
 
 
-def set_live_answers(engine: Engine, on: bool) -> None:
+def set_flag(engine: Engine, name: str, value: bool) -> None:
     with Session(engine) as session, session.begin():
         session.execute(
             insert(BetaFlag)
-            .values(name=LIVE_ANSWERS, value=on)
+            .values(name=name, value=value)
             .on_conflict_do_update(
-                index_elements=[BetaFlag.name], set_={"value": on, "updated_at": func.now()}
+                index_elements=[BetaFlag.name], set_={"value": value, "updated_at": func.now()}
             )
         )
+
+
+def live_answers_on(engine: Engine) -> bool:
+    return flag(engine, LIVE_ANSWERS) is not False
+
+
+def set_live_answers(engine: Engine, on: bool) -> None:
+    set_flag(engine, LIVE_ANSWERS, on)
 
 
 def document_ceiling(prices: PriceCeiling, record_ids: list[str]) -> Decimal:
@@ -113,6 +124,8 @@ class SampleGate:
         )
 
     def state(self) -> SampleState:
+        if flag(self.engine, RESETTING):
+            return "resetting"
         if not live_answers_on(self.engine):
             return "off"
         limit = Decimal(str(self.settings.docket_daily_budget_usd))

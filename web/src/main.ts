@@ -356,10 +356,11 @@ async function refresh() {
   items = (await request<{ items: ReviewItem[] }>('/review')).items;
   await openDocument();
 }
-type SampleOptions = { state: 'ready' | 'off' | 'paused'; case_types: { value: string; label: string }[] };
+type SampleOptions = { state: 'ready' | 'off' | 'paused' | 'resetting'; case_types: { value: string; label: string }[] };
 const SAMPLE_STATES: Record<string, string> = {
   off: 'Live answers are turned off right now.',
   paused: 'Live answers are paused for today. Try again tomorrow.',
+  resetting: 'The demo is being reset. Try again in a minute.',
 };
 const OUTCOME_WORDS: Record<string, string> = {
   filed: 'The sample was filed by the rules.',

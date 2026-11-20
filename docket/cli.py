@@ -282,3 +282,39 @@ def beta_switch(position: str = typer.Argument(..., metavar="on|off")) -> None:
     finally:
         engine.dispose()
     typer.echo(f"Live answers are {position}.")
+
+
+@app.command("beta-reset")
+def beta_reset(
+    daily: bool = typer.Option(False, help="Keep running and reset at 08:00 UTC every day."),
+) -> None:
+    """Reset the hosted beta to its starting queue. Keeps the spend ledger and the day's
+    sample count."""
+    import asyncio
+
+    from temporalio.client import Client
+
+    from docket.beta import refuse_unsafe_start
+    from docket.beta_reset import reset, run_service
+    from docket.runtime import Runtime
+    from docket.settings import Settings
+
+    settings = Settings()
+    if settings.docket_env != "beta":
+        typer.echo("beta-reset works only with DOCKET_ENV=beta.", err=True)
+        raise typer.Exit(1)
+    refuse_unsafe_start(settings)
+
+    async def run():
+        runtime = Runtime(settings)
+        try:
+            runtime.ensure_bucket()
+            client = await Client.connect(settings.temporal_address)
+            if daily:
+                await run_service(runtime, client)
+            else:
+                typer.echo(f"Beta reset: {await reset(runtime, client)}")
+        finally:
+            runtime.close()
+
+    asyncio.run(run())

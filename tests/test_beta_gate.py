@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 import uuid
+from collections import Counter
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -303,8 +304,8 @@ async def test_right_codes_do_not_count_and_parallel_guesses_stay_inside_the_lim
         statuses = sorted(reply.status_code for reply in replies)
         assert statuses == [401] * 10 + [429] * 20
     with Session(postgres_engine) as session:
-        counts = {row.address: row.failures for row in session.query(SigninFailure)}
-    assert counts == {"192.0.2.1": 0, "192.0.2.2": 10}
+        counts = Counter(row.address for row in session.query(SigninFailure))
+    assert counts == {"192.0.2.2": 10}
 
 
 def test_the_address_is_the_last_forwarded_hop_only_when_the_proxy_is_trusted():

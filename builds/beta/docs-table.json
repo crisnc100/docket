@@ -131,7 +131,7 @@
           "path": "docs/operations.md",
           "claims": [
             {
-              "claim": "More than 10 wrong codes in 60 minutes gives 429 with Retry-After",
+              "claim": "Once an address has 10 wrong codes in the last 60 minutes, its next attempt gets 429 with Retry-After",
               "at": "docket/beta.py:28"
             },
             {

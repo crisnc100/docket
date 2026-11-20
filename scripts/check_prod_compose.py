@@ -14,7 +14,7 @@ from pathlib import Path
 
 LONG_RUNNING = {"temporal", "postgres", "seaweedfs", "api", "worker", "reset"}
 DOCKET = {"api", "worker", "reset"}
-# The six long-running services together, from builds/v02/plan.md: 3.3 GB.
+# The six long-running services' limits together: 3.3 GB.
 TOTAL_LIMIT = (768 + 512 + 512 + 512 + 768 + 256) * 1024 * 1024
 SECRETS = ("POSTGRES_PASSWORD", "S3_ACCESS_KEY", "S3_SECRET_KEY", "ANTHROPIC_API_KEY")
 SECRETS += ("DOCKET_INVITE_CODES", "DOCKET_SESSION_KEY")
@@ -28,7 +28,8 @@ def render(env_file: Path) -> dict:
         text=True,
     )
     if result.returncode != 0:
-        # Compose's own errors name a missing setting, never a value.
+        # A missing setting is named without its value, but a line of the env file that
+        # compose cannot parse may be quoted in its error, value included.
         sys.exit("compose config failed:\n" + result.stderr.strip())
     return json.loads(result.stdout)
 

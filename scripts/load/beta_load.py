@@ -261,7 +261,8 @@ def main() -> None:
     up = compose(args.env_file, "up", "-d", "--build", "--wait")
     try:
         if up.returncode != 0:
-            # Compose names a missing setting or a taken port here, never a value.
+            # A missing setting is named without its value, but a line of the env file that
+            # compose cannot parse may be quoted in its error, value included.
             raise LoadRefused("FAIL: the load project did not start:\n" + up.stderr[-2000:])
         result = asyncio.run(run(args.env_file, args.minutes, args.samples))
     finally:

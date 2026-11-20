@@ -4,6 +4,7 @@ import asyncio
 import os
 import uuid
 from decimal import Decimal
+from pathlib import Path
 from urllib.parse import quote
 
 import httpx2
@@ -278,6 +279,12 @@ def test_one_documents_ceiling_covers_both_calls_on_the_longest_text():
     # The text is at most 8,000 characters, so two calls of at least 8,000 bytes each.
     assert value > 2 * prices.worst_case("x" * 8000, 256)
     assert Decimal("0.005") < value < Decimal("0.05")
+
+
+def test_the_page_explains_a_budget_failure_in_plain_words():
+    page = Path("web/src/main.ts").read_text()
+    assert "budget_exceeded:" in page
+    assert "today's budget ran out" in page
 
 
 # B5

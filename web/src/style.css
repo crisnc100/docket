@@ -131,3 +131,13 @@ select:disabled, textarea:disabled { background: var(--soft); color: var(--ink-m
   .action { grid-template-columns: minmax(0, 1fr); }
   .action button { justify-self: start; }
 }
+
+.side { display: grid; gap: 28px; align-content: start; min-width: 0; }
+.sample { display: grid; gap: 10px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+.sample h2 { font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.01em; }
+.sample label { font-size: 0.875rem; font-weight: 600; letter-spacing: -0.01em; }
+.sample select { font-family: inherit; }
+.sample button { justify-self: start; }
+.sample-note { margin: 0; color: var(--ink-2); font-size: 0.8125rem; }
+.sample-state { margin: 0; font-size: 0.875rem; }
+.sample-state:empty { display: none; }

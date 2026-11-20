@@ -85,7 +85,12 @@ const queue = element('nav');
 queue.setAttribute('aria-label', 'Review queue');
 const detail = element('section');
 detail.setAttribute('aria-label', 'Document');
-layout.append(queue, detail);
+if (cookieAccess) {
+  const side = block('div', 'side', samplePanel(), queue);
+  layout.append(side, detail);
+} else {
+  layout.append(queue, detail);
+}
 app.append(header, message, layout);
 let items: ReviewItem[] = [];
 let selected: ReviewItem | undefined;
@@ -121,6 +126,10 @@ const TIER_WORDS: Record<string, string> = {
   strong: 'strong evidence',
   medium: 'some evidence',
   none: 'weak evidence, below the medium line',
+};
+// Plain-language versions of failure reasons a visitor can cause in the beta.
+const FAILED_BECAUSE: Record<string, string> = {
+  budget_exceeded: "Live answers stopped before this document finished: today's budget ran out, or live answers were turned off.",
 };
 const short = (value: string | number) => Number(value).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
 
@@ -191,6 +200,13 @@ function outcome(trace: Trace, conflict: boolean) {
     return block('div', 'outcome filed',
       element('strong', 'Filed'),
       element('p', trace.reason === 'review_approved' ? 'Approved by a reviewer.' : 'Filed by the rules: the clues agreed and the score reached the filing line.'));
+  }
+  const plain = trace.status === 'failed' ? FAILED_BECAUSE[trace.reason] : undefined;
+  if (plain) {
+    return block('div', 'outcome',
+      element('strong', 'Not finished'),
+      element('p', plain),
+      block('p', 'code', `Reason: ${trace.reason}`));
   }
   return block('div', 'outcome',
     element('strong', trace.status === 'dismissed' ? 'Dismissed' : 'Reason'),
@@ -332,6 +348,84 @@ async function openDocument() {
 async function refresh() {
   items = (await request<{ items: ReviewItem[] }>('/review')).items;
   await openDocument();
+}
+type SampleOptions = { state: 'ready' | 'off' | 'paused'; case_types: { value: string; label: string }[] };
+const SAMPLE_STATES: Record<string, string> = {
+  off: 'Live model answers are turned off right now.',
+  paused: 'Live answers are paused for today.',
+};
+const OUTCOME_WORDS: Record<string, string> = {
+  filed: 'The sample was filed by the rules.',
+  needs_review: 'The sample is waiting for review in the queue.',
+  rejected: 'The sample was rejected.',
+};
+
+// The beta's only way in for a document: the server makes a synthetic PDF of the chosen case
+// type and runs it with live model answers. The visitor sends nothing but the case type.
+function samplePanel() {
+  const panel = block('section', 'sample');
+  panel.setAttribute('aria-labelledby', 'sample-title');
+  const title = element('h2', 'Try a sample');
+  title.id = 'sample-title';
+  const note = block('p', 'sample-note',
+    'Docket makes a synthetic PDF of the kind you pick and runs it with live model answers.');
+  const label = element('label', 'Kind of document');
+  const kinds = element('select');
+  kinds.disabled = true;
+  label.append(kinds);
+  const send = element('button', 'Send a sample document');
+  send.type = 'button';
+  send.disabled = true;
+  const state = block('p', 'sample-state');
+  state.setAttribute('role', 'status');
+  const shared = block('p', 'sample-note',
+    'Everyone with an invite shares one queue, and anyone can settle any document. It resets every night.');
+  panel.append(title, note, label, send, state, shared);
+
+  let ready = false;
+  const settle = (canSend: boolean, text: string) => {
+    ready = canSend;
+    send.disabled = kinds.disabled = !canSend;
+    send.textContent = 'Send a sample document';
+    state.textContent = text;
+  };
+  void request<SampleOptions>('/beta/samples').then(options => {
+    kinds.replaceChildren(...options.case_types.map(item => new Option(item.label, item.value)));
+    settle(options.state === 'ready', SAMPLE_STATES[options.state] || '');
+  }).catch(() => settle(false, 'Samples could not be loaded. Reload the page to try again.'));
+
+  send.addEventListener('click', () => {
+    if (!ready) return;
+    void sendSample(kinds.value, send, kinds, state)
+      .then(result => settle(result.canSend, result.text))
+      .catch(() => settle(true, 'The sample could not be sent. Try again.'));
+  });
+  return panel;
+}
+async function sendSample(caseType: string, send: HTMLButtonElement, kinds: HTMLSelectElement, state: HTMLElement) {
+  send.disabled = kinds.disabled = true;
+  send.textContent = 'Sending…';
+  state.textContent = '';
+  const response = await authorizedFetch('/beta/samples', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ case_type: caseType }),
+  });
+  const body = await response.json().catch(() => ({}));
+  const detail = typeof body.detail === 'string' ? body.detail : '';
+  if (response.status === 503) return { canSend: false, text: detail || SAMPLE_STATES.paused };
+  if (!response.ok) return { canSend: true, text: detail || 'The sample could not be sent. Try again.' };
+  const id = String(body.document_id);
+  state.textContent = 'Sample sent. Docket is reading it…';
+  window.location.hash = id;
+  for (let attempt = 0; attempt < 240; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const trace = await request<Trace>(`/documents/${id}`);
+    if (['received', 'processing'].includes(trace.status)) continue;
+    await refresh();
+    const failed = trace.status === 'failed' ? FAILED_BECAUSE[trace.reason] : undefined;
+    return { canSend: true, text: OUTCOME_WORDS[trace.status] || failed || `The sample ended ${trace.status}.` };
+  }
+  return { canSend: true, text: 'The sample is still being read. Refresh the queue to check on it.' };
 }
 window.addEventListener('hashchange', () => { void openDocument().catch(showError); });
 void refresh().catch(showError);

@@ -159,6 +159,16 @@ Nothing changes what the model is for. The rules decide automatic filing. The mo
 
 ## PR C: Run it
 
+**PR B carry-ins** (fix check fix-1795183332550-398a1b on review 2026-11-20-13-49-02-d61ac8). Fix these first:
+- x1: Release the reservation when the switch read itself fails before any HTTP request.
+- x2: Say samples use the configured model mode (live on the hosted beta) and that some case types never reach the model; consider pinning samples to live in beta.
+- x3: Say a stopped classify call ends the document failed/budget_exceeded, and a stopped choose call leaves it without a suggestion.
+- x4: Describe the pause as lasting until enough of today's budget is free, normally until the UTC day changes.
+- x5: Re-render the pane when nothing is selected, as well as when the sample is open.
+- x6: Say the fixed 422 applies in both modes on review actions, and in beta on sign-in and samples.
+- x7: Correct the brief's mechanism text.
+- x8: Correct the brief's mechanism text.
+
 **Builds:**
 
 1. **`docket beta-reset`.** It refuses to run unless `DOCKET_ENV=beta`. In order, it:

@@ -1,7 +1,7 @@
 name: verify
 on:
   push:
-    branches: [main, ci-speed]
+    branches: [main]
   pull_request:
 
 concurrency:

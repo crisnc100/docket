@@ -140,11 +140,13 @@ def reconcile(older_than_minutes: float = 5) -> None:
 
     from temporalio.client import Client
 
+    from docket.beta import refuse_unsafe_start
     from docket.ingress import Ingress
     from docket.runtime import Runtime
 
     async def run():
         runtime = Runtime()
+        refuse_unsafe_start(runtime.settings)
         try:
             client = await Client.connect(runtime.settings.temporal_address)
             typer.echo(await Ingress(runtime, client).reconcile(older_than_minutes))

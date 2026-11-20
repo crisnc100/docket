@@ -1,5 +1,6 @@
 import base64
 import binascii
+import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -14,6 +15,15 @@ from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowUpdateFailedError
 from temporalio.service import RPCError
 
+from docket.beta import (
+    client_address,
+    known_code,
+    refuse_unsafe_start,
+    release_attempt,
+    reserve_attempt,
+    session_cookie,
+    session_value,
+)
 from docket.core.ledger import TERMINAL_STATUSES
 from docket.db import Document, DocumentSource, Event
 from docket.ingress import Ingress
@@ -44,10 +54,29 @@ class Inbound(BaseModel):
     attachments: list[Attachment] = Field(min_length=1, max_length=100)
 
 
+class InviteCode(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(min_length=1, max_length=256)
+
+
+BETA_MAX_REASON = 300
+
+
+def document_candidates(session: Session, document_id: uuid.UUID) -> set[str]:
+    """The record ids the review page offers for this document, from its latest score."""
+    detail = session.scalar(
+        select(Event.detail)
+        .where(Event.document_id == document_id, Event.step == "score")
+        .order_by(Event.id.desc())
+    )
+    return {item["record_id"] for item in (detail or {}).get("candidates", [])}
+
+
 def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.runtime = runtime or Runtime()
+        refuse_unsafe_start(app.state.runtime.settings)
         app.state.runtime.ensure_bucket()
         app.state.temporal = temporal or await Client.connect(
             app.state.runtime.settings.temporal_address
@@ -213,12 +242,20 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
 
     @app.post("/review/{document_id}/{action}")
     async def review(document_id: uuid.UUID, action: str, body: dict[str, str]):
+        beta = app.state.runtime.settings.docket_env == "beta"
         with Session(app.state.runtime.engine) as session:
             document = session.get(Document, document_id)
             if document is None:
                 raise HTTPException(404, "Unknown document")
             if document.status in TERMINAL_STATUSES:
                 raise HTTPException(409, "Document is terminal")
+            if beta and action == "dismiss" and len(body.get("reason", "")) > BETA_MAX_REASON:
+                raise HTTPException(
+                    422, f"A dismiss reason is at most {BETA_MAX_REASON} characters"
+                )
+            if beta and action == "approve":
+                if body.get("record_id", "") not in document_candidates(session, document_id):
+                    raise HTTPException(422, "The record is not one of this document's candidates")
         try:
             await app.state.temporal.get_workflow_handle(f"doc-{document_id}").execute_update(
                 "review_action",
@@ -237,7 +274,32 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
 
     @app.get("/reviewer", include_in_schema=False)
     def review_page():
-        return reviewer_page()
+        beta = app.state.runtime.settings.docket_env == "beta"
+        return reviewer_page(access="invite" if beta else "token")
+
+    @app.post("/reviewer/session", include_in_schema=False)
+    def reviewer_session(request: Request, body: InviteCode):
+        settings = app.state.runtime.settings
+        if settings.docket_env != "beta":
+            raise HTTPException(404, "Not found")
+        address = client_address(request.scope, settings)
+        hour = reserve_attempt(app.state.runtime.engine, address)
+        if hour is None:
+            raise HTTPException(
+                429,
+                "Too many wrong codes from this address. Try again next hour.",
+                headers={"Retry-After": str(3600 - int(time.time()) % 3600)},
+            )
+        if not known_code(settings, body.code):
+            raise HTTPException(401, "That invite code is not valid.")
+        release_attempt(app.state.runtime.engine, address, hour)
+        return Response(
+            status_code=204,
+            headers={
+                "Set-Cookie": session_cookie(session_value(settings, body.code)),
+                "Cache-Control": "no-store",
+            },
+        )
 
     return app
 

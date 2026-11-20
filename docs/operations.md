@@ -137,8 +137,8 @@ The model suggestion cannot approve it for the reviewer.
 ## Hosted beta mode
 
 Beta mode is for a shared demo that visitors reach without a reviewer token.
-Local use is unchanged. The beta's deployment, nightly reset and production compose
-file are not built yet.
+Local use is unchanged. The README's "Run the hosted beta" section covers
+`compose.prod.yaml`, `.env.beta.example` and the steps on the host.
 
 Set `DOCKET_ENV=beta` to turn it on. These settings apply:
 
@@ -193,7 +193,7 @@ in either mode. The sender shows as "Sample generator". Two
 routes serve this, and both return 404 outside beta:
 
 - `GET /beta/samples` lists the case types with plain labels, and a `state` of `ready`,
-  `off` or `paused`.
+  `off`, `paused` or `resetting`.
 - `POST /beta/samples` takes `{"case_type": "<value from the list>"}` and returns the
   new `document_id`. The server picks the random seed, so a visitor never chooses a file.
 
@@ -204,6 +204,8 @@ and `non_pdf` always end rejected; `empty_text_layer` is the same file for every
 
 **Caps.** A send is refused when any of these holds:
 
+- A reset is running: 503 with the message "The demo is being reset. Try again in a
+  minute."
 - Live answers are off: 503 with the message "Live answers are turned off right now."
 - Live answers are paused: 503. Today's spend plus the most one document can cost is
   above `DOCKET_DAILY_BUDGET_USD`. The check runs again on every request, so the pause
@@ -238,21 +240,54 @@ those two routes return 404 before reading the body.
 **Document trace.** `GET /documents/{id}` also returns `filename` and `sender`, so the
 review page can show a document that is not in the queue, such as a sample being read.
 
-**Startup refusals.** The API, the worker, `docket reconcile`, `docket eval` and
-`docket spike-models` exit before doing any work when the configuration is unsafe, and
-print every problem. They never print a secret value. They refuse when:
+**Startup refusals.** The API, the worker, `docket beta-reset`, `docket reconcile`,
+`docket eval` and `docket spike-models` exit before doing any work when the
+configuration is unsafe, and print every problem. They never print a secret value. They refuse when:
 
 - `DOCKET_INVITE_CODES` is unset, has a blank entry, or has a code shorter than 16
   characters;
-- a code appears in `.env.beta.example` (that file is not shipped yet, so this check
-  finds nothing until it is);
+- a code appears in `.env.beta.example`, which the image ships for this check;
 - `DOCKET_SESSION_KEY` is shorter than 32 bytes;
 - `DOCKET_REVIEW_TOKEN` is set to anything but blank;
 - `DOCKET_TRUST_PROXY` is off;
 - any variable starting with `DOCKET_FAILPOINT` is set;
 - `DOCKET_DAILY_BUDGET_USD` is not set explicitly, or is above 1.00;
 - the model mode is not `live` or `replay`. `docket eval` checks its `--mode`, and
-  `docket spike-models` is checked as `live`, because each uses that mode.
+  `docket spike-models` is checked as `live`, because each uses that mode;
+- `UVICORN_ROOT_PATH` is set.
+
+**Site root only.** In beta, a request with a non-empty ASGI `root_path` gets 500, "The
+beta must be served at the site root.", on every route, `/healthz` included. Under a root
+path the router matches the path without it while the gate reads the full path, so a
+private route could pass as a public one. Serve the beta at the root of its own host name.
+
+**Nightly reset.** `docket beta-reset` puts the beta back to a starting queue. It refuses
+to run unless `DOCKET_ENV=beta`, and it runs the startup refusals. In order, it:
+
+1. sets the `resetting` row in `beta_flags`, so samples get 503 "The demo is being reset.
+   Try again in a minute." and `GET /beta/samples` reports the state `resetting`;
+2. terminates the workflow of every document not in a final status, and waits until
+   Temporal reports each one closed;
+3. deletes every document with its sources, events and filings, and empties the bucket;
+4. deletes `signin_failures` and `sample_sends` rows more than an hour old, which no
+   longer count toward any limit. The spend ledger and the day's sample count stay, so a
+   reset never lifts a daily cap;
+5. sends 12 seed-11 documents through the normal pipeline in replay mode, from the
+   recorded live answers, and waits up to two minutes for them to settle. All 12 are held
+   for review, and none calls the model;
+6. clears the `resetting` row. Its `updated_at` is then the time the reset finished.
+
+If a step fails, the row stays set, so samples keep getting 503 until a reset finishes.
+`docket beta-reset --daily` is the `reset` service in `compose.prod.yaml`: it resets at
+08:00 UTC every day. At start, it resets at once if none has finished since the latest
+08:00 UTC, or if the last one never finished, so a run missed while the host was down is
+caught up. After a failure it tries again in five minutes. In beta, held documents wait
+`DOCKET_REVIEW_TIMEOUT_SECONDS` (86400 in the example settings), so the seeded queue
+lasts until the next reset.
+
+**Health check.** In beta, `GET /healthz` also returns `resetting` and
+`last_reset_age_seconds`, the seconds since the last reset finished (`null` while one runs
+or before the first). It reads the database, so it fails when Postgres is down.
 
 ## Storage and the ledger
 
@@ -300,6 +335,9 @@ the model's record suggestion does not affect its score, tier or filing decision
   (`DOCKET_RUN_BUDGET_USD`, default $2.00); an evaluation run shares one. An
   evaluation refuses a run budget above `DOCKET_RUN_BUDGET_CAP_USD` (default $5.00).
   The daily cap is shared by all calls and defaults to $1.50 (`DOCKET_DAILY_BUDGET_USD`).
+  The worker keeps the gateways of the 256 most recent documents, and one HTTP client
+  per provider and model. A document whose gateway was dropped gets a new one with a
+  fresh run cap; the daily cap still binds it.
   After the call it charges the real cost: for Anthropic, the tokens the API reports
   times the prices in [config/model_prices.yaml](../config/model_prices.yaml).
 - **Retries.** A rate limit is not billed, and on Anthropic neither is a server error

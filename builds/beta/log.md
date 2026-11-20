@@ -47,3 +47,22 @@ Choices made while building, and why.
 
 - **No plain words for a refused suggestion.** When the budget or the switch refuses the `choose` call, the document is still held, with `suggestion_failure_reason: budget_exceeded` in its trace. The page shows only "No record suggested".
 - **Pruning the per-address rows (PR C).** The nightly reset should delete `sample_sends` rows more than an hour old, and keep `sample_counts`.
+
+## PR C: Run it
+
+Choices made while building, and why.
+
+- **x1, a failed switch read.** The transport reads the kill switch after the gateway has reserved the call's worst case. If that read raises, the transport raises `NotSent`, because nothing went out. The gateway then gives the reservation back and retries, and its own read, before any reservation, raises the database error to the activity.
+- **x2, samples are not pinned to live.** They use the configured `DOCKET_MODEL_MODE`, which `.env.beta.example` sets to `live`. One setting decides how the model is called. The kill switch is the way to stop live answers without a restart.
+- **The reset's flag and time live in `beta_flags`.** The `resetting` row is true while a reset runs. Once it is cleared, its `updated_at` is the finish time, which `/healthz` and the catch-up rule read. No migration was needed.
+- **A failed reset leaves the flag set.** Samples keep getting 503 until a reset finishes, and the service tries again in five minutes. A reset cut off by a crash counts as due at the next start.
+- **Which workflows the reset closes.** It closes those of documents not in a final status, from the documents table, as reconcile does. Temporal's test server cannot list workflows, and C1 runs there.
+- **The starting queue.** It holds twelve seed-11 documents that the recorded live answers hold for review: one or two of each hold reason, the injection case and the refused `very_long` case. The reset test checks that every one replays with no `replay_miss`, and that all twelve are still waiting two hours later, with the 24-hour timeout.
+- **The reset command runs in its own container.** `compose exec reset docket beta-reset` put a second Python process in the `reset` service's 256 MB limit and peaked at 255 MB. `compose run --rm --no-deps reset docket beta-reset` runs it in a container of its own.
+- **Bounded gateways.** The worker keeps the 256 most recent gateways and one transport per provider and model, so dropping a gateway closes no HTTP client. The transport's output mode was already shared across the process.
+- **Site root only.** In beta, a request with a non-empty `root_path` gets 500 on every route, and `UVICORN_ROOT_PATH` is a startup refusal. A uvicorn `--root-path` flag cannot be seen at startup, so the per-request check covers it.
+- **Compose settings.** `compose.prod.yaml` takes every value by interpolation, and each secret is required (`${NAME:?...}`). So every command needs `--env-file .env.beta`, and a missing value stops compose with its name. Compose prefers a shell variable over the env file, so the check script refuses to run when one of the settings is set in the shell.
+- **The project is named `docket-hosted`.** A worktree named `docket-beta` would otherwise share its containers and volumes with the dev stack.
+- **The SeaweedFS identities file** is written by the container's own shell from its environment at start. The keys must be letters and digits, because they go into the JSON as they are.
+- **The load run's caps are the beta's own.** 60 samples from four addresses is 15 each, under 20 an hour and 300 a day, so no load-only setting exists. The stub provider is reached through the Anthropic SDK's `ANTHROPIC_BASE_URL`, which only `scripts/load/compose.load.yaml` sets. The compose check fails if `compose.prod.yaml` ever sets it.
+- **Caddy's body limit is 32 KB.** It sits above Docket's 16 KB, so Docket's own 413 is the refusal a visitor sees.

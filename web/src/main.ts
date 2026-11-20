@@ -46,14 +46,19 @@ function button(text: string, action: () => void | Promise<void>, className = 'q
   node.addEventListener('click', () => { void Promise.resolve().then(action).catch(showError); });
   return node;
 }
+// The beta's sign-in page marks cookie access; the session cookie then goes with every request
+// and no Authorization header is sent.
+const cookieAccess = document.documentElement.dataset.access === 'cookie';
 async function authorizedFetch(path: string, options?: RequestInit) {
   const headers = new Headers(options?.headers);
-  const token = sessionStorage.getItem('docket-review-token');
-  if (!token) throw new Error('A reviewer token is required.');
-  headers.set('Authorization', 'Bearer ' + token);
+  if (!cookieAccess) {
+    const token = sessionStorage.getItem('docket-review-token');
+    if (!token) throw new Error('A reviewer token is required.');
+    headers.set('Authorization', 'Bearer ' + token);
+  }
   const response = await fetch(path, { ...options, headers, cache: 'no-store' });
   if (response.status === 401) {
-    sessionStorage.removeItem('docket-review-token');
+    if (!cookieAccess) sessionStorage.removeItem('docket-review-token');
     window.location.reload();
     throw new Error('Reviewer access expired.');
   }

@@ -46,52 +46,58 @@
   <form class="access">
     <h1>Docket</h1>
     <p class="note">Document review, for the property-operations team.</p>
-    <label for="review-token">Reviewer token</label>
+    <label for="review-token">__LABEL__</label>
     <input id="review-token" type="password" autocomplete="off" required autofocus>
-    <button type="submit">Unlock review</button>
+    <button type="submit">__BUTTON__</button>
     <p role="status"></p>
   </form>
 </div>
 <script nonce="__NONCE__">
 (() => {
   const assets = __ASSETS__;
+  // "token" sends the reviewer token as a Bearer header; "invite" relies on the session cookie.
+  const access = __ACCESS__;
+  const signedIn = __SIGNED_IN__;
   const key = 'docket-review-token';
   const form = document.querySelector('form');
   const input = document.querySelector('input');
   const message = document.querySelector('[role="status"]');
   const button = document.querySelector('button');
   const urls = [];
+  async function openReview(headers, denied, unlocked) {
+    const response = await fetch('/review', { headers, cache: 'no-store' });
+    if (!response.ok) throw Object.assign(new Error(response.status === 401 ? denied : await response.text()), { status: response.status });
+    const styles = await Promise.all(assets.styles.map(async path => {
+      const response = await fetch(path, { headers, cache: 'no-store' });
+      if (!response.ok) throw Object.assign(new Error('Unable to load the review page.'), { status: response.status });
+      return URL.createObjectURL(await response.blob());
+    }));
+    const scripts = await Promise.all(assets.scripts.map(async path => {
+      const response = await fetch(path, { headers, cache: 'no-store' });
+      if (!response.ok) throw Object.assign(new Error('Unable to load the review page.'), { status: response.status });
+      return URL.createObjectURL(await response.blob());
+    }));
+    unlocked();
+    input.value = '';
+    if (access === 'invite') document.documentElement.dataset.access = 'cookie';
+    document.querySelector('#app').replaceChildren();
+    styles.forEach(url => {
+      urls.push(url);
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = url;
+      document.head.append(link);
+    });
+    for (const url of scripts) {
+      urls.push(url);
+      await import(url);
+    }
+  }
   async function unlock(token) {
     button.disabled = true;
     message.textContent = 'Checking access…';
-    const headers = { Authorization: 'Bearer ' + token };
     try {
-      const response = await fetch('/review', { headers, cache: 'no-store' });
-      if (!response.ok) throw Object.assign(new Error(response.status === 401 ? 'Invalid reviewer token.' : await response.text()), { status: response.status });
-      const styles = await Promise.all(assets.styles.map(async path => {
-        const response = await fetch(path, { headers, cache: 'no-store' });
-        if (!response.ok) throw Object.assign(new Error('Unable to load the review page.'), { status: response.status });
-        return URL.createObjectURL(await response.blob());
-      }));
-      const scripts = await Promise.all(assets.scripts.map(async path => {
-        const response = await fetch(path, { headers, cache: 'no-store' });
-        if (!response.ok) throw Object.assign(new Error('Unable to load the review page.'), { status: response.status });
-        return URL.createObjectURL(await response.blob());
-      }));
-      sessionStorage.setItem(key, token);
-      input.value = '';
-      document.querySelector('#app').replaceChildren();
-      styles.forEach(url => {
-        urls.push(url);
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = url;
-        document.head.append(link);
-      });
-      for (const url of scripts) {
-        urls.push(url);
-        await import(url);
-      }
+      await openReview({ Authorization: 'Bearer ' + token }, 'Invalid reviewer token.', () => sessionStorage.setItem(key, token));
     } catch (error) {
       if (error?.status === 401) sessionStorage.removeItem(key);
       message.textContent = error instanceof Error ? error.message : 'Unable to unlock review.';
@@ -99,13 +105,41 @@
       button.disabled = false;
     }
   }
+  // With no code, the session cookie the page was served with opens the app.
+  async function signIn(code) {
+    button.disabled = true;
+    message.textContent = 'Checking the code…';
+    try {
+      if (code !== undefined) {
+        const response = await fetch('/reviewer/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+          cache: 'no-store',
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(response.status === 401 ? 'That invite code is not valid.' : typeof body.detail === 'string' ? body.detail : 'Unable to sign in.');
+        }
+      }
+      await openReview({}, 'Your session has ended. Enter the code again.', () => {});
+    } catch (error) {
+      message.textContent = error instanceof Error ? error.message : 'Unable to sign in.';
+    } finally {
+      button.disabled = false;
+    }
+  }
   form.addEventListener('submit', event => {
     event.preventDefault();
-    void unlock(input.value);
+    void (access === 'invite' ? signIn(input.value) : unlock(input.value));
   });
   window.addEventListener('pagehide', () => urls.forEach(url => URL.revokeObjectURL(url)));
-  const saved = sessionStorage.getItem(key);
-  if (saved) void unlock(saved);
+  if (access === 'invite') {
+    if (signedIn) void signIn();
+  } else {
+    const saved = sessionStorage.getItem(key);
+    if (saved) void unlock(saved);
+  }
 })();
 </script>
 </body>

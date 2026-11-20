@@ -1,0 +1,6 @@
+{"rows":[
+{"behavior":"verify.sh --step runs one check group; plain and --fault paths unchanged","files":["verify.sh"],"docs":[{"path":"README.md","claims":[{"claim":"--step accepts lint, web, eval, secrets","at":"verify.sh:47"},{"claim":"plain and --fault paths still run everything on one machine","at":"verify.sh:61"}]}]},
+{"behavior":"CI runs checks as parallel jobs with caches","files":[".github/workflows/verify.yml",".github/actions/setup/action.yml"],"docs":[{"path":"README.md","claims":[{"claim":"GitHub Actions runs parts and test suite as parallel jobs","at":".github/workflows/verify.yml:17"}]}]},
+{"behavior":"CI result completeness check","files":["scripts/check_ci_results.py"],"none":"brief docMap lists no docs; the script's docstring and workflow step name explain it"},
+{"behavior":"pytest-split dev dependency and recorded durations","files":["pyproject.toml","uv.lock",".test_durations"],"none":"the workflow comment at verify.yml:47 holds the detail; README needs nothing for readers running checks"}
+]}

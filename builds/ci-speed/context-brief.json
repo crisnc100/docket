@@ -1,0 +1,15 @@
+{
+  "mode": "pr",
+  "purpose": "Cristian: a Docket PR's CI should take a few minutes, not ~16.5. CI now runs its checks as parallel jobs with caches, while still running every check it ran before; local ./verify.sh and ./verify.sh --fault run the same commands as before.",
+  "mechanism": ".github/workflows/verify.yml triggers on push to main and on pull_request, and a newer push cancels an older PR run. Jobs run in parallel: lint (verify.sh --step lint: uv sync, ruff check and format, pyright, pack_exchange check, web build) then --step secrets; eval (compose up of postgres, temporal and seaweedfs, alembic, --step eval); tests in 4 shards (pytest-split, --splitting-algorithm least_duration over .test_durations, ignoring tests/fault and tests/browser); browser (buildx bake of every compose.yaml image with the GitHub Actions layer cache, then tests/browser); fault in 2 shards (bake of api, migrate and worker, full compose up, tests/fault). Each test job uploads its coverage data and junit file. A coverage job runs after the test jobs: scripts/check_ci_results.py fails unless every expected job's coverage and junit files exist and the junit total equals pytest's collected count; then it combines coverage without the fault tests and checks the floors, then with them and checks again. .github/actions/setup/action.yml installs Node 22 with the npm cache, uv with its cache, and runs uv sync --locked. verify.sh gains --step lint|web|eval|secrets; the plain and --fault paths call the same functions in the same order. pytest-split is a new dev dependency; .test_durations holds recorded durations from a full run, and tests missing from it still run.",
+  "decisions": "Shards across jobs rather than pytest-xdist in one job, because tests share one Postgres, SeaweedFS and Temporal. CI runs every test once; the old second pass of the regular suite with the full app stack up was dropped as duplication, and local ./verify.sh --fault still runs everything on one machine. The service images (postgres, temporal, seaweedfs) are pulled each job, not cached.",
+  "readers": "README.md: people running Docket and its checks. Comments in .github/workflows/verify.yml, .github/actions/setup/action.yml, verify.sh and scripts/check_ci_results.py: the next maintainer.",
+  "base": "origin/main",
+  "docMap": [
+    {"behavior": "CI layout, triggers and caches", "docs": ["README.md"]},
+    {"behavior": "verify.sh --step", "docs": ["README.md"]},
+    {"behavior": "CI result completeness check", "docs": []},
+    {"behavior": "pytest-split and .test_durations", "docs": ["README.md"]}
+  ],
+  "untouchable": ["docs/operations.md", "tests/**", "builds/**", ".test_durations", "uv.lock", "PRODUCT.md", "DESIGN.md", ".impeccable/**", "corpus/**", "evals/**"]
+}

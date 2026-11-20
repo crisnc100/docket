@@ -17,8 +17,7 @@
   },
   "f5": {
     "status": "fixed",
-    "response": "real",
-    "fix": "fixed as decided on 2026-11-20 on the advisor's evidence: cap raised to 10,000 and the per-document run cap documented as best effort, with the daily ledger as the hard bound."
+    "response": "real"
   },
   "f6": {
     "status": "fixed",

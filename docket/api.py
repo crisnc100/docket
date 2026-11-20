@@ -62,6 +62,15 @@ class InviteCode(BaseModel):
 BETA_MAX_REASON = 300
 
 
+def encodes_as_utf8(value: str) -> bool:
+    # JSON can carry a lone surrogate such as "\ud800"; Postgres would refuse it at finalize.
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
 def document_candidates(session: Session, document_id: uuid.UUID) -> set[str]:
     """The record ids the review page offers for this document, from its latest score."""
     detail = session.scalar(
@@ -256,6 +265,8 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
             reason = body.get("reason", "")
             if action == "dismiss" and "\x00" in reason:
                 raise HTTPException(422, "NUL is not allowed in a dismiss reason")
+            if action == "dismiss" and not encodes_as_utf8(reason):
+                raise HTTPException(422, "A dismiss reason must be valid UTF-8 text")
             if beta and action == "dismiss" and not reason.strip():
                 raise HTTPException(422, "A dismiss reason is required")
             if beta and action == "dismiss" and len(reason) > BETA_MAX_REASON:

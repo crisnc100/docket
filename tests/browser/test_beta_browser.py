@@ -7,6 +7,7 @@ http://localhost:8000, which Chromium treats as a secure context."""
 
 import asyncio
 import json
+import os
 import secrets
 import shutil
 import subprocess
@@ -25,8 +26,10 @@ from docket.ingress import Ingress
 DOCUMENT = "doc-0075-decoy_near_miss_address.pdf"
 
 
-def docker(*args):
-    result = subprocess.run(["docker", *args], capture_output=True, text=True, timeout=120)
+def docker(*args, env=None):
+    # Values travel in env and the arguments carry only their names ("-e NAME"), so a
+    # failure or timeout that prints the command shows no password or code.
+    result = subprocess.run(["docker", *args], capture_output=True, text=True, timeout=120, env=env)
     assert result.returncode == 0, result.stdout + result.stderr
     return result.stdout.strip()
 
@@ -64,9 +67,9 @@ async def test_playwright_beta_invite_sign_in_and_review(runtime):
             args = ["compose", "run", "-d", "--no-deps", "--name", name]
             if service == "api":
                 args += ["-p", "127.0.0.1::8000"]
-            for key, value in environment.items():
-                args += ["-e", f"{key}={value}"]
-            docker(*args, service)
+            for key in environment:
+                args += ["-e", key]
+            docker(*args, service, env=os.environ | environment)
             names.append(name)
         api = names[-1]
         api_port = json.loads(docker("inspect", api))[0]["NetworkSettings"]["Ports"]["8000/tcp"][0][
@@ -127,7 +130,7 @@ async def test_playwright_beta_invite_sign_in_and_review(runtime):
                 "-e",
                 "DOCKET_ACCESS=invite",
                 "-e",
-                "DOCKET_INVITE_CODE=" + code,
+                "DOCKET_INVITE_CODE",
                 "-e",
                 "DOCKET_DOCUMENT_NAME=" + DOCUMENT,
                 "docket-v01-browser",
@@ -135,6 +138,7 @@ async def test_playwright_beta_invite_sign_in_and_review(runtime):
             capture_output=True,
             text=True,
             timeout=270,
+            env=os.environ | {"DOCKET_INVITE_CODE": code},
         )
         copy_error = ""
         try:

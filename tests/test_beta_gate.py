@@ -717,3 +717,41 @@ async def test_the_lockout_window_rolls_across_the_clock_hour(postgres_engine):
     with Session(postgres_engine) as session:
         rows = session.query(SigninFailure).filter_by(address="203.0.113.21").count()
     assert rows == 10
+
+
+# Fix-check round: x1 and x4
+
+
+@pytest.mark.parametrize("mode", ["beta", "local"])
+async def test_a_dismiss_reason_that_is_not_utf8_never_reaches_temporal(mode, postgres_engine):
+    document = held_document(postgres_engine)
+    token = secrets.token_hex(16)
+    if mode == "beta":
+        settings, headers = beta_settings(), signed_in()
+    else:
+        settings = Settings(_env_file=None, docket_review_token=SecretStr(token))
+        headers = {"Authorization": "Bearer " + token}
+    async with beta_client(settings, postgres_engine) as (http, _, temporal, _):
+        response = await http.post(
+            f"/review/{document}/dismiss",
+            content=b'{"reason": "spam \\ud800"}',
+            headers=headers | {"Content-Type": "application/json"},
+        )
+        assert response.status_code == 422, response.text
+        assert temporal.updates == []
+
+
+def test_every_compose_service_that_runs_docket_code_receives_the_beta_settings():
+    import yaml
+
+    services = yaml.safe_load(Path("compose.yaml").read_text())["services"]
+    docket = [name for name, service in services.items() if service.get("build") == "."]
+    assert set(docket) == {"migrate", "api", "worker"}
+    for name in docket:
+        environment = services[name]["environment"]
+        assert environment["DOCKET_ENV"] == "${DOCKET_ENV:-local}", name
+        for setting in ("DOCKET_INVITE_CODES", "DOCKET_SESSION_KEY", "DOCKET_BASE_URL"):
+            assert environment[setting] == "${" + setting + ":-}", (name, setting)
+        assert environment["DOCKET_TRUST_PROXY"] == "${DOCKET_TRUST_PROXY:-0}", name
+        # Any default for the cap would count as set and hide the beta refusal.
+        assert "DOCKET_DAILY_BUDGET_USD" not in environment, name

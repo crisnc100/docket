@@ -14,6 +14,9 @@ def no_shell_settings(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
 
+# Fake values only: one shaped like a real key, one the stub accepts.
+REAL_LOOKING_KEY = {"ANTHROPIC_API_KEY": "sk-ant-api03-x"}  # pragma: allowlist secret
+STUB_KEY = {"ANTHROPIC_API_KEY": "stub-key"}  # pragma: allowlist secret
 GOOD = {
     "samples_planned": 60,
     "samples_accepted": 60,
@@ -80,7 +83,7 @@ def test_the_run_refuses_a_real_key_before_asking_the_worker(monkeypatch, tmp_pa
     asked = []
     monkeypatch.setattr(beta_load, "compose", lambda *args: asked.append(args))
     with pytest.raises(beta_load.LoadRefused, match="real Anthropic key"):
-        beta_load.confirm_stub(tmp_path, {"ANTHROPIC_API_KEY": "sk-ant-api03-x"})
+        beta_load.confirm_stub(tmp_path, REAL_LOOKING_KEY)
     assert asked == []
 
 
@@ -97,9 +100,9 @@ def test_the_run_refuses_unless_the_worker_reaches_the_stub(
 ):
     monkeypatch.setattr(beta_load, "compose", answers(base_url, stub_id))
     with pytest.raises(beta_load.LoadRefused, match=message):
-        beta_load.confirm_stub(tmp_path, {"ANTHROPIC_API_KEY": "stub-key"})
+        beta_load.confirm_stub(tmp_path, STUB_KEY)
     monkeypatch.setattr(beta_load, "compose", answers("http://stub:8080"))
-    beta_load.confirm_stub(tmp_path, {"ANTHROPIC_API_KEY": "stub-key"})
+    beta_load.confirm_stub(tmp_path, STUB_KEY)
 
 
 def test_every_compose_command_names_the_load_project(monkeypatch, tmp_path):
@@ -117,4 +120,4 @@ def test_the_run_refuses_settings_the_shell_would_override(monkeypatch, tmp_path
     monkeypatch.setenv("ANTHROPIC_API_KEY", "from-the-shell")
     monkeypatch.setattr(beta_load, "compose", answers("http://stub:8080"))
     with pytest.raises(beta_load.LoadRefused, match="ANTHROPIC_API_KEY"):
-        beta_load.confirm_stub(tmp_path, {"ANTHROPIC_API_KEY": "stub-key"})
+        beta_load.confirm_stub(tmp_path, STUB_KEY)

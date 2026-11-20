@@ -324,7 +324,8 @@ HOME_HEADERS = {
 
 def serve_home(app: FastAPI, home: Path) -> None:
     """The public front page at "/" and its files under /home/. ReviewerAccess lets exactly
-    these GETs through without a token; nothing here reads the database or the review queue."""
+    these GETs through without a token or session; nothing here reads the database or the
+    review queue."""
     root = home.resolve()
 
     @app.get("/", include_in_schema=False)

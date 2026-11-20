@@ -79,7 +79,8 @@ def startup_problems(
 def refuse_unsafe_start(
     settings: Settings, environ: Mapping[str, str] | None = None, example: Path | None = None
 ) -> None:
-    """Called first by every beta process: the API, the worker and the reset command."""
+    """Called first by every process that starts: the API, the worker, reconcile, eval and
+    spike-models. It does nothing outside beta."""
     problems = startup_problems(settings, os.environ if environ is None else environ, example)
     if problems:
         raise UnsafeConfig("Docket beta refuses to start:\n- " + "\n- ".join(problems))

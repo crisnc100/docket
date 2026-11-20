@@ -39,7 +39,7 @@
             },
             {
               "claim": "Seeds 12 seed-11 documents in replay mode, waits up to 120 s, all must be held",
-              "at": "docket/beta_reset.py:186-196,269-271"
+              "at": "docket/beta_reset.py:186"
             },
             {
               "claim": "Flag cleared last; its updated_at is the finish time",
@@ -51,7 +51,7 @@
             },
             {
               "claim": "Service resets at 08:00 UTC, at start when due, retries every 5 minutes after failure or refusal",
-              "at": "docket/beta_reset.py:96-99,276-300"
+              "at": "docket/beta_reset.py:96"
             },
             {
               "claim": "Review timeout keeps the seeded queue until the next reset",
@@ -59,11 +59,11 @@
             },
             {
               "claim": "healthz in beta returns resetting and last_reset_age_seconds, null while running, after a failure or before the first",
-              "at": "docket/beta_reset.py:65-76 and docket/api.py:143"
+              "at": "docket/beta_reset.py:65"
             },
             {
               "claim": "Samples get 503 'The demo is being reset...' and state resetting",
-              "at": "docket/api.py:363-380 and docket/beta_samples.py:142"
+              "at": "docket/api.py:363"
             }
           ]
         },
@@ -102,7 +102,7 @@
           "claims": [
             {
               "claim": "Six services with memory limits 768/512/512/512/768/256 MB, total 3.3 GB",
-              "at": "compose.prod.yaml:52,69,96,136,164,183"
+              "at": "compose.prod.yaml:52"
             },
             {
               "claim": "Only the API publishes a port, on 127.0.0.1:${DOCKET_PORT:-8001}",
@@ -118,11 +118,11 @@
             },
             {
               "claim": "migrate and temporal-data-init run once",
-              "at": "compose.prod.yaml:32-40,105-116"
+              "at": "compose.prod.yaml:32"
             },
             {
               "claim": "Caddy max_size 32KB sits above Docket's 16 KB limit; last X-Forwarded-For hop is read",
-              "at": "docket/review_access.py:21 and docket/beta.py:134"
+              "at": "docket/review_access.py:21"
             }
           ]
         },
@@ -131,11 +131,11 @@
           "claims": [
             {
               "claim": "The image ships .env.beta.example for the placeholder-code check",
-              "at": ".dockerignore:5 and docket/beta.py:19,58"
+              "at": ".dockerignore:5"
             },
             {
               "claim": "Startup refusal for UVICORN_ROOT_PATH; beta-reset runs the refusals",
-              "at": "docket/beta.py:76-77 and docket/cli.py:307"
+              "at": "docket/beta.py:76"
             }
           ]
         }
@@ -154,7 +154,7 @@
           "claims": [
             {
               "claim": "60 samples in 10 minutes from four addresses, own project docket-load, refuses unless the worker points at the stub and the key is not a real one",
-              "at": "scripts/load/beta_load.py:29-32,60-77,150-170"
+              "at": "scripts/load/beta_load.py:29"
             },
             {
               "claim": "Total of peaks counts every container except the stub, so both reset containers",
@@ -192,7 +192,7 @@
           "claims": [
             {
               "claim": "Worker keeps the 10,000 most recent gateways, one transport per provider and model; evicted documents or a restart start a fresh run cap",
-              "at": "docket/runtime.py:19-23,44-46,61-98"
+              "at": "docket/runtime.py:19"
             }
           ]
         }
@@ -210,7 +210,7 @@
           "claims": [
             {
               "claim": "A stopped classify call ends failed with budget_exceeded; a stopped choose call leaves no suggested record and the document is filed or held as usual",
-              "at": "docket/workflows.py:15,127-139"
+              "at": "docket/workflows.py:15"
             }
           ]
         }
@@ -246,7 +246,7 @@
           "claims": [
             {
               "claim": "GET /beta/samples state may be off, paused or resetting",
-              "at": "docket/beta_samples.py:60,142-150"
+              "at": "docket/beta_samples.py:60"
             }
           ]
         }

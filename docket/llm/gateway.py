@@ -16,7 +16,7 @@ from openai import (
 )
 from pydantic import BaseModel, ValidationError
 
-from docket.llm.anthropic import Reply
+from docket.llm.anthropic import AnthropicTransport, Reply
 from docket.llm.budget import Budget, PriceCeiling
 from docket.llm.errors import (
     BudgetExceeded,
@@ -156,6 +156,8 @@ class Gateway:
         self.today = today
         # The beta's kill switch. It is read before every live attempt, retries included.
         self.live_allowed = live_allowed
+        if live_allowed is not None and isinstance(transport, AnthropicTransport):
+            transport.live_allowed = live_allowed
 
     async def call[T: BaseModel](
         self,
@@ -235,6 +237,11 @@ class Gateway:
                         self.actual_cost_usd += cost
                         self.budget.settle(day, worst, cost)
                 raise ParseError("Model output does not match the per-call schema") from exc
+            except BudgetExceeded:
+                # Only the kill switch raises this in a transport, and before that request is
+                # sent. A schema refusal earlier in the same attempt is a 400, which is not billed.
+                self.budget.settle(day, worst, Decimal(0))
+                raise
             except MaybeBilled:
                 # The reservation stays: the call is charged at its worst case.
                 self.actual_cost_usd += worst

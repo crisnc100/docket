@@ -29,7 +29,7 @@ from docket.cli import app as cli
 from docket.config import load_records
 from docket.corpus import NOT_SAMPLES, SAMPLE_CASE_TYPES
 from docket.db import BudgetLedger, SampleCount, SampleSend
-from docket.llm.anthropic import AnthropicTransport
+from docket.llm.anthropic import AnthropicTransport, OutputMode
 from docket.llm.budget import load_prices
 from docket.llm.errors import BudgetExceeded
 from docket.prompts import classify_request
@@ -400,7 +400,8 @@ def live_runtime(engine, monkeypatch, api, **settings) -> Runtime:
 
     def transport(settings, max_output_tokens):
         client = httpx2.AsyncClient(transport=httpx2.MockTransport(api))
-        return AnthropicTransport(settings, max_output_tokens, client)
+        # A mode of its own, so a schema refusal here never changes other tests' transports.
+        return AnthropicTransport(settings, max_output_tokens, client, mode=OutputMode())
 
     monkeypatch.setattr("docket.runtime.AnthropicTransport", transport)
     return runtime
@@ -434,6 +435,37 @@ async def test_the_switch_stops_every_live_call_at_the_transport_and_on_restores
     set_live_answers(postgres_engine, True)
     assert (await gateway.call(**call)).category.value == "lease"
     assert len(api.requests) == 1
+
+
+async def test_the_switch_also_stops_the_resend_after_a_schema_refusal(
+    postgres_engine, monkeypatch
+):
+    requests = []
+
+    async def api(request):
+        requests.append(request)
+        # The switch goes off while the first request is answered with a schema refusal,
+        # so the transport's resend in the other output mode must not go out.
+        set_live_answers(postgres_engine, False)
+        return httpx2.Response(
+            400,
+            json={
+                "type": "error",
+                "error": {
+                    "type": "invalid_request_error",
+                    "message": "output_config.format: the compiled grammar is too large",
+                },
+            },
+        )
+
+    runtime = live_runtime(postgres_engine, monkeypatch, api)
+    gateway = runtime.gateway(live_request())
+    with pytest.raises(BudgetExceeded, match="turned off"):
+        await gateway.call(**classify_request("Lease for unit 1"), source="sample")
+    assert len(requests) == 1
+    # Nothing was billed, so the reservation is given back.
+    with Session(postgres_engine) as session:
+        assert session.scalar(select(BudgetLedger.spent_usd)) == 0
 
 
 async def test_local_gateways_never_read_the_switch(postgres_engine, monkeypatch):

@@ -182,6 +182,7 @@ Nothing changes what the model is for. The rules decide automatic filing. The mo
    - `DOCKET_DAILY_BUDGET_USD=1.00`, `DOCKET_TRUST_PROXY=1`, `DOCKET_REVIEW_TIMEOUT_SECONDS=86400`;
    - no `DOCKET_REVIEW_TOKEN`.
 5. **Dockerfile:**
+   - `.dockerignore` excludes `.env*`, so add `!.env.beta.example`. Without it, the startup refusal that rejects codes copied from the example cannot read the example inside the image (found while building PR A).
    - the app stages run as a non-root user;
    - the browser test stage stays root;
    - base images are pinned by multi-arch digest, so they work on both Apple Silicon and Atlas.

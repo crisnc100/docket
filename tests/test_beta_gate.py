@@ -640,7 +640,7 @@ def beta_environment(monkeypatch, **extra):
         "DOCKET_BASE_URL": BASE,
         "DOCKET_DAILY_BUDGET_USD": "1.00",
         "DOCKET_MODEL_MODE": "replay",
-        "ANTHROPIC_API_KEY": "set",
+        "ANTHROPIC_API_KEY": "set",  # pragma: allowlist secret
     }.items() | extra.items():
         monkeypatch.setenv(key, value)
 

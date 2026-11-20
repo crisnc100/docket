@@ -7,6 +7,18 @@ from docket.core.candidates import shortlist
 from docket.core.scoring import ScoringConfig, Tier, load_scoring_config, score_choice
 
 
+@pytest.mark.parametrize("source", ["text", "subject", "filename"])
+def test_hyphen_joined_address_still_conflicts_with_another_id(source):
+    inputs = {"text": "UNIT-0002"}
+    inputs[source] = (
+        "UNIT-0002\n1010-Cedar-Street-Apt-1.pdf"
+        if source == "text"
+        else "1010-Cedar-Street-Apt-1.pdf"
+    )
+    result = shortlist(load_records(), **inputs)
+    assert result.conflict and result.conflict_record_ids == ("UNIT-0001", "UNIT-0002")
+
+
 @pytest.mark.parametrize("address", ["1010 Cedar Street Apt 1", "1010 Cedar St #1"])
 @pytest.mark.parametrize("repeated", [False, True])
 def test_address_derived_building_is_not_independent(address, repeated):

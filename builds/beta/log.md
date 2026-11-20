@@ -67,3 +67,12 @@ Choices made while building, and why.
 - **The SeaweedFS identities file** is written by the container's own shell from its environment at start. The keys must be letters and digits, because they go into the JSON as they are.
 - **The load run's caps are the beta's own.** 60 samples from four addresses is 15 each, under 20 an hour and 300 a day, so no load-only setting exists. The stub provider is reached through the Anthropic SDK's `ANTHROPIC_BASE_URL`, which only `scripts/load/compose.load.yaml` sets. The compose check fails if `compose.prod.yaml` ever sets it.
 - **Caddy's body limit is 32 KB.** It sits above Docket's 16 KB, so Docket's own 413 is the refusal a visitor sees.
+
+## PR C fix round (review 2026-11-20-16-32-27-cadd8a)
+
+- **f1, f2: the load run cannot reach a real provider or a real beta.** It starts and removes its own Compose project and image tag, `docket-load`. Before any sample it refuses a key shaped like a real one and any setting the shell would override, and it checks that the worker points at the stub and that the stub answers from inside the worker. It exits non-zero unless every sample was accepted and settled, the reset seeded 12 held documents, the stub answered calls, docker stats never failed, and every service was measured under its limit. A sample sent before the reset counts as settled when the reset has deleted it.
+- **f3: one reset at a time (advisor's corrections).** A reset takes a session advisory lock on its own key, not the samples' lock, on a connection detached from the pool, commits at once, and unlocks in a `finally` before closing. A refusal comes before the flag is touched. The service logs one line for it and checks again in five minutes.
+- **f4: an incomplete starting queue is a failed reset.** Anything but 12 held documents raises, so the flag stays set and the catch-up reruns the reset.
+- **f5: no run-budget map (advisor).** `MAX_GATEWAYS` is 10,000, about 23 MiB. The per-document run cap lives in worker memory and starts fresh after an eviction or a restart; the daily ledger is the hard bound. The gateway test patches the cap to 256, in its own test-only commit.
+- **f6: a refund the ledger cannot write.** The error stops the call, so no request goes out, and an error log names the amount. The reservation stays counted until the day ends; the refund is not retried.
+- **f7: backups.** Each dump and archive is written to a `.partial` file under `pipefail` and moved into place only on success.

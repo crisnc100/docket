@@ -18,10 +18,12 @@ def spike_models() -> None:
     """Check the configured model's per-call enums: two live calls (Anthropic budget $0.05)."""
     from pathlib import Path
 
+    from docket.beta import refuse_unsafe_start
     from docket.llm import spike as spike_module
     from docket.settings import Settings
 
     settings = Settings()
+    refuse_unsafe_start(settings)
     anthropic = settings.docket_model_provider == "anthropic"
     name = "ANTHROPIC_API_KEY" if anthropic else "OPENROUTER_API_KEY"
     if not settings.api_key().get_secret_value():
@@ -162,8 +164,11 @@ def eval_command(seed: int = 11, mode: str = "replay", budget: str = "2.00") -> 
     import asyncio
     from decimal import Decimal
 
+    from docket.beta import refuse_unsafe_start
     from docket.evaluation import evaluate, write_report
+    from docket.settings import Settings
 
+    refuse_unsafe_start(Settings())
     report = asyncio.run(evaluate(seed, mode, Decimal(budget)))
     path = write_report(report)
     typer.echo(f"{report['status']}: {path}")

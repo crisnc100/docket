@@ -569,3 +569,26 @@ def test_the_real_processes_exit_with_the_plain_message(command, tmp_path):
     assert result.returncode != 0
     assert "Docket beta refuses to start:\n- DOCKET_INVITE_CODES is not set." in result.stderr
     assert "- DOCKET_REVIEW_TOKEN must be unset in beta." in result.stderr
+
+
+@pytest.mark.parametrize("command", [["eval"], ["spike-models"]])
+def test_commands_that_can_spend_refuse_an_unsafe_beta_config(command, monkeypatch):
+    from typer.testing import CliRunner
+
+    from docket import evaluation
+    from docket.cli import app
+    from docket.llm import spike
+
+    def spent(*args, **kwargs):
+        raise AssertionError("A refused command must stop before any model work")
+
+    monkeypatch.setattr(evaluation, "evaluate", spent)
+    monkeypatch.setattr(spike, "spike", spent)
+    monkeypatch.setenv("DOCKET_ENV", "beta")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "set")
+    result = CliRunner().invoke(app, command)
+    assert result.exit_code == 1
+    assert result.output.startswith("Docket beta refuses to start:\n- ")
+    monkeypatch.setenv("DOCKET_ENV", "local")
+    local = CliRunner().invoke(app, command)
+    assert isinstance(local.exception, AssertionError), local.output

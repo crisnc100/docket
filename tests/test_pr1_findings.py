@@ -13,9 +13,6 @@ from docket.cli import app
 from docket.config import Signal, load_records
 from docket.core.candidates import shortlist
 from docket.core.extraction import (
-    DocumentParseError,
-    DocumentRejection,
-    RejectionReason,
     extract_document,
 )
 from docket.core.ledger import transition
@@ -116,18 +113,6 @@ def test_f4_score_cli_runs_rules_only_pipeline_on_corpus_pdf(monkeypatch):
     assert set(chosen["signals"]) == {signal.value for signal in Signal}
     assert chosen["signals"]["address"] == chosen["signals"]["explicit_id"] == 1
     assert chosen["tier"] == "strong" and chosen["would_auto_file"] is True
-
-
-def test_f5_corrupt_pdf_raises_typed_rejection():
-    folder, labels = corpus_labels()
-    corrupt = next(label for label in labels if label.case_type == "corrupt")
-    with pytest.raises(DocumentParseError) as error:
-        extract_document((folder / corrupt.filename).read_bytes())
-    assert isinstance(error.value, DocumentRejection)
-    assert getattr(error.value, "status", None) == "rejected"
-    reason = getattr(error.value, "reason", None)
-    assert isinstance(reason, RejectionReason) and reason.value == "corrupt"
-    assert error.value.non_retryable and error.value.__cause__ is not None
 
 
 def test_f5_ledger_accepts_corrupt_as_terminal_rejection(postgres_engine):

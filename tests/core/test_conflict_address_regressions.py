@@ -53,7 +53,7 @@ def test_x1_explicit_id_conflicts_with_full_name_outside_selected_candidates():
     assert scored.decision == "review" and scored.reason == "conflicting_records"
 
 
-@pytest.mark.parametrize("suffix", ["1A", "1-2"])
+@pytest.mark.parametrize("suffix", ["1A", "1-2", "1-B"])
 def test_x2_shipped_unit_one_cannot_gain_address_support_from_another_unit(suffix):
     records = load_records()
     first = records[0]

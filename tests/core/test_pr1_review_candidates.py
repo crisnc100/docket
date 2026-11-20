@@ -7,18 +7,6 @@ from docket.core.candidates import shortlist
 from docket.core.scoring import ScoringConfig, Tier, load_scoring_config, score_choice
 
 
-@pytest.mark.parametrize("unit", ["1-B", "1-2", "1A"])
-def test_different_unit_cannot_corroborate_shipped_unit_one(unit):
-    records = load_records()
-    result = shortlist(records, text=f"UNIT-0001\nAddress: 1010 Cedar Street Apt {unit}")
-    first = next(item for item in result.candidates if item.record_id == "UNIT-0001")
-    assert first.signals[Signal.ADDRESS] == 0
-    assert not result.conflict
-    scored = score_choice(result, "UNIT-0001", load_scoring_config())
-    assert scored.independent_signals == frozenset({Signal.EXPLICIT_ID})
-    assert scored.tier == Tier.MEDIUM and scored.decision == "review"
-
-
 @pytest.mark.parametrize("address", ["1010 Cedar Street Apt 1", "1010 Cedar St #1"])
 @pytest.mark.parametrize("repeated", [False, True])
 def test_address_derived_building_is_not_independent(address, repeated):

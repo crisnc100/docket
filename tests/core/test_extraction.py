@@ -4,6 +4,7 @@ import pytest
 
 from docket.core.extraction import (
     DocumentParseError,
+    DocumentRejection,
     Extracted,
     Rejected,
     RejectionReason,
@@ -44,6 +45,10 @@ def test_encrypted_and_corrupt_committed_fixtures():
     corrupt = next(folder.glob("*-corrupt.pdf")).read_bytes()
     with pytest.raises(DocumentParseError) as error:
         extract_document(corrupt)
+    assert isinstance(error.value, DocumentRejection)
+    assert getattr(error.value, "status", None) == "rejected"
+    reason = getattr(error.value, "reason", None)
+    assert isinstance(reason, RejectionReason) and reason.value == "corrupt"
     assert error.value.non_retryable and error.value.__cause__ is not None
 
 

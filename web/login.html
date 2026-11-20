@@ -131,7 +131,7 @@
   }
   form.addEventListener('submit', event => {
     event.preventDefault();
-    void (access === 'invite' ? signIn(input.value) : unlock(input.value));
+    void (access === 'invite' ? signIn(input.value.trim()) : unlock(input.value));
   });
   window.addEventListener('pagehide', () => urls.forEach(url => URL.revokeObjectURL(url)));
   if (access === 'invite') {

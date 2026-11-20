@@ -3,12 +3,12 @@ import binascii
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowUpdateFailedError
@@ -54,21 +54,22 @@ class Inbound(BaseModel):
     attachments: list[Attachment] = Field(min_length=1, max_length=100)
 
 
-class InviteCode(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    code: str = Field(min_length=1, max_length=256)
-
-
-BETA_MAX_REASON = 300
-
-
 def encodes_as_utf8(value: str) -> bool:
-    # JSON can carry a lone surrogate such as "\ud800"; Postgres would refuse it at finalize.
+    # JSON can carry a lone surrogate such as "\ud800", which Postgres and hashing refuse.
     try:
         value.encode("utf-8")
     except UnicodeEncodeError:
         return False
     return True
+
+
+class InviteCode(BaseModel):
+    # Pasted codes often carry spaces; stripping them keeps a right code from counting as wrong.
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    code: str = Field(min_length=1, max_length=256)
+
+
+BETA_MAX_REASON = 300
 
 
 def document_candidates(session: Session, document_id: uuid.UUID) -> set[str]:
@@ -298,10 +299,18 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         return reviewer_page(access="invite" if beta else "token")
 
     @app.post("/reviewer/session", include_in_schema=False)
-    def reviewer_session(request: Request, body: InviteCode):
+    def reviewer_session(request: Request, payload: dict[str, Any]):
         settings = app.state.runtime.settings
         if settings.docket_env != "beta":
             raise HTTPException(404, "Not found")
+        # Validated here with fixed messages: FastAPI's own 422 echoes the input, and a lone
+        # surrogate such as "\ud800" cannot be written into that JSON reply.
+        try:
+            body = InviteCode.model_validate(payload)
+        except ValidationError as exc:
+            raise HTTPException(422, "Send one invite code as text.") from exc
+        if not encodes_as_utf8(body.code):
+            raise HTTPException(422, "The code must be valid UTF-8 text")
         address = client_address(request.scope, settings)
         attempt = reserve_attempt(app.state.runtime.engine, address)
         if attempt is None:

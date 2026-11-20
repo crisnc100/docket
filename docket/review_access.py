@@ -167,6 +167,10 @@ class ReviewerAccess:
         """Beta access is the session cookie alone: a Bearer token grants nothing, whether or
         not one is configured."""
         method, path = scope["method"], scope["path"]
+        # The router's patterns end in "$", which also matches before a trailing line feed, so
+        # "/documents\n" would reach the upload handler. No real path has a control character.
+        if any(ord(char) < 0x20 or ord(char) == 0x7F for char in path):
+            return await refuse(400, "Invalid path.")(scope, receive, send)
         open_route = beta_public(method, path)
         if not open_route and not has_session(scope, settings):
             if (method, path) == ("GET", "/reviewer"):
@@ -174,7 +178,9 @@ class ReviewerAccess:
             return await refuse(401, "Sign in with an invite code first.")(scope, receive, send)
         if method != "GET" and not same_origin(scope, settings):
             return await refuse(403, "Cross-site requests are refused.")(scope, receive, send)
-        if (method, path) in BETA_CLOSED_WRITES:
+        # "/documents/" and "//documents" never reach the handler, but refusing them here too
+        # means their bodies are never read either.
+        if (method, "/" + "/".join(part for part in path.split("/") if part)) in BETA_CLOSED_WRITES:
             return await refuse(403, "The hosted beta does not accept documents.")(
                 scope, receive, send
             )

@@ -755,3 +755,66 @@ def test_every_compose_service_that_runs_docket_code_receives_the_beta_settings(
         assert environment["DOCKET_TRUST_PROXY"] == "${DOCKET_TRUST_PROXY:-0}", name
         # Any default for the cap would count as set and hide the beta refusal.
         assert "DOCKET_DAILY_BUDGET_USD" not in environment, name
+
+
+# Fresh review round: s1, f1 and f2
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/documents\n", "/inbound\n", "/documents/", "//documents", "/inbound/", "//inbound//"],
+)
+async def test_closed_writes_cannot_be_reached_through_another_spelling(path):
+    async with beta_client() as (_, _, _, app):
+        session = [(b"cookie", cookie()["Cookie"].encode()), (b"origin", BASE.encode())]
+        status, reads = await call_raw(app, "POST", path, session)
+        assert reads == 0, path
+        assert status in {400, 403}, (path, status)
+
+
+@pytest.mark.parametrize("path", ["/review\n", "/healthz\x7f", "/reviewer\t", "/home/home.css\r"])
+async def test_beta_refuses_any_path_with_a_control_character(path):
+    async with beta_client() as (_, _, _, app):
+        session = [(b"cookie", cookie()["Cookie"].encode())]
+        status, reads = await call_raw(app, "GET", path, session)
+        assert (status, reads) == (400, 0), path
+
+
+async def test_local_body_limit_also_covers_the_line_feed_spelling():
+    from docket.webhook import BodyLimit
+
+    reached = []
+
+    async def app(scope, receive, send):
+        reached.append(scope["path"])
+
+    status, reads = await call_raw(BodyLimit(app), "POST", "/inbound\n", [])
+    assert status == 413 and reached == []
+    assert reads == 10 * 1024 + 1
+
+
+async def test_a_code_that_is_not_utf8_is_refused_before_it_counts(postgres_engine):
+    async with beta_client(engine=postgres_engine) as (http, _, _, _):
+        response = await http.post(
+            "/reviewer/session",
+            content=b'{"code": "\\ud800"}',
+            headers=forwarded("192.0.2.50") | {"Content-Type": "application/json"},
+        )
+        assert response.status_code == 422, response.text
+    with Session(postgres_engine) as session:
+        assert session.query(SigninFailure).count() == 0
+
+
+async def test_a_pasted_code_with_spaces_signs_in_and_counts_nothing(postgres_engine):
+    async with beta_client(engine=postgres_engine) as (http, _, _, _):
+        response = await http.post(
+            "/reviewer/session", json={"code": f"  {CODE}\n"}, headers=forwarded("192.0.2.51")
+        )
+        assert response.status_code == 204, response.text
+        blank = await http.post(
+            "/reviewer/session", json={"code": "   "}, headers=forwarded("192.0.2.51")
+        )
+        assert blank.status_code == 422
+    with Session(postgres_engine) as session:
+        assert session.query(SigninFailure).count() == 0
+    assert "signIn(input.value.trim())" in Path("web/login.html").read_text()

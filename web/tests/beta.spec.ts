@@ -15,7 +15,8 @@ test('A7: an invite code signs in and one held document is reviewed on the beta 
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('status')).toHaveText('That invite code is not valid.');
   await expect(page.getByRole('navigation', { name: 'Review queue' })).toHaveCount(0);
-  await page.getByLabel('Invite code').fill(code);
+  // A pasted code with spaces around it still signs in.
+  await page.getByLabel('Invite code').fill('  ' + code + ' ');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('navigation', { name: 'Review queue' })).toBeVisible();
 

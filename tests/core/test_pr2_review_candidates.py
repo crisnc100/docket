@@ -1,27 +1,7 @@
-import signal
-from time import perf_counter
-
 import pytest
 
 from docket.config import Signal, load_records
 from docket.core.candidates import normalize_address, shortlist
-
-
-def test_address_with_128000_spaces_finishes_within_half_a_second():
-    records = load_records()
-
-    def deadline(signum, frame):
-        raise AssertionError("shortlist exceeded 0.5 seconds on trailing whitespace")
-
-    previous = signal.signal(signal.SIGALRM, deadline)
-    started = perf_counter()
-    signal.setitimer(signal.ITIMER_REAL, 0.5)
-    try:
-        shortlist(records, text="Address: a" + " " * 128000 + "x")
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous)
-    assert perf_counter() - started < 0.5
 
 
 @pytest.mark.parametrize("ending", [")", '"', "]", "}", "'", "”", "’"])

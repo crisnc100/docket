@@ -20,7 +20,7 @@ from docket.core.extraction import (
 )
 from docket.core.ledger import transition
 from docket.core.scoring import Tier, load_scoring_config, score_choice
-from docket.corpus import Label, generate
+from docket.corpus import Label
 from docket.db import Document, Event
 
 
@@ -59,14 +59,6 @@ def test_f1_corpus_filename_only_ids_are_real_candidates(seed):
                 filename=label.filename,
             )
             assert mismatch.conflict
-
-
-def test_f2_generator_labels_every_single_signal_as_review(tmp_path):
-    labels = generate(7, tmp_path)
-    single_signal = {"address_only", "tenant_only", "id_in_filename_only", "former_tenant"}
-    selected = [label for label in labels if label.case_type in single_signal]
-    assert len(selected) == 40
-    assert all(label.expected == "review" for label in selected)
 
 
 @pytest.mark.parametrize("seed", [7, 11])

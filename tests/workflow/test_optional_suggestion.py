@@ -31,16 +31,20 @@ class UnavailableSuggestion(ScriptedModel):
         raise ApplicationError("no suggestion", type=self.error_type, non_retryable=True)
 
 
+# Exhausting retries takes 15 s of real backoff, so only the file route runs it; the review
+# route takes the same failure path after choose, which the other three errors cover.
 @pytest.mark.parametrize(
-    "error_type,reason,attempts",
+    "route,error_type,reason,attempts",
     [
-        ("ParseError", "parse_error", 1),
-        ("BudgetExceeded", "budget_exceeded", 1),
-        ("ReplayMiss", "replay_miss", 1),
-        ("retryable", "retries_exhausted", 5),
+        ("file", "ParseError", "parse_error", 1),
+        ("file", "BudgetExceeded", "budget_exceeded", 1),
+        ("file", "ReplayMiss", "replay_miss", 1),
+        ("file", "retryable", "retries_exhausted", 5),
+        ("review", "ParseError", "parse_error", 1),
+        ("review", "BudgetExceeded", "budget_exceeded", 1),
+        ("review", "ReplayMiss", "replay_miss", 1),
     ],
 )
-@pytest.mark.parametrize("route", ["file", "review"])
 async def test_choose_failure_records_reason_and_preserves_rules_route(
     runtime, monkeypatch, error_type, reason, attempts, route
 ):

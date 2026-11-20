@@ -28,20 +28,21 @@ nothing and still went through the live gateway, the budget ledger and the kill 
 
 | Service | Memory limit | Peak | Peak CPU |
 | --- | --- | --- | --- |
-| temporal | 768 MB | 312 MB | 10% |
+| temporal | 768 MB | 310 MB | 24% |
 | postgres | 512 MB | 73 MB | 4% |
-| seaweedfs | 512 MB | 134 MB | 4% |
-| api | 512 MB | 232 MB | 24% |
-| worker | 768 MB | 233 MB | 15% |
-| reset (the service, idle) | 256 MB | 183 MB | 8% |
-| reset by hand (its own container) | 256 MB | 153 MB | 50% |
+| seaweedfs | 512 MB | 129 MB | 5% |
+| api | 512 MB | 260 MB | 19% |
+| worker | 768 MB | 276 MB | 17% |
+| reset (the service, idle) | 256 MB | 197 MB | 9% |
+| reset by hand (its own container) | 256 MB | 179 MB | 50% |
 
-The peaks add up to 1.3 GB against the 3.3 GB of limits. The `reset` service, at 72% of
-its 256 MB, is the closest to its limit; every other service stayed under half of its own. Every sample was accepted, with no 429 or 503. The 31 sent before
-the reset were deleted by it, as the reset is meant to do. Of the 29 sent after it, 10
-were filed by the rules, 18 were held and 1 was dismissed by a review action, and none
-failed. The reset terminated 28 open workflows and seeded 12 held documents. The ledger
-recorded $0.0038 for the run's answers at Haiku prices; the stand-in bills nothing.
+The peaks add up to 1.4 GB against the 3.3 GB of limits. The `reset` service, at 77% of
+its 256 MB, is the closest to its limit; the API is next, at 51% of its 512 MB. Every
+sample was accepted, with no 429 or 503. The 31 sent before the reset were deleted by it,
+as the reset is meant to do. Of the 29 sent after it, 10 were filed by the rules, 17 were
+held and 2 were dismissed by review actions, and none failed. The reset terminated 28 open
+workflows and seeded 12 held documents. The stand-in answered 111 model calls, and bills
+nothing.
 
 One reset run with `docker compose exec` inside the `reset` service, beside the service's
 own process, reached 255 MB of its 256 MB limit. The runbook therefore runs a reset by hand

@@ -34,7 +34,19 @@ def answer(body: dict) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
+    requests = 0
+
+    def do_GET(self):
+        # The load run asks how many calls were answered, to prove the worker used the stub.
+        reply = json.dumps({"requests": Handler.requests}).encode()
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(reply)))
+        self.end_headers()
+        self.wfile.write(reply)
+
     def do_POST(self):
+        Handler.requests += 1
         length = int(self.headers.get("content-length", "0"))
         body = json.loads(self.rfile.read(length))
         time.sleep(PAUSE_SECONDS)

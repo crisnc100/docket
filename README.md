@@ -209,18 +209,19 @@ have a memory and CPU limit, restart unless stopped, and rotate their logs:
 
 | Service | Memory limit | Peak in the load run |
 | --- | --- | --- |
-| `temporal`: the Temporal dev server, on a SQLite file ([ADR 009](docs/adr/009-hosting.md)) | 768 MB | 312 MB |
+| `temporal`: the Temporal dev server, on a SQLite file ([ADR 009](docs/adr/009-hosting.md)) | 768 MB | 310 MB |
 | `postgres` | 512 MB | 73 MB |
-| `seaweedfs`: the S3 store | 512 MB | 134 MB |
-| `api`, the only service with a published port, on `127.0.0.1` | 512 MB | 232 MB |
-| `worker`, the only service with the model key | 768 MB | 233 MB |
-| `reset`: the nightly reset at 08:00 UTC | 256 MB | 183 MB; 153 MB for a reset run by hand |
-| **Total** | **3.3 GB** | **1.3 GB** |
+| `seaweedfs`: the S3 store | 512 MB | 129 MB |
+| `api`, the only service with a published port, on `127.0.0.1` | 512 MB | 260 MB |
+| `worker`, the only service with the model key | 768 MB | 276 MB |
+| `reset`: the nightly reset at 08:00 UTC | 256 MB | 197 MB; 179 MB for a reset run by hand |
+| **Total** | **3.3 GB** | **1.4 GB** |
 
 `migrate` and `temporal-data-init` run once at start and exit. The load run
 (`scripts/load/beta_load.py`) sent 60 samples in 10 minutes from four addresses, with
-review actions and one reset, against a local stand-in for the model API.
-[ADR 009](docs/adr/009-hosting.md) has the details.
+review actions and one reset, against a local stand-in for the model API. It runs as
+its own Compose project, `docket-load`, on fresh volumes, and sends nothing until it has
+checked that the worker can reach only the stand-in. [ADR 009](docs/adr/009-hosting.md) has the details.
 
 Every command below runs in the release folder on the host. Compose reads the settings
 from `.env.beta` only through `--env-file .env.beta`. Without it, compose stops and names

@@ -137,8 +137,8 @@ The model suggestion cannot approve it for the reviewer.
 ## Hosted beta mode
 
 Beta mode is for a shared demo that visitors reach without a reviewer token.
-Local use is unchanged. The beta's deployment, sample documents, spending caps,
-kill switch and nightly reset are not built yet.
+Local use is unchanged. The beta's deployment, nightly reset and production compose
+file are not built yet.
 
 Set `DOCKET_ENV=beta` to turn it on. These settings apply:
 
@@ -183,6 +183,52 @@ then `uv run alembic stamp 690f4793dd3f` and `uv run alembic upgrade head`.
 **Review actions.** A dismiss reason must not be blank and has at most 300 characters.
 An approve must name one of the candidates the review page offers for that document.
 Both break the rule with 422.
+
+**Sample documents.** A visitor cannot upload, so the beta offers samples instead: the
+server makes one synthetic PDF of a case type the visitor picks and runs it through the
+normal pipeline with live model answers. The sender shows as "Sample generator". Two
+routes serve this, and both return 404 outside beta:
+
+- `GET /beta/samples` lists the case types with plain labels, and a `state` of `ready`,
+  `off` or `paused`.
+- `POST /beta/samples` takes `{"case_type": "<value from the list>"}` and returns the
+  new `document_id`. The server picks the random seed, so a visitor never chooses a file.
+
+Eleven case types are offered. Seven are left out: `corrupt`, `encrypted`, `zero_byte`
+and `non_pdf` always end rejected; `empty_text_layer` is the same file for every seed;
+`exact_duplicate` needs the document it copies; and `graded_evidence` has only about
+2,000 possible files, so seeds repeat. The list and the reasons are in `docket/corpus.py`.
+
+**Caps.** A send is refused when any of these holds:
+
+- Live answers are off: 503 with the message "Live answers are turned off right now."
+- Live answers are paused: 503. Today's spend plus the most one document can cost is
+  above `DOCKET_DAILY_BUDGET_USD`. The pause ends with the UTC day.
+- The address has sent 20 samples in the last 60 minutes: 429 with a `Retry-After`
+  header and a message naming the wait in whole minutes. The window rolls, so a slot
+  frees 60 minutes after the send that took it.
+- All 300 samples for the UTC day are sent: 429 with `Retry-After` set to the seconds
+  until midnight UTC.
+
+A refusal on either cap takes neither slot. A send that then fails at ingress keeps its
+slot. The counts live in the `sample_sends` and `sample_counts` tables, so they survive
+a restart.
+
+**Kill switch.** `docket beta-switch off` stops live model answers and
+`docket beta-switch on` resumes them. It writes one row to the `beta_flags` table, and
+it refuses to run unless `DOCKET_ENV=beta`. With no row, answers are on. Every process
+reads the row before each live model request, so no restart is needed. A document whose
+model call is stopped ends `failed` with the reason `budget_exceeded`, the same
+reason as an exhausted budget. A document already waiting for review stays reviewable.
+`docket spike-models` reads the switch too.
+
+**Request bodies.** `POST /reviewer/session`, `POST /beta/samples` and
+`POST /review/{id}/{action}` read their bodies as raw JSON text. A body that is not valid
+JSON of the right shape returns 422 with a fixed message that never repeats the input,
+in beta and in local mode.
+
+**Document trace.** `GET /documents/{id}` also returns `filename` and `sender`, so the
+review page can show a document that is not in the queue, such as a sample being read.
 
 **Startup refusals.** The API, the worker, `docket reconcile`, `docket eval` and
 `docket spike-models` exit before doing any work when the configuration is unsafe, and

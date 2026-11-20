@@ -4,10 +4,12 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
+    Integer,
     Numeric,
     String,
     UniqueConstraint,
@@ -92,3 +94,32 @@ class SigninFailure(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     address: Mapped[str] = mapped_column(String, index=True)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SampleCount(Base):
+    """Beta samples sent on one UTC day, from every address together."""
+
+    __tablename__ = "sample_counts"
+    __table_args__ = (CheckConstraint("count >= 0"),)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class SampleSend(Base):
+    """One beta sample sent from an address. The rows from the last 60 minutes count toward
+    that address's cap."""
+
+    __tablename__ = "sample_sends"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    address: Mapped[str] = mapped_column(String, index=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BetaFlag(Base):
+    """A beta switch that every process reads from the database, so changing it needs no
+    restart. A missing row means the switch is in its default position."""
+
+    __tablename__ = "beta_flags"
+    name: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

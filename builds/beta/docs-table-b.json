@@ -1,0 +1,177 @@
+{
+  "rows": [
+    {
+      "behavior": "Sample routes and case-type list",
+      "files": [
+        "docket/api.py",
+        "docket/beta_samples.py",
+        "docket/corpus.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "GET and POST /beta/samples return 404 outside beta",
+              "at": "docket/api.py:335"
+            },
+            {
+              "claim": "GET returns state and labelled case types",
+              "at": "docket/api.py:340"
+            },
+            {
+              "claim": "POST takes case_type, server picks seed, sender Sample generator",
+              "at": "docket/api.py:365"
+            },
+            {
+              "claim": "Seven case types excluded, with reasons",
+              "at": "docket/corpus.py:294"
+            },
+            {
+              "claim": "Eleven offered",
+              "at": "docket/corpus.py:303"
+            }
+          ]
+        },
+        {
+          "path": "README.md",
+          "claims": [
+            {
+              "claim": "Beta visitors send server-made samples within caps and behind a kill switch",
+              "at": "docket/api.py:350"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Caps and paused/off states",
+      "files": [
+        "docket/beta_samples.py",
+        "docket/api.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "20 per address in rolling 60 minutes",
+              "at": "docket/beta_samples.py:21"
+            },
+            {
+              "claim": "300 per UTC day",
+              "at": "docket/beta_samples.py:23"
+            },
+            {
+              "claim": "Off and paused answer 503, caps 429 with Retry-After",
+              "at": "docket/api.py:358"
+            },
+            {
+              "claim": "Paused when headroom is below one document's ceiling",
+              "at": "docket/beta_samples.py:115"
+            },
+            {
+              "claim": "Refusal takes neither slot",
+              "at": "docket/beta_samples.py:128"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Kill switch",
+      "files": [
+        "docket/cli.py",
+        "docket/db.py",
+        "docket/llm/gateway.py",
+        "docket/llm/anthropic.py",
+        "docket/llm/spike.py",
+        "docket/runtime.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "beta-switch on|off refuses outside beta",
+              "at": "docket/cli.py:277"
+            },
+            {
+              "claim": "No row means on",
+              "at": "docket/beta_samples.py:58"
+            },
+            {
+              "claim": "Read before each live request, ends budget_exceeded",
+              "at": "docket/llm/gateway.py:213"
+            },
+            {
+              "claim": "Transport also reads it",
+              "at": "docket/llm/anthropic.py:167"
+            },
+            {
+              "claim": "spike-models reads it in beta",
+              "at": "docket/llm/spike.py:52"
+            },
+            {
+              "claim": "Runtime wires it in beta",
+              "at": "docket/runtime.py:67"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Raw-body parsing with fixed 422s",
+      "files": [
+        "docket/api.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "Bodies parsed from raw bytes with a fixed message",
+              "at": "docket/api.py:96"
+            },
+            {
+              "claim": "Review action uses it",
+              "at": "docket/api.py:297"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "GET /documents/{id} adds filename and sender",
+      "files": [
+        "docket/api.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "Returns filename and sender",
+              "at": "docket/api.py:218"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Sample panel in the review page",
+      "files": [
+        "web/src/main.ts",
+        "web/src/style.css"
+      ],
+      "none": "DESIGN.md already describes the panel and matches main.ts; operations.md need not describe the UI."
+    },
+    {
+      "behavior": "A migration adds the sample_counts, sample_sends and beta_flags tables",
+      "files": [
+        "migrations/versions/c3d81f5a7e20_create_sample_counts_and_beta_flags.py"
+      ],
+      "none": "The tables back the caps and the kill switch that the operations doc already describes; their columns are internal."
+    }
+  ]
+}

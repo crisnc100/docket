@@ -1,14 +1,17 @@
+import asyncio
 import base64
 import binascii
+import json
+import secrets
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, RootModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowUpdateFailedError
@@ -24,7 +27,16 @@ from docket.beta import (
     session_cookie,
     session_value,
 )
+from docket.beta_samples import (
+    PAUSED,
+    SAMPLE_LABELS,
+    SAMPLE_SENDER,
+    TURNED_OFF,
+    SampleGate,
+    take_slot,
+)
 from docket.core.ledger import TERMINAL_STATUSES
+from docket.corpus import SAMPLE_CASE_TYPES, sample_document
 from docket.db import Document, DocumentSource, Event
 from docket.ingress import Ingress
 from docket.review_access import ReviewerAccess, reviewer_page
@@ -69,7 +81,26 @@ class InviteCode(BaseModel):
     code: str = Field(min_length=1, max_length=256)
 
 
+class ReviewBody(RootModel[dict[str, str]]):
+    pass
+
+
+class SampleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    case_type: str
+
+
 BETA_MAX_REASON = 300
+
+
+async def read_json[T: BaseModel](request: Request, model: type[T], message: str) -> T:
+    """Parse the raw body here, with one fixed message for every bad body. FastAPI's own 422
+    echoes the input, and an input holding a lone surrogate such as "\\ud800" cannot be
+    written into that JSON reply."""
+    try:
+        return model.model_validate(json.loads(await request.body()))
+    except (ValueError, RecursionError) as exc:
+        raise HTTPException(422, message) from exc
 
 
 def document_candidates(session: Session, document_id: uuid.UUID) -> set[str]:
@@ -93,6 +124,9 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         )
         app.state.rate_limit = RateLimit(app.state.runtime.settings.docket_webhook_rate_limit)
         app.state.ingress = Ingress(app.state.runtime, app.state.temporal)
+        settings = app.state.runtime.settings
+        beta = settings.docket_env == "beta"
+        app.state.sample_gate = SampleGate(app.state.runtime.engine, settings) if beta else None
         yield
         if runtime is None:
             app.state.runtime.close()
@@ -173,8 +207,16 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
             events = session.scalars(
                 select(Event).where(Event.document_id == document_id).order_by(Event.id)
             ).all()
+            received = next((event.detail for event in events if event.step == "received"), {})
+            source = session.scalar(
+                select(DocumentSource)
+                .where(DocumentSource.document_id == document_id)
+                .order_by(DocumentSource.id)
+            )
             return {
                 "document_id": str(document.id),
+                "filename": received.get("workflow_input", {}).get("filename", ""),
+                "sender": source.sender if source else "",
                 "status": document.status,
                 "reason": document.status_reason,
                 "record_id": document.record_id,
@@ -251,7 +293,8 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
             return {"items": items}
 
     @app.post("/review/{document_id}/{action}")
-    async def review(document_id: uuid.UUID, action: str, body: dict[str, str]):
+    async def review(document_id: uuid.UUID, action: str, request: Request):
+        body = (await read_json(request, ReviewBody, "Send the review decision as JSON text.")).root
         beta = app.state.runtime.settings.docket_env == "beta"
         with Session(app.state.runtime.engine) as session:
             document = session.get(Document, document_id)
@@ -289,6 +332,42 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
             raise HTTPException(409, "Duplicate, late or invalid review action") from exc
         return {"accepted": True}
 
+    def sample_gate() -> SampleGate:
+        if app.state.sample_gate is None:
+            raise HTTPException(404, "Not found")
+        return app.state.sample_gate
+
+    @app.get("/beta/samples", include_in_schema=False)
+    async def sample_options():
+        gate = sample_gate()
+        return {
+            "state": await asyncio.to_thread(gate.state),
+            "case_types": [
+                {"value": value, "label": SAMPLE_LABELS[value]} for value in SAMPLE_CASE_TYPES
+            ],
+        }
+
+    @app.post("/beta/samples", include_in_schema=False)
+    async def send_sample(request: Request):
+        gate = sample_gate()
+        body = await read_json(request, SampleRequest, "Send one case type from the list.")
+        if body.case_type not in SAMPLE_CASE_TYPES:
+            raise HTTPException(422, "Send one case type from the list.")
+        state = await asyncio.to_thread(gate.state)
+        if state != "ready":
+            raise HTTPException(503, TURNED_OFF if state == "off" else PAUSED)
+        address = client_address(request.scope, gate.settings)
+        refused = await asyncio.to_thread(take_slot, gate.engine, address)
+        if refused is not None:
+            text, wait = refused
+            raise HTTPException(429, text, headers={"Retry-After": str(wait)})
+        # A fresh seed from the server for every sample: a visitor never sends one.
+        sample = await asyncio.to_thread(sample_document, body.case_type, secrets.randbits(63))
+        document_id = await app.state.ingress.submit(
+            sample.content, sample.filename, source="sample", sender=SAMPLE_SENDER
+        )
+        return {"document_id": document_id}
+
     static = Path(__file__).resolve().parent.parent / "web" / "dist"
     app.mount("/assets", StaticFiles(directory=static / "assets", check_dir=False), name="assets")
     serve_home(app, static / "home")
@@ -299,29 +378,26 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         return reviewer_page(access="invite" if beta else "token")
 
     @app.post("/reviewer/session", include_in_schema=False)
-    def reviewer_session(request: Request, payload: dict[str, Any]):
+    async def reviewer_session(request: Request):
         settings = app.state.runtime.settings
         if settings.docket_env != "beta":
             raise HTTPException(404, "Not found")
-        # Validated here with fixed messages: FastAPI's own 422 echoes the input, and a lone
-        # surrogate such as "\ud800" cannot be written into that JSON reply.
-        try:
-            body = InviteCode.model_validate(payload)
-        except ValidationError as exc:
-            raise HTTPException(422, "Send one invite code as text.") from exc
+        body = await read_json(request, InviteCode, "Send one invite code as text.")
         if not encodes_as_utf8(body.code):
             raise HTTPException(422, "The code must be valid UTF-8 text")
+        engine = app.state.runtime.engine
         address = client_address(request.scope, settings)
-        attempt = reserve_attempt(app.state.runtime.engine, address)
+        attempt = await asyncio.to_thread(reserve_attempt, engine, address)
         if attempt is None:
+            wait = await asyncio.to_thread(retry_after, engine, address)
             raise HTTPException(
                 429,
                 "Too many wrong codes from this address. Try again later.",
-                headers={"Retry-After": str(retry_after(app.state.runtime.engine, address))},
+                headers={"Retry-After": str(wait)},
             )
         if not known_code(settings, body.code):
             raise HTTPException(401, "That invite code is not valid.")
-        release_attempt(app.state.runtime.engine, attempt)
+        await asyncio.to_thread(release_attempt, engine, attempt)
         return Response(
             status_code=204,
             headers={

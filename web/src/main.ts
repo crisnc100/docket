@@ -18,6 +18,8 @@ type ReviewItem = {
   suggested_record_id: string | null;
 };
 type Trace = {
+  filename: string;
+  sender: string;
   status: string;
   reason: string;
   record_id: string | null;
@@ -85,7 +87,12 @@ const queue = element('nav');
 queue.setAttribute('aria-label', 'Review queue');
 const detail = element('section');
 detail.setAttribute('aria-label', 'Document');
-layout.append(queue, detail);
+if (cookieAccess) {
+  const side = block('div', 'side', samplePanel(), queue);
+  layout.append(side, detail);
+} else {
+  layout.append(queue, detail);
+}
 app.append(header, message, layout);
 let items: ReviewItem[] = [];
 let selected: ReviewItem | undefined;
@@ -121,6 +128,10 @@ const TIER_WORDS: Record<string, string> = {
   strong: 'strong evidence',
   medium: 'some evidence',
   none: 'weak evidence, below the medium line',
+};
+// Plain-language versions of failure reasons a visitor can cause in the beta.
+const FAILED_BECAUSE: Record<string, string> = {
+  budget_exceeded: "Live answers stopped before this document finished. Today's budget ran out, or live answers were turned off.",
 };
 const short = (value: string | number) => Number(value).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
 
@@ -192,6 +203,18 @@ function outcome(trace: Trace, conflict: boolean) {
       element('strong', 'Filed'),
       element('p', trace.reason === 'review_approved' ? 'Approved by a reviewer.' : 'Filed by the rules: the clues agreed and the score reached the filing line.'));
   }
+  if (trace.status === 'received' || trace.status === 'processing') {
+    const reading = block('div', 'outcome', element('p', 'Docket is reading this document.'));
+    if (trace.reason) reading.append(block('p', 'code', `Reason: ${trace.reason}`));
+    return reading;
+  }
+  const plain = trace.status === 'failed' ? FAILED_BECAUSE[trace.reason] : undefined;
+  if (plain) {
+    return block('div', 'outcome',
+      element('strong', 'Not finished'),
+      element('p', plain),
+      block('p', 'code', `Reason: ${trace.reason}`));
+  }
   return block('div', 'outcome',
     element('strong', trace.status === 'dismissed' ? 'Dismissed' : 'Reason'),
     element('p', trace.reason || 'Processing'));
@@ -207,13 +230,13 @@ function pickCard(heading: string, note: string, id: string | null, empty: strin
 }
 function renderDocument(item: ReviewItem | undefined, trace: Trace, pdfUrl?: string) {
   detail.replaceChildren();
-  const head = block('div', 'doc-head', element('h2', item?.filename || 'Document'));
+  const head = block('div', 'doc-head', element('h2', item?.filename || trace.filename || 'Document'));
   const state = element('p', `Status: ${trace.status}`);
   state.dataset.testid = 'document-status';
   state.className = 'status' + (trace.status === 'needs_review' ? ' held' : trace.status === 'filed' ? ' filed' : '');
   head.append(state);
   const facts = block('div', 'facts');
-  if (item) facts.append(element('p', `Sender: ${item.sender || 'Unknown sender'}`));
+  facts.append(element('p', `Sender: ${item?.sender || trace.sender || 'Unknown sender'}`));
   if (trace.record_id) facts.append(block('p', '', 'Record: ', unit(trace.record_id)));
   head.append(facts);
   detail.append(head);
@@ -332,6 +355,101 @@ async function openDocument() {
 async function refresh() {
   items = (await request<{ items: ReviewItem[] }>('/review')).items;
   await openDocument();
+}
+type SampleOptions = { state: 'ready' | 'off' | 'paused'; case_types: { value: string; label: string }[] };
+const SAMPLE_STATES: Record<string, string> = {
+  off: 'Live answers are turned off right now.',
+  paused: 'Live answers are paused for today. Try again tomorrow.',
+};
+const OUTCOME_WORDS: Record<string, string> = {
+  filed: 'The sample was filed by the rules.',
+  needs_review: 'The sample is waiting for review in the queue.',
+  rejected: 'The sample was rejected.',
+};
+
+// The beta's only way in for a document: the server makes a synthetic PDF of the chosen case
+// type and runs it with live model answers. The visitor sends nothing but the case type.
+function samplePanel() {
+  const panel = block('section', 'sample');
+  panel.setAttribute('aria-labelledby', 'sample-title');
+  const title = element('h2', 'Try a sample');
+  title.id = 'sample-title';
+  const note = block('p', 'sample-note',
+    'Docket makes a synthetic PDF of the kind you pick and runs it with live model answers.');
+  const label = element('label', 'Kind of document');
+  const kinds = element('select');
+  kinds.disabled = true;
+  label.append(kinds);
+  const send = element('button', 'Send a sample document');
+  send.type = 'button';
+  send.disabled = true;
+  const state = block('p', 'sample-state');
+  state.setAttribute('role', 'status');
+  const shared = block('p', 'sample-note',
+    'Everyone with an invite shares one queue, and anyone can settle any document. It resets every night.');
+  panel.append(title, note, label, send, state, shared);
+
+  let ready = false;
+  const settle = (canSend: boolean, text: string) => {
+    ready = canSend;
+    send.disabled = kinds.disabled = !canSend;
+    send.textContent = 'Send a sample document';
+    state.textContent = text;
+  };
+  void request<SampleOptions>('/beta/samples').then(options => {
+    kinds.replaceChildren(...options.case_types.map(item => new Option(item.label, item.value)));
+    settle(options.state === 'ready', SAMPLE_STATES[options.state] || '');
+  }).catch(() => {
+    // With no list there is nothing to pick or send, so only the status line remains.
+    label.hidden = send.hidden = true;
+    settle(false, 'Samples could not be loaded. Reload the page to try again.');
+  });
+
+  send.addEventListener('click', () => {
+    if (!ready) return;
+    void sendSample(kinds.value, send, kinds, state)
+      .then(result => settle(result.canSend, result.text))
+      .catch(() => settle(true, 'The sample could not be sent. Try again.'));
+  });
+  return panel;
+}
+async function sendSample(caseType: string, send: HTMLButtonElement, kinds: HTMLSelectElement, state: HTMLElement) {
+  send.disabled = kinds.disabled = true;
+  send.textContent = 'Sending…';
+  state.textContent = '';
+  const response = await authorizedFetch('/beta/samples', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ case_type: caseType }),
+  });
+  const body = await response.json().catch(() => ({}));
+  const detail = typeof body.detail === 'string' ? body.detail : '';
+  if (response.status === 503) return { canSend: false, text: detail || SAMPLE_STATES.paused };
+  if (!response.ok) return { canSend: true, text: detail || 'The sample could not be sent. Try again.' };
+  const id = String(body.document_id);
+  state.textContent = 'Sample sent. Docket is reading it…';
+  window.location.hash = id;
+  // From here the sample exists, so no error below may suggest sending it again.
+  try {
+    for (let attempt = 0; attempt < 240; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const trace = await request<Trace>(`/documents/${id}`);
+      if (['received', 'processing'].includes(trace.status)) continue;
+      await refreshAfterSample(id);
+      const failed = trace.status === 'failed' ? FAILED_BECAUSE[trace.reason] : undefined;
+      return { canSend: true, text: OUTCOME_WORDS[trace.status] || failed || `The sample ended ${trace.status}.` };
+    }
+    return { canSend: true, text: 'The sample is still being read. Refresh the queue to check on it.' };
+  } catch {
+    return { canSend: true, text: 'The sample was sent. Refresh the queue to see it.' };
+  }
+}
+// The visitor may have moved on to review another document while the sample was read, so only
+// the queue is redrawn; the open document is redrawn only when it is the sample, which keeps a
+// half-written dismiss reason or a picked candidate.
+async function refreshAfterSample(id: string) {
+  items = (await request<{ items: ReviewItem[] }>('/review')).items;
+  if (documentId() === id) await openDocument();
+  else renderQueue();
 }
 window.addEventListener('hashchange', () => { void openDocument().catch(showError); });
 void refresh().catch(showError);

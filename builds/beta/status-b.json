@@ -1,0 +1,46 @@
+{
+  "s1": {
+    "status": "fixed",
+    "response": "real"
+  },
+  "x1": {
+    "status": "deferred",
+    "reason": "A database error while the transport reads the kill switch keeps that call's budget reservation, so later samples can pause a little early the same day. It fails closed and needs a database fault mid-call. Nothing is deployed until PR C; fixed first in PR C. Tracked in builds/beta/plan.md, PR C carry-ins.",
+    "fix": "Release the reservation when the switch read itself fails before any HTTP request."
+  },
+  "x2": {
+    "status": "deferred",
+    "reason": "operations.md says every sample gets live answers; the sample route inherits the configured model mode (replay is allowed in beta) and a document with no candidates makes no model call. Docs only, nothing deployed. Nothing is deployed until PR C; fixed first in PR C. Tracked in builds/beta/plan.md, PR C carry-ins.",
+    "fix": "Say samples use the configured model mode (live on the hosted beta) and that some case types never reach the model; consider pinning samples to live in beta."
+  },
+  "x3": {
+    "status": "deferred",
+    "reason": "operations.md says a stopped model call always ends failed/budget_exceeded; a stopped choose call becomes a missing suggestion and the document still files or is held. Docs only. Nothing is deployed until PR C; fixed first in PR C. Tracked in builds/beta/plan.md, PR C carry-ins.",
+    "fix": "Say a stopped classify call ends the document failed/budget_exceeded, and a stopped choose call leaves it without a suggestion."
+  },
+  "x4": {
+    "status": "deferred",
+    "reason": "operations.md gives the budget pause a fixed end at UTC midnight; headroom is recomputed per request and can return the same day, or stay paused if the limit is below one document's ceiling. Docs only. Nothing is deployed until PR C; fixed first in PR C. Tracked in builds/beta/plan.md, PR C carry-ins.",
+    "fix": "Describe the pause as lasting until enough of today's budget is free, normally until the UTC day changes."
+  },
+  "x5": {
+    "status": "deferred",
+    "reason": "After a sample settles with no document selected, the queue shows the new item while the pane still says Nothing waiting. Cosmetic, recovers on the next click or refresh. Nothing is deployed until PR C; fixed first in PR C. Tracked in builds/beta/plan.md, PR C carry-ins.",
+    "fix": "Re-render the pane when nothing is selected, as well as when the sample is open."
+  },
+  "x6": {
+    "status": "deferred",
+    "reason": "operations.md says all three routes give a fixed 422 in both modes; in local mode the sample and sign-in routes return 404 first. Docs only. Nothing is deployed until PR C; fixed first in PR C. Tracked in builds/beta/plan.md, PR C carry-ins.",
+    "fix": "Say the fixed 422 applies in both modes on review actions, and in beta on sign-in and samples."
+  },
+  "x7": {
+    "status": "deferred",
+    "reason": "The PR B context brief says both cap refusals name the wait in minutes; only the address cap does, and the day cap says try again tomorrow. Build file only. Nothing is deployed until PR C; fixed first in PR C. Tracked in builds/beta/plan.md, PR C carry-ins.",
+    "fix": "Correct the brief's mechanism text."
+  },
+  "x8": {
+    "status": "deferred",
+    "reason": "The PR B context brief places the case-type derivation in beta_samples.py; it lives in corpus.py:294-303. Build file only. Nothing is deployed until PR C; fixed first in PR C. Tracked in builds/beta/plan.md, PR C carry-ins.",
+    "fix": "Correct the brief's mechanism text."
+  }
+}

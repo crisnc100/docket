@@ -259,3 +259,26 @@ def status(document_id: str = typer.Argument(...), api_url: str = "http://127.0.
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(json.dumps(response.json(), indent=2))
+
+
+@app.command("beta-switch")
+def beta_switch(position: str = typer.Argument(..., metavar="on|off")) -> None:
+    """Turn the hosted beta's live model answers on or off. Running processes read the switch
+    before every live call, so no restart is needed."""
+    from sqlalchemy import create_engine
+
+    from docket.beta_samples import set_live_answers
+    from docket.settings import Settings
+
+    if position not in {"on", "off"}:
+        raise typer.BadParameter("Use on or off.", param_hint="position")
+    settings = Settings()
+    if settings.docket_env != "beta":
+        typer.echo("beta-switch works only with DOCKET_ENV=beta.", err=True)
+        raise typer.Exit(1)
+    engine = create_engine(settings.database_url)
+    try:
+        set_live_answers(engine, position == "on")
+    finally:
+        engine.dispose()
+    typer.echo(f"Live answers are {position}.")

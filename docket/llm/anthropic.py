@@ -25,7 +25,7 @@ import anthropic
 import httpx2
 from pydantic import BaseModel
 
-from docket.llm.errors import MaybeBilled, NotSent
+from docket.llm.errors import BudgetExceeded, MaybeBilled, NotSent
 from docket.settings import Settings
 
 type OutputModeName = Literal["json_schema", "json_prompt"]
@@ -112,6 +112,9 @@ class AnthropicTransport:
         self.max_output_tokens = max_output_tokens
         self.mode = mode
         self.clock = clock
+        # The beta's kill switch, set by the gateway. It is read before every request,
+        # including the resend in the other output mode after a schema refusal.
+        self.live_allowed: Callable[[], bool] | None = None
         self._client = anthropic.AsyncAnthropic(
             api_key=key,
             max_retries=0,
@@ -161,6 +164,8 @@ class AnthropicTransport:
             return await self._send(prompt, schema, system_prompt)
 
     async def _send(self, prompt: str, schema: type[BaseModel], system_prompt: str) -> Reply:
+        if self.live_allowed is not None and not self.live_allowed():
+            raise BudgetExceeded("Live answers are turned off")
         mode = self.mode.current
         started = self.clock()
         try:

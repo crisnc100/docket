@@ -315,8 +315,9 @@ Docker builds, the saved-answer archive and secret scanning.
 They also replay seed 11 and compare it with the saved results, without a model call.
 
 `./verify.sh --step lint|web|eval|secrets` runs one part of these checks. GitHub Actions runs the
-parts and the test suite as parallel jobs, as [verify.yml](.github/workflows/verify.yml) shows;
-the two commands above run everything on one machine.
+parts and the test suite as parallel jobs, as [verify.yml](.github/workflows/verify.yml) shows.
+Pull requests skip the fault suite; pushes to main, the nightly run and manual runs include it.
+The two commands above run everything on one machine.
 
 - [Product brief](docs/product-brief.md): users, scope and measures.
 - [Decision records](docs/adr/README.md): choices and measured limits.

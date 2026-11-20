@@ -5,9 +5,7 @@ from decimal import Decimal
 
 import httpx2
 from pydantic import SecretStr
-from typer.testing import CliRunner
 
-from docket.cli import app
 from docket.llm import spike as spike_module
 from docket.llm.anthropic import AnthropicTransport, OutputMode
 from docket.settings import Settings
@@ -16,19 +14,6 @@ ADR = (
     "# ADR 008\n\nStatus: accepted; predictions committed.\n\n## Predictions\n\nP1.\n\n"
     "## Spike\n\nPending.\n\n## Result\n\nPending the live pass.\n"
 )
-
-
-def test_spike_command_without_anthropic_key_makes_no_calls(monkeypatch):
-    monkeypatch.setenv("DOCKET_MODEL_PROVIDER", "anthropic")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
-
-    def forbidden(*args, **kwargs):
-        raise AssertionError("no spike may run without a key")
-
-    monkeypatch.setattr("docket.llm.spike.spike", forbidden)
-    result = CliRunner().invoke(app, ["spike-models"])
-    assert result.exit_code == 0
-    assert "PENDING: ANTHROPIC_API_KEY is not set; no live calls made." in result.stdout
 
 
 async def test_anthropic_spike_makes_two_calls_on_a_five_cent_budget(

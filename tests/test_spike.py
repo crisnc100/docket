@@ -1,16 +1,33 @@
+import pytest
 from typer.testing import CliRunner
 
 from docket.cli import app
 from docket.llm.spike import FirstEnum, SecondEnum
 
 
-def test_spike_command_without_key_makes_no_calls(monkeypatch):
-    monkeypatch.setenv("DOCKET_MODEL_PROVIDER", "openrouter")
-    monkeypatch.setenv("OPENROUTER_API_KEY", "")
+@pytest.mark.parametrize(
+    "provider,key,expected",
+    [
+        ("openrouter", "OPENROUTER_API_KEY", ["PENDING", "no live calls"]),
+        (
+            "anthropic",
+            "ANTHROPIC_API_KEY",
+            ["PENDING: ANTHROPIC_API_KEY is not set; no live calls made."],
+        ),
+    ],
+)
+def test_spike_command_without_key_makes_no_calls(monkeypatch, provider, key, expected):
+    monkeypatch.setenv("DOCKET_MODEL_PROVIDER", provider)
+    monkeypatch.setenv(key, "")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("no spike may run without a key")
+
+    monkeypatch.setattr("docket.llm.spike.spike", forbidden)
     result = CliRunner().invoke(app, ["spike-models"])
     assert result.exit_code == 0
-    assert "PENDING" in result.stdout
-    assert "no live calls" in result.stdout
+    for text in expected:
+        assert text in result.stdout
 
 
 def test_spike_schemas_have_distinct_per_call_enums():

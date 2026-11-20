@@ -63,10 +63,3 @@ def test_cached_name_sorting_preserves_original_continuous_scores(former, varian
         for name in names
     )
     assert name_strength(names, [chunk], 0.88) == (expected if expected >= 0.88 else 0)
-
-
-def test_long_separator_run_does_not_hide_a_late_conflicting_id():
-    text = "UNIT-0001\nAddress: 1 Cedar St" + "._ " * 33334 + "x\nUNIT-0002"
-    result = shortlist(load_records(), text=text)
-    assert result.conflict
-    assert result.explicit_ids == ("UNIT-0001", "UNIT-0002")

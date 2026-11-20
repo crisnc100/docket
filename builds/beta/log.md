@@ -22,3 +22,4 @@ Choices made while building, and why.
 ## Filed for the PR
 
 - **No startup refusal for `DOCKET_BASE_URL`.** If it is missing, no origin matches, so every POST is refused, sign-in included. The gate fails closed without a new rule.
+- **Pruning the lockout rows (PR C).** The nightly reset should delete `signin_failures` rows that are more than an hour old. It should not reset a count. Each counted attempt is a row, and the window rolls.

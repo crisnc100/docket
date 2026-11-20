@@ -51,6 +51,10 @@ RETRY_SECONDS = 300
 log = logging.getLogger(__name__)
 
 
+class IncompleteQueue(RuntimeError):
+    """The reseeded documents did not all end held for review."""
+
+
 def reset_status(engine: Engine) -> tuple[bool, int | None]:
     """Whether a reset is running, and the seconds since the last one finished."""
     with Session(engine) as session:
@@ -218,6 +222,9 @@ async def reset(
     await asyncio.to_thread(prune_counters, engine)
     ids = await reseed(runtime, temporal)
     statuses = await settled(engine, ids, settle_timeout)
+    if statuses != {"needs_review": len(STARTING_QUEUE)}:
+        # The flag stays set, so the catch-up runs the whole reset again.
+        raise IncompleteQueue(f"The starting queue did not settle as held: {statuses}")
     set_flag(engine, RESETTING, False)
     return {"terminated": len(documents), "objects_removed": removed, "seeded": statuses}
 

@@ -352,3 +352,24 @@ async def test_a_sample_past_the_state_check_is_refused_at_ingress_during_a_rese
         response = await http.post("/beta/samples", json={"case_type": "clean"}, headers=visitor())
     assert response.status_code == 503 and response.json() == {"detail": RESET_RUNNING}
     assert statuses(beta_runtime.engine) == []
+
+
+async def test_a_reset_whose_queue_does_not_all_end_held_fails_and_keeps_the_flag(
+    postgres_engine, monkeypatch
+):
+    async def no_workflows(temporal, documents):
+        pass
+
+    async def short_queue(runtime, temporal):
+        return []
+
+    async def one_failed(engine, ids, timeout):
+        return {"failed": 1, "needs_review": 11}
+
+    monkeypatch.setattr(beta_reset, "close_workflows", no_workflows)
+    monkeypatch.setattr(beta_reset, "empty_bucket", lambda runtime: 0)
+    monkeypatch.setattr(beta_reset, "reseed", short_queue)
+    monkeypatch.setattr(beta_reset, "settled", one_failed)
+    with pytest.raises(beta_reset.IncompleteQueue, match="did not settle"):
+        await reset(cast(Runtime, EngineOnly(postgres_engine)), cast(Client, None))
+    assert beta_reset.reset_record(postgres_engine) == (True, None)

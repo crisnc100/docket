@@ -5,12 +5,14 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from docket.activities import Activities
+from docket.beta import refuse_unsafe_start
 from docket.runtime import Runtime
 from docket.workflows import FileDocumentWorkflow
 
 
 async def run_worker(runtime: Runtime | None = None) -> None:
     runtime = runtime or Runtime()
+    refuse_unsafe_start(runtime.settings)
     runtime.ensure_bucket()
     client = await Client.connect(runtime.settings.temporal_address)
     activities = Activities(runtime)

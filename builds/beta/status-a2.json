@@ -1,0 +1,4 @@
+{
+  "x1": {"status": "deferred", "reason": "Two hand-made malformed sign-in bodies (a non-object JSON body holding a lone surrogate, or a non-JSON content type) get 500 instead of 422. It fails closed: no cookie is set and no attempt is counted. Nothing is deployed until PR C. Tracked in builds/beta/plan.md, PR B carry-ins.", "fix": "Read the sign-in body as raw bytes and validate it in the handler, so FastAPI never echoes it."},
+  "x2": {"status": "deferred", "reason": "Needs the app served under a /home root_path. The planned deploy serves it at the site root through Caddy, with no root_path, and nothing is deployed until PR C. Tracked in builds/beta/plan.md, PR C (beta refuses to start or answer with a non-empty root_path).", "fix": "In beta, refuse any request whose scope root_path is not empty, and add that to the startup refusals."}
+}

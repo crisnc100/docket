@@ -14,7 +14,11 @@ class BodyLimit:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if scope["type"] != "http" or scope["path"] not in {"/inbound", "/documents"}:
+        # The router also matches these paths with one trailing line feed.
+        if scope["type"] != "http" or scope["path"].removesuffix("\n") not in {
+            "/inbound",
+            "/documents",
+        }:
             return await self.app(scope, receive, send)
         headers = dict(scope["headers"])
         try:

@@ -18,10 +18,13 @@ def spike_models() -> None:
     """Check the configured model's per-call enums: two live calls (Anthropic budget $0.05)."""
     from pathlib import Path
 
+    from docket.beta import refuse_unsafe_start
     from docket.llm import spike as spike_module
     from docket.settings import Settings
 
     settings = Settings()
+    # The spike always calls the model live, whatever DOCKET_MODEL_MODE says.
+    refuse_unsafe_start(settings.model_copy(update={"docket_model_mode": "live"}))
     anthropic = settings.docket_model_provider == "anthropic"
     name = "ANTHROPIC_API_KEY" if anthropic else "OPENROUTER_API_KEY"
     if not settings.api_key().get_secret_value():
@@ -140,11 +143,13 @@ def reconcile(older_than_minutes: float = 5) -> None:
 
     from temporalio.client import Client
 
+    from docket.beta import refuse_unsafe_start
     from docket.ingress import Ingress
     from docket.runtime import Runtime
 
     async def run():
         runtime = Runtime()
+        refuse_unsafe_start(runtime.settings)
         try:
             client = await Client.connect(runtime.settings.temporal_address)
             typer.echo(await Ingress(runtime, client).reconcile(older_than_minutes))
@@ -160,8 +165,12 @@ def eval_command(seed: int = 11, mode: str = "replay", budget: str = "2.00") -> 
     import asyncio
     from decimal import Decimal
 
+    from docket.beta import refuse_unsafe_start
     from docket.evaluation import evaluate, write_report
+    from docket.settings import Settings
 
+    # --mode decides how this run calls the model, so that is the mode to check.
+    refuse_unsafe_start(Settings().model_copy(update={"docket_model_mode": mode}))
     report = asyncio.run(evaluate(seed, mode, Decimal(budget)))
     path = write_report(report)
     typer.echo(f"{report['status']}: {path}")

@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     openrouter_api_key: SecretStr = SecretStr("")
     anthropic_api_key: SecretStr = SecretStr("")
     docket_review_token: SecretStr | None = None
+    # "beta" is the shared hosted demo: an invite-code sign-in replaces the reviewer token.
+    docket_env: Literal["local", "beta"] = "local"
+    docket_invite_codes: SecretStr = SecretStr("")
+    docket_session_key: SecretStr = SecretStr("")
+    # Set only behind a proxy that appends the client address to X-Forwarded-For.
+    docket_trust_proxy: bool = False
+    docket_base_url: str = ""
     docket_webhook_secret: SecretStr = SecretStr("")
     docket_webhook_rate_limit: int = Field(default=60, gt=0)
     # The defaults replay the live answers recorded from Haiku 5.5 on the Anthropic API.

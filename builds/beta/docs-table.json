@@ -1,0 +1,277 @@
+{
+  "rows": [
+    {
+      "behavior": "Beta settings DOCKET_ENV, DOCKET_INVITE_CODES, DOCKET_SESSION_KEY, DOCKET_TRUST_PROXY, DOCKET_BASE_URL",
+      "files": [
+        "docket/settings.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "Five settings; env is local or beta, local is the default",
+              "at": "docket/settings.py:23"
+            },
+            {
+              "claim": "Codes comma-separated",
+              "at": "docket/beta.py:37"
+            },
+            {
+              "claim": "Trust proxy reads the last X-Forwarded-For hop",
+              "at": "docket/beta.py:131"
+            }
+          ]
+        },
+        {
+          "path": "README.md",
+          "claims": [
+            {
+              "claim": "DOCKET_ENV=beta switches to invite-code sessions",
+              "at": "docket/settings.py:23"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Beta sign-in, session cookie, seven-day expiry, removed code ends session, Bearer refused",
+      "files": [
+        "docket/beta.py",
+        "docket/api.py",
+        "docket/review_access.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "Cookie name __Host-docket_session; HttpOnly, Secure, SameSite=Strict",
+              "at": "docket/beta.py:116"
+            },
+            {
+              "claim": "Cookie holds issue time and keyed hash, never the code",
+              "at": "docket/beta.py:88"
+            },
+            {
+              "claim": "Refused after seven days",
+              "at": "docket/beta.py:21"
+            },
+            {
+              "claim": "Refused once its code is removed",
+              "at": "docket/beta.py:107"
+            },
+            {
+              "claim": "Bearer token grants nothing in beta",
+              "at": "docket/review_access.py:166"
+            },
+            {
+              "claim": "POST /reviewer/session takes JSON code and sets the cookie",
+              "at": "docket/api.py:290"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Beta public routes, 401 form at /reviewer, closed writes, origin check, 16 KB body cap",
+      "files": [
+        "docket/review_access.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "Four routes open without a session",
+              "at": "docket/review_access.py:71"
+            },
+            {
+              "claim": "Others return 401; GET /reviewer shows the invite form",
+              "at": "docket/review_access.py:171"
+            },
+            {
+              "claim": "Non-GET needs matching Origin, else 403",
+              "at": "docket/review_access.py:175"
+            },
+            {
+              "claim": "Unset base URL fails every POST",
+              "at": "docket/beta.py:142"
+            },
+            {
+              "claim": "POST /documents and /inbound 403 before body is read",
+              "at": "docket/review_access.py:177"
+            },
+            {
+              "claim": "16 KB body cap",
+              "at": "docket/review_access.py:21"
+            }
+          ]
+        },
+        {
+          "path": "README.md",
+          "claims": [
+            {
+              "claim": "Only front page, health check and sign-in stay open; visitors cannot upload",
+              "at": "docket/review_access.py:71"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Sign-in lockout stored in signin_failures",
+      "files": [
+        "docket/beta.py",
+        "docket/db.py",
+        "migrations/versions/b7e2c41a9d05_create_signin_failures.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "Once an address has 10 wrong codes in the last 60 minutes, its next attempt gets 429 with Retry-After",
+              "at": "docket/beta.py:28"
+            },
+            {
+              "claim": "Attempts are rows; a right code deletes its row",
+              "at": "docket/beta.py:188"
+            },
+            {
+              "claim": "Count lives in Postgres",
+              "at": "docket/db.py:88"
+            },
+            {
+              "claim": "Last forwarded hop is the address",
+              "at": "docket/beta.py:133"
+            },
+            {
+              "claim": "429 carries Retry-After",
+              "at": "docket/api.py:300"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Startup refusals on an unsafe beta config in every process",
+      "files": [
+        "docket/beta.py",
+        "docket/worker.py",
+        "docket/cli.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "Each listed refusal",
+              "at": "docket/beta.py:44"
+            },
+            {
+              "claim": "Placeholder check reads .env.beta.example, which is absent until PR C",
+              "at": "docket/beta.py:19"
+            },
+            {
+              "claim": "API runs the check at startup",
+              "at": "docket/api.py:79"
+            },
+            {
+              "claim": "Worker runs it",
+              "at": "docket/worker.py:14"
+            },
+            {
+              "claim": "reconcile runs it",
+              "at": "docket/cli.py:152"
+            },
+            {
+              "claim": "eval checks its --mode",
+              "at": "docket/cli.py:173"
+            },
+            {
+              "claim": "spike-models checked as live",
+              "at": "docket/cli.py:27"
+            },
+            {
+              "claim": "Messages exclude secrets",
+              "at": "docket/beta.py:43"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Review actions: unknown action 409, NUL reason 422 in both modes; beta reason cap and candidate-only approve",
+      "files": [
+        "docket/api.py"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "Unknown action returns 409",
+              "at": "docket/api.py:255"
+            },
+            {
+              "claim": "NUL in dismiss reason returns 422",
+              "at": "docket/api.py:258"
+            },
+            {
+              "claim": "Blank reason refused in beta",
+              "at": "docket/api.py:259"
+            },
+            {
+              "claim": "300-character cap",
+              "at": "docket/api.py:261"
+            },
+            {
+              "claim": "Approve must be a candidate",
+              "at": "docket/api.py:266"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "Entry page serves token or invite-code form",
+      "files": [
+        "web/login.html",
+        "web/src/main.ts"
+      ],
+      "none": "Behavior is covered by the sign-in rows; the page's own comments explain the two modes (web/login.html access constant, web/src/main.ts cookieAccess)."
+    },
+    {
+      "behavior": "Front page hosted-beta line",
+      "files": [
+        "web/public/home/index.html"
+      ],
+      "none": "One line of page copy; no doc describes it."
+    },
+    {
+      "behavior": "Beta browser test reaches a secure context",
+      "files": [
+        "web/playwright.config.ts"
+      ],
+      "docs": [
+        {
+          "path": "docs/operations.md",
+          "claims": [
+            {
+              "claim": "Beta test joins the beta API container's network so the Secure cookie works on localhost",
+              "at": "tests/browser/test_beta_browser.py:3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "behavior": "The local 10 MB body limit also covers a path ending in a line feed",
+      "files": [
+        "docket/webhook.py"
+      ],
+      "none": "It hardens an existing limit; what the limit is and which routes it covers are unchanged, so no doc claim changes."
+    }
+  ]
+}

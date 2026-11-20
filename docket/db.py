@@ -82,3 +82,13 @@ class BudgetLedger(Base):
     __table_args__ = (CheckConstraint("spent_usd >= 0"),)
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     spent_usd: Mapped[Decimal] = mapped_column(Numeric(18, 9), nullable=False)
+
+
+class SigninFailure(Base):
+    """One beta sign-in attempt. A right code deletes its row, so the rows left in the last
+    hour are the wrong codes that count toward the lockout."""
+
+    __tablename__ = "signin_failures"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    address: Mapped[str] = mapped_column(String, index=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

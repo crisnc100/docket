@@ -1,4 +1,4 @@
-"""Create beta sign-in failure counts"""
+"""Create beta sign-in attempts"""
 
 import sqlalchemy as sa
 from alembic import op
@@ -12,13 +12,18 @@ depends_on = None
 def upgrade():
     op.create_table(
         "signin_failures",
+        sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("address", sa.String(), nullable=False),
-        sa.Column("hour", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("failures", sa.Integer(), nullable=False),
-        sa.CheckConstraint("failures >= 0"),
-        sa.PrimaryKeyConstraint("address", "hour"),
+        sa.Column(
+            "at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_signin_failures_address"), "signin_failures", ["address"], unique=False
     )
 
 
 def downgrade():
+    op.drop_index(op.f("ix_signin_failures_address"), table_name="signin_failures")
     op.drop_table("signin_failures")

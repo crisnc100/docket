@@ -16,6 +16,7 @@ from pathlib import Path
 import httpx
 import pytest
 from pydantic import SecretStr
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.routing import Mount
 
@@ -592,3 +593,126 @@ def test_commands_that_can_spend_refuse_an_unsafe_beta_config(command, monkeypat
     monkeypatch.setenv("DOCKET_ENV", "local")
     local = CliRunner().invoke(app, command)
     assert isinstance(local.exception, AssertionError), local.output
+
+
+# Review fix round: s1 to s4
+
+
+@pytest.mark.parametrize("mode", ["beta", "local"])
+async def test_unknown_actions_and_nul_reasons_never_reach_temporal(mode, postgres_engine):
+    document = held_document(postgres_engine)
+    token = secrets.token_hex(16)
+    if mode == "beta":
+        settings, headers = beta_settings(), signed_in()
+    else:
+        settings = Settings(_env_file=None, docket_review_token=SecretStr(token))
+        headers = {"Authorization": "Bearer " + token}
+    async with beta_client(settings, postgres_engine) as (http, _, temporal, _):
+        base = f"/review/{document}"
+        for action, body, status in [
+            ("reject", {"reason": "x" * 5000}, 409),
+            ("Approve", {"record_id": "UNIT-0001"}, 409),
+            ("dismiss", {"reason": "spam\x00"}, 422),
+        ]:
+            response = await http.post(f"{base}/{action}", json=body, headers=headers)
+            assert response.status_code == status, (action, response.text)
+        assert temporal.updates == []
+
+
+async def test_beta_refuses_a_blank_dismiss_reason_before_temporal(postgres_engine):
+    document = held_document(postgres_engine)
+    async with beta_client(engine=postgres_engine) as (http, _, temporal, _):
+        for body in [{"reason": "   "}, {}]:
+            response = await http.post(
+                f"/review/{document}/dismiss", json=body, headers=signed_in()
+            )
+            assert response.status_code == 422, body
+        assert temporal.updates == []
+
+
+def beta_environment(monkeypatch, **extra):
+    for key, value in {
+        "DOCKET_ENV": "beta",
+        "DOCKET_INVITE_CODES": CODE,
+        "DOCKET_SESSION_KEY": KEY,
+        "DOCKET_TRUST_PROXY": "1",
+        "DOCKET_BASE_URL": BASE,
+        "DOCKET_DAILY_BUDGET_USD": "1.00",
+        "DOCKET_MODEL_MODE": "replay",
+        "ANTHROPIC_API_KEY": "set",
+    }.items() | extra.items():
+        monkeypatch.setenv(key, value)
+
+
+@pytest.mark.parametrize("mode", ["record", "export", "import"])
+def test_eval_checks_the_mode_it_will_run_not_the_environment(mode, monkeypatch):
+    from typer.testing import CliRunner
+
+    from docket import evaluation
+    from docket.cli import app
+
+    runs = []
+    monkeypatch.setattr(evaluation, "evaluate", lambda *args: runs.append(args) or 1 / 0)
+    beta_environment(monkeypatch)
+    result = CliRunner().invoke(app, ["eval", "--mode", mode])
+    assert result.exit_code == 1
+    assert "DOCKET_MODEL_MODE must be live or replay in beta." in result.output
+    assert runs == []
+    allowed = CliRunner().invoke(app, ["eval", "--mode", "replay"])
+    assert len(runs) == 1 and isinstance(allowed.exception, ZeroDivisionError)
+
+
+def test_spike_models_is_checked_as_the_live_run_it_is(monkeypatch):
+    from typer.testing import CliRunner
+
+    from docket.cli import app
+    from docket.llm import spike
+
+    runs = []
+    monkeypatch.setattr(spike, "spike", lambda *args: runs.append(args) or "ran")
+    beta_environment(monkeypatch, DOCKET_MODEL_MODE="record")
+    result = CliRunner().invoke(app, ["spike-models"])
+    assert result.exit_code == 0, result.output
+    assert len(runs) == 1
+    monkeypatch.setenv("DOCKET_DAILY_BUDGET_USD", "5")
+    refused = CliRunner().invoke(app, ["spike-models"])
+    assert refused.exit_code == 1 and len(runs) == 1
+
+
+def counted_attempts(engine, address: str, minutes_ago: list[int]) -> None:
+    with Session(engine) as session, session.begin():
+        for minutes in minutes_ago:
+            session.execute(
+                text(
+                    "insert into signin_failures (address, at) "
+                    "values (:address, now() - make_interval(mins => :minutes))"
+                ),
+                {"address": address, "minutes": minutes},
+            )
+
+
+async def test_the_lockout_window_rolls_across_the_clock_hour(postgres_engine):
+    # Ten wrong codes spread over the last 55 minutes, so a new clock hour has likely begun.
+    counted_attempts(postgres_engine, "203.0.113.20", [55, 50, 45, 40, 35, 30, 25, 20, 15, 5])
+    counted_attempts(postgres_engine, "203.0.113.21", [61] * 10)
+    async with beta_client(engine=postgres_engine) as (http, _, _, _):
+        locked = await http.post(
+            "/reviewer/session", json={"code": CODE}, headers=forwarded("203.0.113.20")
+        )
+        assert locked.status_code == 429
+        assert 4 * 60 <= int(locked.headers["retry-after"]) <= 5 * 60 + 5
+        expired = await http.post(
+            "/reviewer/session", json={"code": CODE}, headers=forwarded("203.0.113.21")
+        )
+        assert expired.status_code == 204
+        for _ in range(9):
+            reply = await http.post("/reviewer/session", **wrong_code("203.0.113.21"))
+            assert reply.status_code == 401
+        replies = [
+            (await http.post("/reviewer/session", **wrong_code("203.0.113.21"))).status_code
+            for _ in range(2)
+        ]
+        assert replies == [401, 429]
+    with Session(postgres_engine) as session:
+        rows = session.query(SigninFailure).filter_by(address="203.0.113.21").count()
+    assert rows == 10

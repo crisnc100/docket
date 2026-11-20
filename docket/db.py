@@ -8,7 +8,6 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
-    Integer,
     Numeric,
     String,
     UniqueConstraint,
@@ -86,10 +85,10 @@ class BudgetLedger(Base):
 
 
 class SigninFailure(Base):
-    """Beta sign-in attempts per address per clock hour; a right code gives its attempt back."""
+    """One beta sign-in attempt. A right code deletes its row, so the rows left in the last
+    hour are the wrong codes that count toward the lockout."""
 
     __tablename__ = "signin_failures"
-    __table_args__ = (CheckConstraint("failures >= 0"),)
-    address: Mapped[str] = mapped_column(String, primary_key=True)
-    hour: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
-    failures: Mapped[int] = mapped_column(Integer, nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    address: Mapped[str] = mapped_column(String, index=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

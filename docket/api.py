@@ -1,6 +1,5 @@
 import base64
 import binascii
-import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -21,6 +20,7 @@ from docket.beta import (
     refuse_unsafe_start,
     release_attempt,
     reserve_attempt,
+    retry_after,
     session_cookie,
     session_value,
 )
@@ -249,7 +249,16 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
                 raise HTTPException(404, "Unknown document")
             if document.status in TERMINAL_STATUSES:
                 raise HTTPException(409, "Document is terminal")
-            if beta and action == "dismiss" and len(body.get("reason", "")) > BETA_MAX_REASON:
+            # Temporal keeps every update it receives, even one the workflow then rejects, so
+            # requests that cannot succeed stop here.
+            if action not in {"approve", "dismiss"}:
+                raise HTTPException(409, "Unknown review action")
+            reason = body.get("reason", "")
+            if action == "dismiss" and "\x00" in reason:
+                raise HTTPException(422, "NUL is not allowed in a dismiss reason")
+            if beta and action == "dismiss" and not reason.strip():
+                raise HTTPException(422, "A dismiss reason is required")
+            if beta and action == "dismiss" and len(reason) > BETA_MAX_REASON:
                 raise HTTPException(
                     422, f"A dismiss reason is at most {BETA_MAX_REASON} characters"
                 )
@@ -283,16 +292,16 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         if settings.docket_env != "beta":
             raise HTTPException(404, "Not found")
         address = client_address(request.scope, settings)
-        hour = reserve_attempt(app.state.runtime.engine, address)
-        if hour is None:
+        attempt = reserve_attempt(app.state.runtime.engine, address)
+        if attempt is None:
             raise HTTPException(
                 429,
-                "Too many wrong codes from this address. Try again next hour.",
-                headers={"Retry-After": str(3600 - int(time.time()) % 3600)},
+                "Too many wrong codes from this address. Try again later.",
+                headers={"Retry-After": str(retry_after(app.state.runtime.engine, address))},
             )
         if not known_code(settings, body.code):
             raise HTTPException(401, "That invite code is not valid.")
-        release_attempt(app.state.runtime.engine, address, hour)
+        release_attempt(app.state.runtime.engine, attempt)
         return Response(
             status_code=204,
             headers={

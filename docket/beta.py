@@ -2,15 +2,15 @@
 
 import hashlib
 import hmac
+import math
 import os
 import time
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from sqlalchemy import Engine, func, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import Engine, delete, func, insert, select
 from sqlalchemy.orm import Session
 
 from docket.db import SigninFailure
@@ -26,6 +26,7 @@ MIN_CODE_LENGTH = 16
 MIN_SESSION_KEY_BYTES = 32
 MAX_DAILY_BUDGET_USD = 1.00
 WRONG_CODE_LIMIT = 10
+WRONG_CODE_WINDOW = 3600
 
 
 class UnsafeConfig(SystemExit):
@@ -146,32 +147,44 @@ def same_origin(scope: Mapping, settings: Settings) -> bool:
     return len(origins) == 1 and origins[0].lower() == f"{base.scheme}://{base.netloc}".lower()
 
 
-def reserve_attempt(engine: Engine, address: str) -> datetime | None:
-    """Count one sign-in attempt for this address in the current hour, before the code is
-    checked. None means the address has used its ten attempts. Counting first keeps parallel
-    guesses inside the limit; a right code gives its attempt back with release_attempt."""
-    hour = func.date_trunc("hour", func.now())
-    with Session(engine) as session, session.begin():
-        return session.execute(
-            insert(SigninFailure)
-            .values(address=address, hour=hour, failures=1)
-            .on_conflict_do_update(
-                index_elements=[SigninFailure.address, SigninFailure.hour],
-                set_={"failures": SigninFailure.failures + 1},
-                where=SigninFailure.failures < WRONG_CODE_LIMIT,
-            )
-            .returning(SigninFailure.hour)
-        ).scalar_one_or_none()
+def _address_lock(address: str) -> int:
+    return int.from_bytes(hashlib.sha256(b"signin:" + address.encode()).digest()[:8], signed=True)
 
 
-def release_attempt(engine: Engine, address: str, hour: datetime) -> None:
+def reserve_attempt(engine: Engine, address: str) -> int | None:
+    """Count one sign-in attempt for this address before the code is checked, and return its
+    id. None means the address already has ten attempts in the last hour. Counting first, under
+    a per-address lock, keeps parallel guesses inside the limit; a right code gives its attempt
+    back with release_attempt."""
+    window_start = func.now() - timedelta(seconds=WRONG_CODE_WINDOW)
     with Session(engine) as session, session.begin():
+        session.execute(select(func.pg_advisory_xact_lock(_address_lock(address))))
         session.execute(
-            update(SigninFailure)
-            .where(
-                SigninFailure.address == address,
-                SigninFailure.hour == hour,
-                SigninFailure.failures > 0,
+            delete(SigninFailure).where(
+                SigninFailure.address == address, SigninFailure.at <= window_start
             )
-            .values(failures=SigninFailure.failures - 1)
         )
+        recent = session.scalar(select(func.count()).where(SigninFailure.address == address))
+        if recent is not None and recent >= WRONG_CODE_LIMIT:
+            return None
+        return session.execute(
+            insert(SigninFailure).values(address=address).returning(SigninFailure.id)
+        ).scalar_one()
+
+
+def retry_after(engine: Engine, address: str) -> int:
+    """Seconds until the address's oldest counted attempt leaves the window."""
+    with Session(engine) as session:
+        oldest = session.scalar(
+            select(func.min(SigninFailure.at)).where(SigninFailure.address == address)
+        )
+        now = session.scalar(select(func.now()))
+    if oldest is None or now is None:
+        return 1
+    remaining = (oldest - now).total_seconds() + WRONG_CODE_WINDOW
+    return max(1, math.ceil(remaining))
+
+
+def release_attempt(engine: Engine, attempt: int) -> None:
+    with Session(engine) as session, session.begin():
+        session.execute(delete(SigninFailure).where(SigninFailure.id == attempt))

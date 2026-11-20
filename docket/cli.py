@@ -23,7 +23,8 @@ def spike_models() -> None:
     from docket.settings import Settings
 
     settings = Settings()
-    refuse_unsafe_start(settings)
+    # The spike always calls the model live, whatever DOCKET_MODEL_MODE says.
+    refuse_unsafe_start(settings.model_copy(update={"docket_model_mode": "live"}))
     anthropic = settings.docket_model_provider == "anthropic"
     name = "ANTHROPIC_API_KEY" if anthropic else "OPENROUTER_API_KEY"
     if not settings.api_key().get_secret_value():
@@ -168,7 +169,8 @@ def eval_command(seed: int = 11, mode: str = "replay", budget: str = "2.00") -> 
     from docket.evaluation import evaluate, write_report
     from docket.settings import Settings
 
-    refuse_unsafe_start(Settings())
+    # --mode decides how this run calls the model, so that is the mode to check.
+    refuse_unsafe_start(Settings().model_copy(update={"docket_model_mode": mode}))
     report = asyncio.run(evaluate(seed, mode, Decimal(budget)))
     path = write_report(report)
     typer.echo(f"{report['status']}: {path}")

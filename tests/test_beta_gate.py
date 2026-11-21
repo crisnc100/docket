@@ -32,7 +32,9 @@ from docket.beta import (
     startup_problems,
     valid_session,
 )
-from docket.db import Document, Event, SigninFailure
+from docket.db import Document, Event, Sandbox, SigninFailure
+from docket.review_access import BETA_ROUTES, Access
+from docket.sandbox import SANDBOX_COOKIE, token_hash
 from docket.settings import Settings
 from docket.worker import run_worker
 
@@ -40,11 +42,14 @@ BASE = "https://docket.example.test"
 CODE = "invite-" + secrets.token_hex(12)
 OTHER_CODE = "invite-" + secrets.token_hex(12)
 KEY = secrets.token_hex(32)
+# The visitor's sandbox cookie. Its sandbox exists only in tests that make it (open_sandbox).
+SANDBOX_TOKEN = secrets.token_urlsafe(16)
 PUBLIC = {
     ("GET", "/"),
     ("GET", "/home/{path:path}"),
     ("GET", "/healthz"),
     ("POST", "/reviewer/session"),
+    ("GET", "/assets/{path:path}"),
 }
 
 
@@ -110,7 +115,20 @@ async def beta_client(settings: Settings | None = None, engine=None):
 
 
 def cookie(settings: Settings | None = None, code: str = CODE, now: float | None = None):
-    return {"Cookie": f"{SESSION_COOKIE}={session_value(settings or beta_settings(), code, now)}"}
+    session = session_value(settings or beta_settings(), code, now)
+    return {"Cookie": f"{SESSION_COOKIE}={session}; {SANDBOX_COOKIE}={SANDBOX_TOKEN}"}
+
+
+def open_sandbox(engine) -> uuid.UUID:
+    """Make the sandbox the visitor's cookie names."""
+    with Session(engine) as session, session.begin():
+        sandbox = Sandbox(
+            token_hash=token_hash(SANDBOX_TOKEN),
+            expires_at=session.scalar(text("SELECT now() + interval '50 minutes'")),
+        )
+        session.add(sandbox)
+        session.flush()
+        return sandbox.id
 
 
 def signed_in(**extra):
@@ -138,10 +156,11 @@ def route_table(app) -> list[tuple[str, str]]:
 # A1
 
 
-async def test_only_the_four_public_routes_answer_without_a_session_across_the_route_table():
+async def test_only_the_public_routes_answer_without_a_session_across_the_route_table():
     async with beta_client() as (http, _, _, app):
         table = route_table(app)
-        assert len(table) > len(PUBLIC)
+        refused = {route for route, access in BETA_ROUTES.items() if access == Access.REFUSED}
+        assert len(table) > len(PUBLIC | refused)
         open_routes = set()
         for method, template in table:
             response = await http.request(
@@ -151,10 +170,12 @@ async def test_only_the_four_public_routes_answer_without_a_session_across_the_r
                 open_routes.add((method, template))
             else:
                 assert response.headers["cache-control"] == "no-store"
-        assert open_routes == PUBLIC
+            if (method, template) in refused:
+                assert response.status_code == 404, (method, template)
+        assert open_routes == PUBLIC | refused
         for method, path in [("GET", "/not-a-route"), ("HEAD", "/"), ("POST", "/healthz")]:
             response = await http.request(method, path, headers={"Origin": BASE})
-            assert response.status_code == 401, (method, path)
+            assert response.status_code == 404, (method, path)
 
 
 async def test_a_valid_bearer_token_is_refused_in_beta():
@@ -393,9 +414,9 @@ async def test_visitor_documents_are_refused_before_any_body_is_read(path):
         assert await call_raw(app, "POST", path, chunked) == (401, 0)
 
 
-async def test_bodies_over_16_kb_are_refused_before_the_handler():
-    document = uuid.uuid4()
-    async with beta_client() as (http, _, temporal, app):
+async def test_bodies_over_16_kb_are_refused_before_the_handler(postgres_engine):
+    document = held_document(postgres_engine)
+    async with beta_client(engine=postgres_engine) as (http, _, temporal, app):
         path = f"/review/{document}/dismiss"
         large = json.dumps({"reason": "x" * 17 * 1024}).encode()
         response = await http.post(path, content=large, headers=signed_in())
@@ -412,10 +433,16 @@ async def test_bodies_over_16_kb_are_refused_before_the_handler():
         assert fits.status_code == 422
 
 
-def held_document(engine) -> uuid.UUID:
+def held_document(engine, sandboxed: bool = True) -> uuid.UUID:
+    """A held document, in the visitor's sandbox unless sandboxed is False (local mode)."""
+    sandbox_id = open_sandbox(engine) if sandboxed else None
     with Session(engine) as session, session.begin():
         document = Document(
-            mode="act", run_id="live", content_hash=uuid.uuid4().hex * 2, status="needs_review"
+            sandbox_id=sandbox_id,
+            mode="act",
+            run_id="live",
+            content_hash=uuid.uuid4().hex * 2,
+            status="needs_review",
         )
         session.add(document)
         session.flush()
@@ -455,7 +482,7 @@ async def test_beta_caps_the_dismiss_reason_and_approves_only_candidates(postgre
 
 
 async def test_local_mode_keeps_its_review_rules(postgres_engine):
-    document = held_document(postgres_engine)
+    document = held_document(postgres_engine, sandboxed=False)
     token = secrets.token_hex(16)
     local = Settings(_env_file=None, docket_review_token=SecretStr(token))
     async with beta_client(local, postgres_engine) as (http, _, temporal, _):
@@ -601,7 +628,7 @@ def test_commands_that_can_spend_refuse_an_unsafe_beta_config(command, monkeypat
 
 @pytest.mark.parametrize("mode", ["beta", "local"])
 async def test_unknown_actions_and_nul_reasons_never_reach_temporal(mode, postgres_engine):
-    document = held_document(postgres_engine)
+    document = held_document(postgres_engine, sandboxed=mode == "beta")
     token = secrets.token_hex(16)
     if mode == "beta":
         settings, headers = beta_settings(), signed_in()
@@ -730,7 +757,7 @@ async def test_the_lockout_window_rolls_across_the_clock_hour(postgres_engine):
 
 @pytest.mark.parametrize("mode", ["beta", "local"])
 async def test_a_dismiss_reason_that_is_not_utf8_never_reaches_temporal(mode, postgres_engine):
-    document = held_document(postgres_engine)
+    document = held_document(postgres_engine, sandboxed=mode == "beta")
     token = secrets.token_hex(16)
     if mode == "beta":
         settings, headers = beta_settings(), signed_in()
@@ -857,7 +884,7 @@ async def test_a_malformed_signin_body_is_a_fixed_422_and_counts_nothing(postgre
 async def test_a_malformed_review_body_is_a_fixed_422_and_never_reaches_temporal(
     mode, body, postgres_engine
 ):
-    document = held_document(postgres_engine)
+    document = held_document(postgres_engine, sandboxed=mode == "beta")
     token = secrets.token_hex(16)
     if mode == "beta":
         settings, headers = beta_settings(), signed_in()

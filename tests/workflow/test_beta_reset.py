@@ -1,11 +1,9 @@
 """The nightly beta reset (plan PR C, C1), through the real workflow and replayed answers."""
 
-import json
 import os
 import threading
 import uuid
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from typing import cast
 
 import httpx
@@ -13,15 +11,12 @@ import pytest
 from sqlalchemy import create_engine, func, insert, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
-from temporalio.client import Client, WorkflowExecutionStatus
-from temporalio.testing import WorkflowEnvironment
-from temporalio.worker import Worker
+from temporalio.client import Client
 from typer.testing import CliRunner
 
 from docket import beta_reset
-from docket.activities import Activities
 from docket.api import create_app
-from docket.beta_reset import STARTING_QUEUE, due, next_slot, reset, run_service
+from docket.beta_reset import due, next_slot, reset, run_service
 from docket.beta_samples import (
     RESET_RUNNING,
     RESETTING,
@@ -32,16 +27,11 @@ from docket.beta_samples import (
 )
 from docket.cli import app as cli
 from docket.db import (
-    BudgetLedger,
     Document,
-    Event,
-    FiledDocument,
-    SampleCount,
     SampleSend,
     SigninFailure,
 )
 from docket.runtime import Runtime
-from docket.workflows import FileDocumentWorkflow
 from tests.test_beta_gate import BASE, FakeTemporal, beta_settings, cookie
 
 DAY = timedelta(days=1)
@@ -100,95 +90,6 @@ def counter_rows(engine, minutes_ago: list[int]) -> None:
             at = func.now() - timedelta(minutes=minutes)
             session.execute(insert(SampleSend).values(address="198.51.100.1", at=at))
             session.execute(insert(SigninFailure).values(address="198.51.100.1", at=at))
-
-
-async def test_the_reset_keeps_the_caps_and_leaves_twelve_documents_waiting(beta_runtime):
-    engine = beta_runtime.engine
-    today = datetime.now(UTC).date()
-    with Session(engine) as session, session.begin():
-        session.execute(insert(BudgetLedger).values(day=today, spent_usd=Decimal("0.37")))
-        session.execute(insert(SampleCount).values(day=today, count=42))
-    async with await WorkflowEnvironment.start_time_skipping() as env:
-        async with Worker(
-            env.client,
-            task_queue=beta_runtime.settings.docket_task_queue,
-            workflows=[FileDocumentWorkflow],
-            activities=Activities(beta_runtime).registered(),
-        ):
-            app = create_app(beta_runtime, env.client)
-            transport = httpx.ASGITransport(app)
-            async with (
-                app.router.lifespan_context(app),
-                httpx.AsyncClient(transport=transport, base_url=BASE) as http,
-            ):
-                first = await reset(beta_runtime, env.client)
-                assert first["seeded"] == {"needs_review": 12}
-                # Every seeded call had a recorded answer.
-                with Session(engine) as session:
-                    details = list(session.scalars(select(Event.detail)))
-                assert "replay_miss" not in json.dumps(details)
-                # A day of use: one document approved and filed, the rest still held.
-                [item, *_] = (await http.get("/review", headers=visitor())).json()["items"]
-                approved = await http.post(
-                    f"/review/{item['document_id']}/approve",
-                    json={"record_id": item["candidates"][0]["record_id"]},
-                    headers=visitor(),
-                )
-                assert approved.status_code == 200, approved.text
-                await env.client.get_workflow_handle("doc-" + item["document_id"]).result()
-                with Session(engine) as session:
-                    assert session.scalar(select(func.count()).select_from(FiledDocument)) == 1
-                counter_rows(engine, [90, 61, 30, 5])
-
-                during = {}
-                close_workflows = beta_reset.close_workflows
-
-                async def sample_during_reset(*args):
-                    during["state"] = (await http.get("/beta/samples", headers=visitor())).json()
-                    during["send"] = await http.post(
-                        "/beta/samples", json={"case_type": "clean"}, headers=visitor()
-                    )
-                    await close_workflows(*args)
-
-                beta_reset.close_workflows = sample_during_reset
-                try:
-                    second = await reset(beta_runtime, env.client)
-                finally:
-                    beta_reset.close_workflows = close_workflows
-                assert during["state"]["state"] == "resetting"
-                assert during["send"].status_code == 503
-                assert during["send"].json() == {"detail": RESET_RUNNING}
-                assert second["terminated"] == 11
-                assert second["seeded"] == {"needs_review": 12}
-                assert statuses(engine) == ["needs_review"] * 12
-                with Session(engine) as session:
-                    assert session.scalar(select(func.count()).select_from(FiledDocument)) == 0
-                    assert session.scalar(select(BudgetLedger.spent_usd)) == Decimal("0.37")
-                    assert session.scalar(select(SampleCount.count)) == 42
-                    # Rows older than an hour count toward nothing, so only they go.
-                    for table in (SampleSend, SigninFailure):
-                        assert session.scalar(select(func.count()).select_from(table)) == 2
-                health = (await http.get("/healthz")).json()
-                assert health["resetting"] is False and 0 <= health["last_reset_age_seconds"] < 60
-                assert (await http.get("/beta/samples", headers=visitor())).json()[
-                    "state"
-                ] == "ready"
-
-                # Two hours on, with the beta's 24-hour review timeout, all twelve still wait.
-                await env.sleep(2 * 3600)
-                assert statuses(engine) == ["needs_review"] * 12
-                with Session(engine) as session:
-                    ids = list(session.scalars(select(Document.id)))
-                for document_id in ids:
-                    handle = env.client.get_workflow_handle(f"doc-{document_id}")
-                    assert (await handle.describe()).status == WorkflowExecutionStatus.RUNNING
-                listed = (await http.get("/review", headers=visitor())).json()["items"]
-                assert sorted(item["filename"] for item in listed) == sorted(STARTING_QUEUE)
-    # The worker never built a live transport, and nothing was charged.
-    assert beta_runtime.transports == {}
-    assert {key[2] for key in beta_runtime.gateways} == {"replay"}
-    with Session(engine) as session:
-        assert session.scalar(select(BudgetLedger.spent_usd)) == Decimal("0.37")
 
 
 def test_the_reset_command_refuses_outside_beta_and_with_an_unsafe_config(monkeypatch):

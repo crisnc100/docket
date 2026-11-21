@@ -29,6 +29,7 @@ def test_migration_matches_metadata_and_downgrades(postgres_engine):
         "sample_counts",
         "sample_sends",
         "beta_flags",
+        "sandboxes",
     }
     with postgres_engine.connect() as connection:
         assert compare_metadata(MigrationContext.configure(connection), Base.metadata) == []

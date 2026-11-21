@@ -36,7 +36,7 @@ from docket.llm.errors import BudgetExceeded
 from docket.prompts import classify_request
 from docket.runtime import Runtime
 from tests.test_anthropic_transport import FakeApi, message
-from tests.test_beta_gate import BASE, beta_client, beta_settings, cookie, route_table
+from tests.test_beta_gate import BASE, beta_client, beta_settings, cookie, open_sandbox, route_table
 
 
 @pytest.fixture(autouse=True)
@@ -101,6 +101,7 @@ async def test_the_options_list_every_sample_type_with_a_plain_label(postgres_en
 
 
 async def test_a_sample_goes_to_ingress_with_server_made_bytes_and_counts_once(postgres_engine):
+    sandbox = open_sandbox(postgres_engine)
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = ingress = FakeIngress()
         response = await http.post(
@@ -111,7 +112,7 @@ async def test_a_sample_goes_to_ingress_with_server_made_bytes_and_counts_once(p
     [(content, filename, kwargs)] = ingress.submitted
     assert content.startswith(b"%PDF-") and filename == "sample-clean.pdf"
     assert kwargs.pop("guard") is no_reset_running
-    assert kwargs == {"source": "sample", "sender": SAMPLE_SENDER}
+    assert kwargs == {"source": "sample", "sender": SAMPLE_SENDER, "sandbox": sandbox}
     assert counts(postgres_engine) == {"address:198.51.100.8": 1, "day": 1}
 
 

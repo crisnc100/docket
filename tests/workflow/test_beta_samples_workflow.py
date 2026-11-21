@@ -29,7 +29,7 @@ from docket.llm.errors import BudgetExceeded
 from docket.runtime import Runtime
 from docket.workflows import FileDocumentWorkflow
 from tests.test_anthropic_transport import FakeApi
-from tests.test_beta_gate import BASE, beta_settings, cookie
+from tests.test_beta_gate import BASE, beta_settings, cookie, open_sandbox
 
 SETTLED = {"filed", "needs_review"}
 
@@ -196,6 +196,7 @@ async def test_a_budget_refusal_mid_way_ends_failed_with_the_budget_reason(
 ):
     model = FirstCandidateModel(BudgetExceeded("Global daily budget exceeded before model call"))
     monkeypatch.setattr(beta_runtime, "gateway", lambda request: model)
+    open_sandbox(beta_runtime.engine)
     async with await WorkflowEnvironment.start_time_skipping() as env:
         async with Worker(
             env.client,
@@ -261,6 +262,7 @@ async def test_switching_off_mid_workflow_refuses_the_next_live_call_at_the_tran
 async def test_a_held_document_stays_reviewable_with_the_switch_off(beta_runtime, monkeypatch):
     model = FirstCandidateModel()
     monkeypatch.setattr(beta_runtime, "gateway", lambda request: model)
+    open_sandbox(beta_runtime.engine)
     async with await WorkflowEnvironment.start_time_skipping() as env:
         async with Worker(
             env.client,

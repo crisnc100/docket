@@ -1,11 +1,13 @@
 import hmac
 import json
 import secrets
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from enum import StrEnum
 from pathlib import Path
 
 from starlette.requests import cookie_parser
 from starlette.responses import HTMLResponse, PlainTextResponse
+from starlette.routing import BaseRoute, Match, Mount
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from docket.beta import SESSION_COOKIE, header_values, same_origin, valid_session
@@ -21,6 +23,59 @@ ACCESS_FORMS = {
 BETA_MAX_BODY = 16 * 1024
 # Visitors never send their own documents to the beta; these are refused before any body is read.
 BETA_CLOSED_WRITES = {("POST", "/documents"), ("POST", "/inbound")}
+
+
+class Access(StrEnum):
+    PUBLIC = "public"
+    SANDBOX = "sandbox"
+    CLOSED = "closed"
+    REFUSED = "refused"
+
+
+# Every route the app serves, by method and template. The beta answers only what is listed
+# as public or sandbox-scoped; a sandbox-scoped route shows each visitor their own sandbox
+# and nothing else. tests/test_sandbox_routes.py fails when a route is missing here.
+BETA_ROUTES: dict[tuple[str, str], Access] = {
+    ("GET", "/"): Access.PUBLIC,
+    ("GET", "/home/{path:path}"): Access.PUBLIC,
+    ("GET", "/healthz"): Access.PUBLIC,
+    ("GET", "/reviewer"): Access.PUBLIC,
+    ("GET", "/assets/{path:path}"): Access.PUBLIC,
+    ("POST", "/reviewer/session"): Access.PUBLIC,
+    ("GET", "/review"): Access.SANDBOX,
+    ("POST", "/review/{document_id}/{action}"): Access.SANDBOX,
+    ("GET", "/documents/{document_id}"): Access.SANDBOX,
+    ("GET", "/documents/{document_id}/file"): Access.SANDBOX,
+    ("GET", "/beta/samples"): Access.SANDBOX,
+    ("POST", "/beta/samples"): Access.SANDBOX,
+    ("POST", "/documents"): Access.CLOSED,
+    ("POST", "/inbound"): Access.CLOSED,
+    **{
+        (method, path): Access.REFUSED
+        for method in ("GET", "HEAD")
+        for path in ("/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc")
+    },
+}
+
+
+def route_template(routes: Sequence[BaseRoute], scope: Scope) -> str | None:
+    """The template of the route the router would run for this request, found by the
+    router's own matching, so the gate and the router can never disagree about a path."""
+    for route in routes:
+        match, _ = route.matches(scope)
+        if match == Match.FULL:
+            path = getattr(route, "path", None)
+            if isinstance(route, Mount):
+                return f"{path}/{{path:path}}"
+            return path
+    return None
+
+
+def beta_access(routes: Sequence[BaseRoute], scope: Scope) -> Access:
+    template = route_template(routes, scope)
+    if template is None:
+        return Access.REFUSED
+    return BETA_ROUTES.get((scope["method"], template), Access.REFUSED)
 
 
 def reviewer_page(status_code: int = 200, access: str = "token"):
@@ -66,14 +121,6 @@ def public(method: str, path: str) -> bool:
     # ASGI paths arrive percent-decoded but not dot-normalised, so /home/../review must not
     # count as a front-page file.
     return all(part not in {".", ".."} for part in path.split("/"))
-
-
-def beta_public(method: str, path: str) -> bool:
-    """The beta's only routes without a session: the front page and its files, the health
-    check and the sign-in itself. The webhook is not public in beta."""
-    if (method, path) == ("POST", "/reviewer/session"):
-        return True
-    return method == "GET" and public(method, path)
 
 
 def has_session(scope: Scope, settings: Settings) -> bool:
@@ -129,8 +176,14 @@ async def no_store(app: ASGIApp, scope: Scope, receive: Receive, send: Send):
 
 
 class ReviewerAccess:
-    def __init__(self, app: ASGIApp, settings: Callable[[], Settings]):
-        self.app, self.settings = app, settings
+    def __init__(
+        self,
+        app: ASGIApp,
+        settings: Callable[[], Settings],
+        # Without the app's routes, nothing in beta matches the table, so it is all refused.
+        routes: Callable[[], Sequence[BaseRoute]] = lambda: (),
+    ):
+        self.app, self.settings, self.routes = app, settings, routes
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] == "http" and self.settings().docket_env == "beta":
@@ -177,22 +230,27 @@ class ReviewerAccess:
         # "/documents\n" would reach the upload handler. No real path has a control character.
         if any(ord(char) < 0x20 or ord(char) == 0x7F for char in path):
             return await refuse(400, "Invalid path.")(scope, receive, send)
-        open_route = beta_public(method, path)
-        if not open_route and not has_session(scope, settings):
-            if (method, path) == ("GET", "/reviewer"):
-                return await reviewer_page(401, "invite")(scope, receive, send)
+        access = beta_access(self.routes(), scope)
+        # "/documents/" and "//documents" never reach the handler, but refusing them here too
+        # means their bodies are never read either.
+        normal = "/" + "/".join(part for part in path.split("/") if part)
+        closed = access == Access.CLOSED or (method, normal) in BETA_CLOSED_WRITES
+        if access == Access.REFUSED and not closed:
+            return await refuse(404, "Not found.")(scope, receive, send)
+        signed_in = has_session(scope, settings)
+        if (method, path) == ("GET", "/reviewer") and not signed_in:
+            return await reviewer_page(401, "invite")(scope, receive, send)
+        if access != Access.PUBLIC and not signed_in:
             return await refuse(401, "Sign in with an invite code first.")(scope, receive, send)
         if method != "GET" and not same_origin(scope, settings):
             return await refuse(403, "Cross-site requests are refused.")(scope, receive, send)
-        # "/documents/" and "//documents" never reach the handler, but refusing them here too
-        # means their bodies are never read either.
-        if (method, "/" + "/".join(part for part in path.split("/") if part)) in BETA_CLOSED_WRITES:
+        if closed:
             return await refuse(403, "The hosted beta does not accept documents.")(
                 scope, receive, send
             )
         replay = await buffered_body(scope, receive, BETA_MAX_BODY)
         if isinstance(replay, PlainTextResponse):
             return await replay(scope, receive, send)
-        if open_route:
+        if access == Access.PUBLIC:
             return await self.app(scope, replay, send)
         await no_store(self.app, scope, replay, send)

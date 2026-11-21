@@ -45,6 +45,7 @@ from docket.db import Document, DocumentSource, Event
 from docket.ingress import Ingress
 from docket.review_access import ReviewerAccess, reviewer_page
 from docket.runtime import Runtime
+from docket.sandbox import Owner, owned_document, raw_key, request_owner
 from docket.webhook import BodyLimit, RateLimit, valid_signature
 
 
@@ -138,7 +139,13 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
 
     app = FastAPI(lifespan=lifespan)
     app.add_middleware(BodyLimit)
-    app.add_middleware(ReviewerAccess, settings=lambda: app.state.runtime.settings)
+    app.add_middleware(
+        ReviewerAccess, settings=lambda: app.state.runtime.settings, routes=lambda: app.routes
+    )
+
+    def owner(request: Request) -> Owner:
+        beta = app.state.runtime.settings.docket_env == "beta"
+        return request_owner(app.state.runtime.engine, beta, request.scope["headers"])
 
     @app.get("/healthz")
     async def health():
@@ -207,11 +214,10 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         return {"document_id": document_id}
 
     @app.get("/documents/{document_id}")
-    def document_status(document_id: uuid.UUID):
+    def document_status(document_id: uuid.UUID, request: Request):
+        visitor = owner(request)
         with Session(app.state.runtime.engine) as session:
-            document = session.get(Document, document_id)
-            if document is None:
-                raise HTTPException(404, "Unknown document")
+            document = owned_document(session, visitor, document_id)
             events = session.scalars(
                 select(Event).where(Event.document_id == document_id).order_by(Event.id)
             ).all()
@@ -234,15 +240,14 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
             }
 
     @app.get("/documents/{document_id}/file")
-    def document_file(document_id: uuid.UUID):
+    def document_file(document_id: uuid.UUID, request: Request):
+        visitor = owner(request)
         with Session(app.state.runtime.engine) as session:
-            document = session.get(Document, document_id)
-            if document is None:
-                raise HTTPException(404, "Unknown document")
+            document = owned_document(session, visitor, document_id)
             if document.status == "rejected":
                 raise HTTPException(415, "Rejected documents cannot be previewed")
-            content_hash = document.content_hash
-        content = app.state.runtime.read(f"raw/{content_hash}")
+            key = raw_key(document.sandbox_id, document.content_hash)
+        content = app.state.runtime.read(key)
         if not content.startswith(b"%PDF-"):
             raise HTTPException(415, "Document is not a PDF")
         return Response(
@@ -256,13 +261,17 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         )
 
     @app.get("/review")
-    def review_queue():
+    def review_queue(request: Request):
+        visitor = owner(request)
+        if visitor.beta and visitor.sandbox_id is None:
+            return {"items": []}
         with Session(app.state.runtime.engine) as session:
             documents = session.scalars(
                 select(Document)
                 .where(
                     Document.status == "needs_review",
                     Document.mode == "act",
+                    Document.sandbox_id.is_not_distinct_from(visitor.sandbox_id),
                 )
                 .order_by(Document.created_at, Document.id)
             ).all()
@@ -302,12 +311,17 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
 
     @app.post("/review/{document_id}/{action}")
     async def review(document_id: uuid.UUID, action: str, request: Request):
+        visitor = await asyncio.to_thread(owner, request)
+
+        def check_owner():
+            with Session(app.state.runtime.engine) as session:
+                owned_document(session, visitor, document_id)
+
+        await asyncio.to_thread(check_owner)
         body = (await read_json(request, ReviewBody, "Send the review decision as JSON text.")).root
         beta = app.state.runtime.settings.docket_env == "beta"
         with Session(app.state.runtime.engine) as session:
-            document = session.get(Document, document_id)
-            if document is None:
-                raise HTTPException(404, "Unknown document")
+            document = owned_document(session, visitor, document_id)
             if document.status in TERMINAL_STATUSES:
                 raise HTTPException(409, "Document is terminal")
             # Temporal keeps every update it receives, even one the workflow then rejects, so
@@ -378,6 +392,7 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
                 source="sample",
                 sender=SAMPLE_SENDER,
                 guard=no_reset_running,
+                sandbox=(await asyncio.to_thread(owner, request)).sandbox_id,
             )
         except ResetRunning as exc:
             raise HTTPException(503, RESET_RUNNING) from exc

@@ -254,19 +254,24 @@ class Activities:
                 with Session(self.runtime.engine) as session:
                     document = session.get(Document, uuid.UUID(request["document_id"]))
                     assert document is not None
-                    content_hash = document.content_hash
+                    content_hash, sandbox_id = document.content_hash, document.sandbox_id
                 key = build_key(record, Category(stage["category"]), content_hash)
-                try:
-                    self.runtime.storage.put_if_absent(
-                        key,
-                        self.runtime.read(request["raw_key"]),
-                        content_hash,
-                        original_filename=request["filename"],
-                    )
-                except StorageConflict as exc:
-                    raise ApplicationError(
-                        str(exc), type="StorageConflict", non_retryable=True
-                    ) from exc
+                if sandbox_id is not None:
+                    # A sandbox's file is never copied: only where it would be filed is
+                    # recorded, so deleting the sandbox leaves no second copy behind.
+                    key = f"sbx/{sandbox_id}/{key}"
+                else:
+                    try:
+                        self.runtime.storage.put_if_absent(
+                            key,
+                            self.runtime.read(request["raw_key"]),
+                            content_hash,
+                            original_filename=request["filename"],
+                        )
+                    except StorageConflict as exc:
+                        raise ApplicationError(
+                            str(exc), type="StorageConflict", non_retryable=True
+                        ) from exc
                 fire("file.after_storage")
                 with Session(self.runtime.engine) as session, session.begin():
                     document = session.get(
@@ -280,6 +285,7 @@ class Activities:
                         insert(FiledDocument)
                         .values(
                             document_id=document.id,
+                            sandbox_id=sandbox_id,
                             mode=request["mode"],
                             run_id=request["run_id"],
                             content_hash=content_hash,
@@ -289,6 +295,7 @@ class Activities:
                         )
                         .on_conflict_do_nothing(
                             index_elements=[
+                                FiledDocument.sandbox_id,
                                 FiledDocument.mode,
                                 FiledDocument.run_id,
                                 FiledDocument.content_hash,

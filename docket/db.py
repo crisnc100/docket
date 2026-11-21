@@ -23,14 +23,32 @@ class Base(DeclarativeBase):
     pass
 
 
+class Sandbox(Base):
+    """One browser's private space in the hosted beta. The cookie is never stored, only its
+    SHA-256."""
+
+    __tablename__ = "sandboxes"
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class Document(Base):
     __tablename__ = "documents"
     __table_args__ = (
-        UniqueConstraint("mode", "run_id", "content_hash"),
+        # An empty sandbox counts as equal, so local mode keeps "same bytes, same document".
+        UniqueConstraint(
+            "sandbox_id", "mode", "run_id", "content_hash", postgresql_nulls_not_distinct=True
+        ),
         CheckConstraint("mode IN ('act', 'observe')"),
         CheckConstraint("mode != 'act' OR run_id = 'live'"),
     )
     id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    sandbox_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("sandboxes.id", ondelete="CASCADE"), index=True
+    )
     mode: Mapped[str] = mapped_column(String, nullable=False)
     run_id: Mapped[str] = mapped_column(String, nullable=False)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -46,7 +64,9 @@ class Document(Base):
 class DocumentSource(Base):
     __tablename__ = "document_sources"
     id: Mapped[int] = mapped_column(primary_key=True)
-    document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documents.id"), index=True)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
     source: Mapped[str] = mapped_column(String)
     message_id: Mapped[str | None] = mapped_column(String)
     sender: Mapped[str | None] = mapped_column(String)
@@ -58,7 +78,9 @@ class DocumentSource(Base):
 class Event(Base):
     __tablename__ = "events"
     id: Mapped[int] = mapped_column(primary_key=True)
-    document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documents.id"), index=True)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
     step: Mapped[str] = mapped_column(String)
     idem_key: Mapped[str] = mapped_column(String, unique=True)
     detail: Mapped[dict[str, Any]] = mapped_column(JSONB)
@@ -67,9 +89,18 @@ class Event(Base):
 
 class FiledDocument(Base):
     __tablename__ = "filed_documents"
-    __table_args__ = (UniqueConstraint("mode", "run_id", "content_hash"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "sandbox_id", "mode", "run_id", "content_hash", postgresql_nulls_not_distinct=True
+        ),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
-    document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documents.id"), index=True)
+    sandbox_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("sandboxes.id", ondelete="CASCADE"), index=True
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
     mode: Mapped[str] = mapped_column(String)
     run_id: Mapped[str] = mapped_column(String)
     content_hash: Mapped[str] = mapped_column(String(64))

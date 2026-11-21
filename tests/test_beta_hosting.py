@@ -25,7 +25,7 @@ from tests.test_beta_gate import (
     FakeTemporal,
     StartedRuntime,
     beta_settings,
-    signed_in,
+    with_sandbox,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -47,7 +47,7 @@ async def test_beta_refuses_every_request_under_a_root_path(path):
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app, root_path="/home")
         async with httpx.AsyncClient(transport=transport, base_url=BASE) as http:
-            response = await http.get(path, headers=signed_in())
+            response = await http.get(path, headers=with_sandbox())
     assert response.status_code == 500
     assert response.text == "The beta must be served at the site root."
 
@@ -161,8 +161,9 @@ def test_the_image_pins_its_bases_runs_the_app_unprivileged_and_ships_the_exampl
     app = stages[-1]
     assert "USER" not in browser
     assert app.rstrip().splitlines()[-2] == "USER docket"
+    # No process reads an env file from the image, so none is shipped in it.
     ignored = (ROOT / ".dockerignore").read_text().splitlines()
-    assert ignored.index("!.env.beta.example") > ignored.index(".env*")
+    assert ".env*" in ignored and not any(line.startswith("!.env") for line in ignored)
 
 
 # Build 4: the example settings
@@ -177,7 +178,7 @@ def example_values() -> dict[str, str]:
     return values
 
 
-def test_the_example_names_every_beta_setting_and_its_placeholders_are_refused():
+def test_the_example_names_every_beta_setting_and_its_blanks_are_refused():
     values = example_values()
     assert values["DOCKET_DAILY_BUDGET_USD"] == "1.00"
     assert values["DOCKET_TRUST_PROXY"] == "1"
@@ -193,8 +194,7 @@ def test_the_example_names_every_beta_setting_and_its_placeholders_are_refused()
         docket_env="beta",
     )
     problems = startup_problems(settings, {})
-    assert "An invite code is a placeholder from .env.beta.example." in problems
-    assert any(problem.startswith("DOCKET_SESSION_KEY") for problem in problems)
+    assert any(problem.startswith("DOCKET_ADDRESS_KEY") for problem in problems)
 
 
 # C2: the production compose file, rendered by a script that prints no values
@@ -204,7 +204,7 @@ def real_env_file(tmp_path: Path) -> tuple[Path, list[str]]:
     secrets_used = []
     lines = []
     for name, value in example_values().items():
-        if name in {"DOCKET_INVITE_CODES", "DOCKET_SESSION_KEY", "ANTHROPIC_API_KEY"} or (
+        if name in {"DOCKET_ADDRESS_KEY", "ANTHROPIC_API_KEY"} or (
             name in {"POSTGRES_PASSWORD", "S3_ACCESS_KEY", "S3_SECRET_KEY"}
         ):
             value = "secret" + secrets.token_hex(16)

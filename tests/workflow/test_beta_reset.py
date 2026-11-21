@@ -38,7 +38,7 @@ from docket.db import (
     FiledDocument,
     SampleCount,
     SampleSend,
-    SigninFailure,
+    SandboxCreation,
 )
 from docket.runtime import Runtime
 from docket.workflows import FileDocumentWorkflow
@@ -98,8 +98,8 @@ def counter_rows(engine, minutes_ago: list[int]) -> None:
     with Session(engine) as session, session.begin():
         for minutes in minutes_ago:
             at = func.now() - timedelta(minutes=minutes)
-            session.execute(insert(SampleSend).values(address="198.51.100.1", at=at))
-            session.execute(insert(SigninFailure).values(address="198.51.100.1", at=at))
+            session.execute(insert(SampleSend).values(address_hash="a" * 64, at=at))
+            session.execute(insert(SandboxCreation).values(address_hash="a" * 64, at=at))
 
 
 async def test_the_reset_keeps_the_caps_and_leaves_twelve_documents_waiting(beta_runtime):
@@ -172,7 +172,7 @@ async def test_the_reset_keeps_the_caps_and_leaves_twelve_documents_waiting(beta
                     assert session.scalar(select(BudgetLedger.spent_usd)) == Decimal("0.37")
                     assert session.scalar(select(SampleCount.count)) == 42
                     # Rows older than an hour count toward nothing, so only they go.
-                    for table in (SampleSend, SigninFailure):
+                    for table in (SampleSend, SandboxCreation):
                         assert session.scalar(select(func.count()).select_from(table)) == 2
                 health = (await http.get("/healthz")).json()
                 assert health["resetting"] is False and 0 <= health["last_reset_age_seconds"] < 60

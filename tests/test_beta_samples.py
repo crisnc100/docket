@@ -14,6 +14,7 @@ from sqlalchemy import func, insert, select, text
 from sqlalchemy.orm import Session
 from typer.testing import CliRunner
 
+from docket.beta import address_hash
 from docket.beta_samples import (
     DAY_CAPPED,
     PAUSED,
@@ -59,14 +60,22 @@ def visitor(address: str = "198.51.100.7") -> dict:
     return cookie() | {"Origin": BASE, "X-Forwarded-For": address}
 
 
+def hashed(address: str) -> str:
+    return address_hash(beta_settings(), address)
+
+
+# Every address these tests send from, so a stored hash can be named by its address.
+ADDRESSES = {hashed(f"198.51.100.{index}"): f"198.51.100.{index}" for index in range(256)}
+
+
 def counts(engine) -> dict[str, int]:
     """Samples counted so far: per address in the rolling window, and for the day."""
     with Session(engine) as session:
         sends = session.execute(
-            select(SampleSend.address, func.count()).group_by(SampleSend.address)
+            select(SampleSend.address_hash, func.count()).group_by(SampleSend.address_hash)
         ).all()
         days = session.scalars(select(SampleCount.count)).all()
-    return {"address:" + address: total for address, total in sends} | (
+    return {"address:" + ADDRESSES[key]: total for key, total in sends} | (
         {"day": sum(days)} if days else {}
     )
 
@@ -185,12 +194,13 @@ async def test_a_malformed_sample_body_is_a_fixed_422(postgres_engine, body):
         assert response.status_code == 422, response.text
 
 
-async def test_the_sample_post_needs_a_session_and_a_matching_origin(postgres_engine):
+async def test_the_sample_post_needs_a_matching_origin(postgres_engine):
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = ingress = FakeIngress()
         body = {"case_type": "clean"}
-        assert (await http.post("/beta/samples", json=body)).status_code == 401
-        assert (await http.get("/beta/samples")).status_code == 401
+        assert (await http.post("/beta/samples", json=body)).status_code == 403
+        # The options list holds no one's documents, so a page with no sandbox yet can load it.
+        assert (await http.get("/beta/samples")).status_code == 200
         foreign = visitor() | {"Origin": "https://elsewhere.example.test"}
         assert (await http.post("/beta/samples", json=body, headers=foreign)).status_code == 403
         missing = {key: value for key, value in visitor().items() if key != "Origin"}
@@ -204,6 +214,8 @@ async def test_the_sample_post_needs_a_session_and_a_matching_origin(postgres_en
 async def test_fifty_parallel_samples_from_one_address_let_exactly_twenty_through(
     postgres_engine,
 ):
+    # One browser: every sample goes to its sandbox, so only the sample cap is in play.
+    open_sandbox(postgres_engine)
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = FakeIngress()
         responses = await asyncio.gather(
@@ -263,8 +275,8 @@ def sent_earlier(engine, address: str, when: str, times: int = 20) -> None:
     with Session(engine) as session, session.begin():
         for _ in range(times):
             session.execute(
-                text(f"INSERT INTO sample_sends (address, at) VALUES (:address, {when})"),
-                {"address": address},
+                text(f"INSERT INTO sample_sends (address_hash, at) VALUES (:hash, {when})"),
+                {"hash": hashed(address)},
             )
 
 
@@ -575,12 +587,11 @@ async def test_no_beta_route_lets_visitor_bytes_reach_ingress_or_storage(postgre
             (method, path) for method, path in route_table(app) if method not in {"GET", "HEAD"}
         }
         # Each write route and what it stores: uploads are refused before their body is read
-        # (tests/test_beta_gate.py), the sign-in stores only the address, review stores a
-        # capped dismiss reason or a candidate id, and a sample stores server-made bytes.
+        # (tests/test_beta_gate.py), review stores a capped dismiss reason or a candidate id,
+        # and a sample stores server-made bytes.
         assert writes == {
             ("POST", "/documents"),
             ("POST", "/inbound"),
-            ("POST", "/reviewer/session"),
             ("POST", "/review/{document_id}/{action}"),
             ("POST", "/beta/samples"),
         }

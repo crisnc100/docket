@@ -27,6 +27,7 @@ from docket.ingress import Ingress
 from docket.llm.anthropic import AnthropicTransport
 from docket.llm.errors import BudgetExceeded
 from docket.runtime import Runtime
+from docket.sandbox import raw_key
 from docket.workflows import FileDocumentWorkflow
 from tests.test_anthropic_transport import FakeApi
 from tests.test_beta_gate import BASE, beta_settings, cookie, open_sandbox
@@ -159,6 +160,7 @@ async def test_every_sample_type_runs_the_normal_workflow_and_ends_filed_or_held
                         with Session(engine) as session:
                             document = session.get(Document, uuid.UUID(document_id))
                             content_hash = document.content_hash
+                            sandbox_id = document.sandbox_id
                             source = session.scalar(
                                 select(DocumentSource.source).where(
                                     DocumentSource.document_id == document.id
@@ -176,7 +178,7 @@ async def test_every_sample_type_runs_the_normal_workflow_and_ends_filed_or_held
                         sample_steps = steps(engine, document_id)
                         assert sample_steps[0] == "received" and sample_steps[-1] == status
                         # The same bytes sent the way an upload is sent take the same steps.
-                        content = beta_runtime.read(f"raw/{content_hash}")
+                        content = beta_runtime.read(raw_key(sandbox_id, content_hash))
                         forget(engine, document_id)
                         uploaded = await Ingress(beta_runtime, env.client).submit(content, filename)
                         assert await settled(engine, uploaded) == status

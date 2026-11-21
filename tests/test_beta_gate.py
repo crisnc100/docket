@@ -1,5 +1,5 @@
-"""The hosted beta's gate: invite-code sessions, the four public routes, closed write paths,
-the wrong-code lockout and the startup refusals (plan PR A, A1 to A6)."""
+"""The hosted beta's gate: the route table, closed write paths, the Origin check, the body
+cap and the startup refusals (plan PR A, A1 to A6, as sandbox PR 1 leaves them)."""
 
 import asyncio
 import json
@@ -8,9 +8,7 @@ import os
 import secrets
 import subprocess
 import sys
-import time
 import uuid
-from collections import Counter
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -21,25 +19,14 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.routing import Mount
 
-from docket import beta
 from docket.api import create_app
-from docket.beta import (
-    SESSION_COOKIE,
-    UnsafeConfig,
-    client_address,
-    refuse_unsafe_start,
-    session_value,
-    startup_problems,
-    valid_session,
-)
-from docket.db import Document, Event, Sandbox, SigninFailure
+from docket.beta import UnsafeConfig, client_address, refuse_unsafe_start, startup_problems
+from docket.db import Document, Event, Sandbox
 from docket.sandbox import SANDBOX_COOKIE, token_hash
 from docket.settings import Settings
 from docket.worker import run_worker
 
 BASE = "https://docket.example.test"
-CODE = "invite-" + secrets.token_hex(12)
-OTHER_CODE = "invite-" + secrets.token_hex(12)
 KEY = secrets.token_hex(32)
 # The visitor's sandbox cookie. Its sandbox exists only in tests that make it (open_sandbox).
 SANDBOX_TOKEN = secrets.token_urlsafe(16)
@@ -47,9 +34,18 @@ PUBLIC = {
     ("GET", "/"),
     ("GET", "/home/{path:path}"),
     ("GET", "/healthz"),
-    ("POST", "/reviewer/session"),
+    ("GET", "/reviewer"),
     ("GET", "/assets/{path:path}"),
 }
+SANDBOX_SCOPED = {
+    ("GET", "/review"),
+    ("POST", "/review/{document_id}/{action}"),
+    ("GET", "/documents/{document_id}"),
+    ("GET", "/documents/{document_id}/file"),
+    ("GET", "/beta/samples"),
+    ("POST", "/beta/samples"),
+}
+CLOSED = {("POST", "/documents"), ("POST", "/inbound")}
 # FastAPI's own pages. The beta serves none of them: each gets the gate's 404.
 REFUSED = {
     (method, path)
@@ -68,8 +64,7 @@ def clean_environment(monkeypatch):
 def beta_settings(drop: tuple[str, ...] = (), **overrides) -> Settings:
     values = {
         "docket_env": "beta",
-        "docket_invite_codes": SecretStr(f"{CODE},{OTHER_CODE}"),
-        "docket_session_key": SecretStr(KEY),
+        "docket_address_key": SecretStr(KEY),
         "docket_trust_proxy": True,
         "docket_base_url": BASE,
         "docket_daily_budget_usd": 1.00,
@@ -119,9 +114,8 @@ async def beta_client(settings: Settings | None = None, engine=None):
             yield http, runtime, temporal, app
 
 
-def cookie(settings: Settings | None = None, code: str = CODE, now: float | None = None):
-    session = session_value(settings or beta_settings(), code, now)
-    return {"Cookie": f"{SESSION_COOKIE}={session}; {SANDBOX_COOKIE}={SANDBOX_TOKEN}"}
+def cookie():
+    return {"Cookie": f"{SANDBOX_COOKIE}={SANDBOX_TOKEN}"}
 
 
 def open_sandbox(engine) -> uuid.UUID:
@@ -136,7 +130,7 @@ def open_sandbox(engine) -> uuid.UUID:
         return sandbox.id
 
 
-def signed_in(**extra):
+def with_sandbox(**extra):
     return cookie() | {"Origin": BASE} | extra
 
 
@@ -161,47 +155,62 @@ def route_table(app) -> list[tuple[str, str]]:
 # A1
 
 
-async def test_only_the_public_routes_answer_without_a_session_across_the_route_table():
-    async with beta_client() as (http, _, _, app):
+class NoIngress:
+    async def submit(self, *args, **kwargs):
+        raise AssertionError("A request without a case type must not reach ingress")
+
+
+async def test_every_route_answers_as_its_pinned_class_without_a_sandbox(postgres_engine):
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = NoIngress()
         table = route_table(app)
-        assert len(table) > len(PUBLIC | REFUSED)
-        open_routes = set()
+        assert set(table) == PUBLIC | SANDBOX_SCOPED | CLOSED | REFUSED
         for method, template in table:
             response = await http.request(
                 method, concrete(template), headers={"Origin": BASE}, content=b"{}"
             )
-            if response.status_code != 401:
-                open_routes.add((method, template))
+            route = (method, template)
+            if route in REFUSED:
+                assert response.status_code == 404, route
+                assert response.headers["cache-control"] == "no-store"
+            elif route in CLOSED:
+                assert response.status_code == 403, route
+                assert response.headers["cache-control"] == "no-store"
+            elif route in SANDBOX_SCOPED:
+                # Served, with nothing of anyone's: a document route finds no document.
+                assert response.status_code in {200, 404, 422}, (route, response.text)
+                assert response.headers["cache-control"] == "no-store"
+                if "{document_id}" in template:
+                    assert response.json() == {"detail": "Unknown document"}, route
             else:
-                assert response.headers["cache-control"] == "no-store"
-            if (method, template) in REFUSED:
-                assert response.status_code == 404, (method, template)
-                assert response.headers["cache-control"] == "no-store"
-        assert open_routes == PUBLIC | REFUSED
+                assert response.text != "Not found.", route
+        assert (await http.get("/review")).json() == {"items": []}
         for method, path in [("GET", "/not-a-route"), ("HEAD", "/"), ("POST", "/healthz")]:
             response = await http.request(method, path, headers={"Origin": BASE})
             assert response.status_code == 404, (method, path)
             assert response.headers["cache-control"] == "no-store"
 
 
-async def test_a_valid_bearer_token_is_refused_in_beta():
-    async with beta_client() as (http, runtime, _, _):
+async def test_a_valid_bearer_token_grants_nothing_in_beta(postgres_engine):
+    document = held_document(postgres_engine)
+    async with beta_client(engine=postgres_engine) as (http, runtime, _, _):
         token = secrets.token_hex(16)
         runtime.settings = runtime.settings.model_copy(
             update={"docket_review_token": SecretStr(token)}
         )
         bearer = {"Authorization": "Bearer " + token, "Origin": BASE}
-        assert (await http.get("/review", headers=bearer)).status_code == 401
+        assert (await http.get("/review", headers=bearer)).json() == {"items": []}
+        assert (await http.get(f"/documents/{document}", headers=bearer)).status_code == 404
         page = await http.get("/reviewer", headers=bearer)
-        assert page.status_code == 401
-        assert 'for="review-token">Invite code<' in page.text
+        assert page.status_code == 200
+        assert 'id="review-token"' not in page.text
         assert token not in page.text
 
 
-async def test_the_missing_token_503_never_answers_in_beta():
-    async with beta_client() as (http, _, _, _):
+async def test_the_missing_token_503_never_answers_in_beta(postgres_engine):
+    async with beta_client(engine=postgres_engine) as (http, _, _, _):
         response = await http.get("/review")
-        assert response.status_code == 401
+        assert response.status_code == 200
         assert "DOCKET_REVIEW_TOKEN" not in response.text
 
 
@@ -213,126 +222,7 @@ async def test_api_refuses_to_start_with_a_review_token():
             pass
 
 
-# A2
-
-
-async def test_a_right_code_sets_the_session_cookie_with_exactly_its_flags(postgres_engine):
-    async with beta_client(engine=postgres_engine) as (http, _, _, _):
-        response = await http.post(
-            "/reviewer/session", json={"code": CODE}, headers={"Origin": BASE}
-        )
-        assert response.status_code == 204, response.text
-        header = response.headers["set-cookie"]
-        name, _, rest = header.partition("=")
-        value, *flags = rest.split("; ")
-        assert name == SESSION_COOKIE
-        assert flags == ["HttpOnly", "Secure", "SameSite=Strict", "Path=/"]
-        assert CODE not in header and CODE.split("-")[1] not in header
-        assert valid_session(beta_settings(), value)
-        assert response.headers["cache-control"] == "no-store"
-        queue = await http.get("/review", headers={"Cookie": f"{SESSION_COOKIE}={value}"})
-        assert queue.status_code == 200
-        assert queue.json() == {"items": []}
-        page = await http.get("/reviewer", headers={"Cookie": f"{SESSION_COOKIE}={value}"})
-        assert page.status_code == 200
-        assert "const signedIn = true;" in page.text
-
-
-async def test_old_removed_and_foreign_cookies_are_refused():
-    eight_days_ago = time.time() - 8 * 24 * 3600
-    six_days_ago = time.time() - 6 * 24 * 3600
-    foreign = beta_settings(docket_session_key=SecretStr(secrets.token_hex(32)))
-    async with beta_client() as (http, runtime, _, _):
-        cases = {
-            "eight days old": cookie(now=eight_days_ago),
-            "another key": cookie(foreign),
-            "not a cookie value": {"Cookie": f"{SESSION_COOKIE}=1.2"},
-            "future dated": cookie(now=time.time() + 3600),
-        }
-        for label, headers in cases.items():
-            assert (await http.get("/review", headers=headers)).status_code == 401, label
-        assert (await http.get("/reviewer", headers=cookie(now=six_days_ago))).status_code == 200
-        removed = cookie(code=OTHER_CODE)
-        assert (await http.get("/reviewer", headers=removed)).status_code == 200
-        runtime.settings = runtime.settings.model_copy(
-            update={"docket_invite_codes": SecretStr(CODE)}
-        )
-        assert (await http.get("/reviewer", headers=removed)).status_code == 401
-        assert (await http.get("/reviewer", headers=cookie())).status_code == 200
-
-
-def test_session_checks():
-    settings = beta_settings()
-    now = int(time.time())
-    value = session_value(settings, CODE, now)
-    assert valid_session(settings, value, now + 7 * 24 * 3600)
-    assert not valid_session(settings, value, now + 7 * 24 * 3600 + 1)
-    assert not valid_session(beta_settings(docket_invite_codes=SecretStr(OTHER_CODE)), value, now)
-    assert not valid_session(settings, value.replace(".", ".0", 1), now)
-    assert not valid_session(settings, "", now)
-
-
 # A3
-
-
-def wrong_code(address: str, prefix: str = "") -> dict:
-    hops = f"{prefix}, {address}" if prefix else address
-    return {"json": {"code": "wrong-" + secrets.token_hex(10)}, "headers": forwarded(hops)}
-
-
-def forwarded(hops: str) -> dict:
-    return {"Origin": BASE, "X-Forwarded-For": hops}
-
-
-async def test_the_eleventh_code_in_an_hour_is_refused_even_when_right(postgres_engine):
-    async with beta_client(engine=postgres_engine) as (http, _, _, _):
-        for attempt in range(10):
-            # A client-written prefix changes nothing: the last hop is the address.
-            reply = await http.post(
-                "/reviewer/session", **wrong_code("203.0.113.7", f"10.0.0.{attempt}")
-            )
-            assert reply.status_code == 401, (attempt, reply.text)
-        right = await http.post(
-            "/reviewer/session", json={"code": CODE}, headers=forwarded("198.51.100.1, 203.0.113.7")
-        )
-        assert right.status_code == 429
-        assert 0 < int(right.headers["retry-after"]) <= 3600
-        assert "set-cookie" not in right.headers
-        other = await http.post(
-            "/reviewer/session", json={"code": CODE}, headers=forwarded("203.0.113.8")
-        )
-        assert other.status_code == 204
-        spoofed = await http.post(
-            "/reviewer/session", json={"code": CODE}, headers=forwarded("203.0.113.8, 203.0.113.7")
-        )
-        assert spoofed.status_code == 429
-        locked_with_cookie = cookie() | forwarded("203.0.113.7")
-        assert (await http.get("/review", headers=locked_with_cookie)).status_code == 200
-
-    async with beta_client(engine=postgres_engine) as (http, _, _, _):
-        restarted = await http.post(
-            "/reviewer/session", json={"code": CODE}, headers=forwarded("203.0.113.7")
-        )
-        assert restarted.status_code == 429
-
-
-async def test_right_codes_do_not_count_and_parallel_guesses_stay_inside_the_limit(
-    postgres_engine,
-):
-    async with beta_client(engine=postgres_engine) as (http, _, _, _):
-        for _ in range(12):
-            reply = await http.post(
-                "/reviewer/session", json={"code": CODE}, headers=forwarded("192.0.2.1")
-            )
-            assert reply.status_code == 204
-        replies = await asyncio.gather(
-            *[http.post("/reviewer/session", **wrong_code("192.0.2.2")) for _ in range(30)]
-        )
-        statuses = sorted(reply.status_code for reply in replies)
-        assert statuses == [401] * 10 + [429] * 20
-    with Session(postgres_engine) as session:
-        counts = Counter(row.address for row in session.query(SigninFailure))
-    assert counts == {"192.0.2.2": 10}
 
 
 def test_the_address_is_the_last_forwarded_hop_only_when_the_proxy_is_trusted():
@@ -348,6 +238,11 @@ def test_the_address_is_the_last_forwarded_hop_only_when_the_proxy_is_trusted():
     assert client_address(scope(), trusted) == "172.18.0.5"
     assert client_address(scope("1.1.1.1, "), trusted) == "172.18.0.5"
     assert client_address(scope("1.1.1.1, 2.2.2.2"), direct) == "172.18.0.5"
+    # An IPv6 address counts by its /64; an IPv4-mapped one as the IPv4 address.
+    assert client_address(scope("2001:db8:1:2:aaaa::1"), trusted) == "2001:db8:1:2::/64"
+    assert client_address(scope("2001:db8:1:2:bbbb::9"), trusted) == "2001:db8:1:2::/64"
+    assert client_address(scope("2001:db8:1:3::1"), trusted) == "2001:db8:1:3::/64"
+    assert client_address(scope("::ffff:192.0.2.7"), trusted) == "192.0.2.7"
 
 
 # A4
@@ -359,7 +254,7 @@ async def test_posts_without_the_beta_origin_are_refused(origin):
     async with beta_client() as (http, _, temporal, _):
         headers = cookie() | ({"Origin": origin} if origin else {})
         for path, body in [
-            ("/reviewer/session", {"code": CODE}),
+            ("/beta/samples", {"case_type": "clean"}),
             (f"/review/{document}/approve", {"record_id": "UNIT-0001"}),
             (f"/review/{document}/dismiss", {"reason": "spam"}),
         ]:
@@ -372,7 +267,7 @@ async def test_posts_without_the_beta_origin_are_refused(origin):
 async def test_two_origin_headers_are_refused():
     async with beta_client() as (http, _, _, _):
         headers = [("Cookie", cookie()["Cookie"]), ("Origin", BASE), ("Origin", BASE)]
-        response = await http.post("/reviewer/session", json={"code": CODE}, headers=headers)
+        response = await http.post("/beta/samples", json={"case_type": "clean"}, headers=headers)
         assert response.status_code == 403
 
 
@@ -417,7 +312,7 @@ async def test_visitor_documents_are_refused_before_any_body_is_read(path):
         session = [(b"cookie", cookie()["Cookie"].encode()), (b"origin", BASE.encode())]
         chunked = [(b"transfer-encoding", b"chunked")]
         assert await call_raw(app, "POST", path, session + chunked) == (403, 0)
-        assert await call_raw(app, "POST", path, chunked) == (401, 0)
+        assert await call_raw(app, "POST", path, chunked) == (403, 0)
 
 
 async def test_bodies_over_16_kb_are_refused_before_the_handler(postgres_engine):
@@ -429,17 +324,17 @@ async def test_bodies_over_16_kb_are_refused_before_the_handler(postgres_engine)
         session = [(b"cookie", cookie()["Cookie"].encode()), (b"origin", BASE.encode())]
         for target in (uuid.uuid4(), document):
             path = f"/review/{target}/dismiss"
-            response = await http.post(path, content=large, headers=signed_in())
+            response = await http.post(path, content=large, headers=with_sandbox())
             assert response.status_code == 413, target
             status, reads = await call_raw(app, "POST", path, session)
             assert status == 413 and reads == 17, target
-        sign_in = await http.post("/reviewer/session", content=large, headers={"Origin": BASE})
-        assert sign_in.status_code == 413
+        sample = await http.post("/beta/samples", content=large, headers={"Origin": BASE})
+        assert sample.status_code == 413
         assert temporal.updates == []
         fits = await http.post(
             f"/review/{document}/dismiss",
             content=b"[" + b" " * (16 * 1024 - 2) + b"]",
-            headers=signed_in(),
+            headers=with_sandbox(),
         )
         assert fits.status_code == 422
 
@@ -477,14 +372,16 @@ async def test_beta_caps_the_dismiss_reason_and_approves_only_candidates(postgre
             ("/approve", {"record_id": "UNIT-0003"}),
             ("/approve", {}),
         ]:
-            response = await http.post(base + path, json=body, headers=signed_in())
+            response = await http.post(base + path, json=body, headers=with_sandbox())
             assert response.status_code == 422, (path, body, response.text)
         assert temporal.updates == []
         assert (
-            await http.post(base + "/dismiss", json={"reason": "x" * 300}, headers=signed_in())
+            await http.post(base + "/dismiss", json={"reason": "x" * 300}, headers=with_sandbox())
         ).status_code == 200
         assert (
-            await http.post(base + "/approve", json={"record_id": "UNIT-0002"}, headers=signed_in())
+            await http.post(
+                base + "/approve", json={"record_id": "UNIT-0002"}, headers=with_sandbox()
+            )
         ).status_code == 200
         assert [update[2] for update in temporal.updates] == [
             {"action": "dismiss", "value": "x" * 300},
@@ -504,41 +401,33 @@ async def test_local_mode_keeps_its_review_rules(postgres_engine):
             assert response.status_code == 200
         assert len(temporal.updates) == 2
         assert (
-            await http.post("/reviewer/session", json={"code": CODE}, headers=headers)
+            await http.post("/reviewer/session", json={"code": "a-code"}, headers=headers)
         ).status_code == 404
-        assert (await http.post("/reviewer/session", json={"code": CODE})).status_code == 401
+        assert (await http.post("/reviewer/session", json={"code": "a-code"})).status_code == 401
 
 
 # A6
 
 
-def refusal_cases(tmp_path: Path):
-    example = tmp_path / ".env.beta.example"
-    example.write_text(f"DOCKET_INVITE_CODES={CODE}\n")
+def refusal_cases():
     unset_cap = beta_settings(drop=("docket_daily_budget_usd",))
     return {
-        "codes missing": (beta_settings(docket_invite_codes=SecretStr("")), {}, None),
-        "blank code entry": (beta_settings(docket_invite_codes=SecretStr(CODE + ",")), {}, None),
-        "short code": (beta_settings(docket_invite_codes=SecretStr("short-code")), {}, None),
-        "placeholder code": (beta_settings(), {}, example),
-        "short session key": (beta_settings(docket_session_key=SecretStr("k" * 31)), {}, None),
-        "review token set": (beta_settings(docket_review_token=SecretStr("t")), {}, None),
-        "proxy not trusted": (beta_settings(docket_trust_proxy=False), {}, None),
-        "failpoint": (beta_settings(), {"DOCKET_FAILPOINT": "ingress.after_raw"}, None),
-        "failpoint variant": (beta_settings(), {"DOCKET_FAILPOINT_EXTRA": "1"}, None),
-        "cap missing": (unset_cap, {}, None),
-        "cap above a dollar": (beta_settings(docket_daily_budget_usd=1.01), {}, None),
-        "cap not a number": (beta_settings(docket_daily_budget_usd=math.nan), {}, None),
-        "record mode": (beta_settings(docket_model_mode="record"), {}, None),
+        "address key missing": (beta_settings(drop=("docket_address_key",)), {}),
+        "short address key": (beta_settings(docket_address_key=SecretStr("k" * 31)), {}),
+        "review token set": (beta_settings(docket_review_token=SecretStr("t")), {}),
+        "proxy not trusted": (beta_settings(docket_trust_proxy=False), {}),
+        "failpoint": (beta_settings(), {"DOCKET_FAILPOINT": "ingress.after_raw"}),
+        "failpoint variant": (beta_settings(), {"DOCKET_FAILPOINT_EXTRA": "1"}),
+        "cap missing": (unset_cap, {}),
+        "cap above a dollar": (beta_settings(docket_daily_budget_usd=1.01), {}),
+        "cap not a number": (beta_settings(docket_daily_budget_usd=math.nan), {}),
+        "record mode": (beta_settings(docket_model_mode="record"), {}),
     }
 
 
 CASES = [
-    "codes missing",
-    "blank code entry",
-    "short code",
-    "placeholder code",
-    "short session key",
+    "address key missing",
+    "short address key",
     "review token set",
     "proxy not trusted",
     "failpoint",
@@ -551,23 +440,18 @@ CASES = [
 
 
 @pytest.mark.parametrize("case", CASES)
-async def test_each_unsafe_config_stops_the_api_the_worker_and_the_shared_check(
-    case, tmp_path, monkeypatch
-):
-    settings, environ, example = refusal_cases(tmp_path)[case]
-    assert set(refusal_cases(tmp_path)) == set(CASES)
+async def test_each_unsafe_config_stops_the_api_the_worker_and_the_shared_check(case, monkeypatch):
+    settings, environ = refusal_cases()[case]
+    assert set(refusal_cases()) == set(CASES)
     for name, value in environ.items():
         monkeypatch.setenv(name, value)
-    if example:
-        monkeypatch.setattr(beta, "EXAMPLE_ENV", example)
     problems = startup_problems(settings, os.environ)
     assert len(problems) == 1, problems
     with pytest.raises(UnsafeConfig) as refused:
         refuse_unsafe_start(settings)
     message = str(refused.value)
     assert message == "Docket beta refuses to start:\n- " + problems[0]
-    for secret in (CODE, OTHER_CODE, KEY):
-        assert secret not in message
+    assert KEY not in message
     app = create_app(FakeRuntime(settings), FakeTemporal())
     with pytest.raises(UnsafeConfig):
         async with app.router.lifespan_context(app):
@@ -607,7 +491,10 @@ def test_the_real_processes_exit_with_the_plain_message(command, tmp_path):
         cwd=tmp_path,
     )
     assert result.returncode != 0
-    assert "Docket beta refuses to start:\n- DOCKET_INVITE_CODES is not set." in result.stderr
+    assert (
+        "Docket beta refuses to start:\n- DOCKET_ADDRESS_KEY needs at least 32 bytes."
+        in result.stderr
+    )
     assert "- DOCKET_REVIEW_TOKEN must be unset in beta." in result.stderr
 
 
@@ -642,7 +529,7 @@ async def test_unknown_actions_and_nul_reasons_never_reach_temporal(mode, postgr
     document = held_document(postgres_engine, sandboxed=mode == "beta")
     token = secrets.token_hex(16)
     if mode == "beta":
-        settings, headers = beta_settings(), signed_in()
+        settings, headers = beta_settings(), with_sandbox()
     else:
         settings = Settings(_env_file=None, docket_review_token=SecretStr(token))
         headers = {"Authorization": "Bearer " + token}
@@ -663,7 +550,7 @@ async def test_beta_refuses_a_blank_dismiss_reason_before_temporal(postgres_engi
     async with beta_client(engine=postgres_engine) as (http, _, temporal, _):
         for body in [{"reason": "   "}, {}]:
             response = await http.post(
-                f"/review/{document}/dismiss", json=body, headers=signed_in()
+                f"/review/{document}/dismiss", json=body, headers=with_sandbox()
             )
             assert response.status_code == 422, body
         assert temporal.updates == []
@@ -672,8 +559,7 @@ async def test_beta_refuses_a_blank_dismiss_reason_before_temporal(postgres_engi
 def beta_environment(monkeypatch, **extra):
     base = {
         "DOCKET_ENV": "beta",
-        "DOCKET_INVITE_CODES": CODE,
-        "DOCKET_SESSION_KEY": KEY,
+        "DOCKET_ADDRESS_KEY": KEY,
         "DOCKET_TRUST_PROXY": "1",
         "DOCKET_BASE_URL": BASE,
         "DOCKET_DAILY_BUDGET_USD": "1.00",
@@ -724,45 +610,6 @@ def test_spike_models_is_checked_as_the_live_run_it_is(monkeypatch):
     assert refused.exit_code == 1 and len(runs) == 1
 
 
-def counted_attempts(engine, address: str, minutes_ago: list[int]) -> None:
-    with Session(engine) as session, session.begin():
-        for minutes in minutes_ago:
-            session.execute(
-                text(
-                    "insert into signin_failures (address, at) "
-                    "values (:address, now() - make_interval(mins => :minutes))"
-                ),
-                {"address": address, "minutes": minutes},
-            )
-
-
-async def test_the_lockout_window_rolls_across_the_clock_hour(postgres_engine):
-    # Ten wrong codes spread over the last 55 minutes, so a new clock hour has likely begun.
-    counted_attempts(postgres_engine, "203.0.113.20", [55, 50, 45, 40, 35, 30, 25, 20, 15, 5])
-    counted_attempts(postgres_engine, "203.0.113.21", [61] * 10)
-    async with beta_client(engine=postgres_engine) as (http, _, _, _):
-        locked = await http.post(
-            "/reviewer/session", json={"code": CODE}, headers=forwarded("203.0.113.20")
-        )
-        assert locked.status_code == 429
-        assert 4 * 60 <= int(locked.headers["retry-after"]) <= 5 * 60 + 5
-        expired = await http.post(
-            "/reviewer/session", json={"code": CODE}, headers=forwarded("203.0.113.21")
-        )
-        assert expired.status_code == 204
-        for _ in range(9):
-            reply = await http.post("/reviewer/session", **wrong_code("203.0.113.21"))
-            assert reply.status_code == 401
-        replies = [
-            (await http.post("/reviewer/session", **wrong_code("203.0.113.21"))).status_code
-            for _ in range(2)
-        ]
-        assert replies == [401, 429]
-    with Session(postgres_engine) as session:
-        rows = session.query(SigninFailure).filter_by(address="203.0.113.21").count()
-    assert rows == 10
-
-
 # Fix-check round: x1 and x4
 
 
@@ -771,7 +618,7 @@ async def test_a_dismiss_reason_that_is_not_utf8_never_reaches_temporal(mode, po
     document = held_document(postgres_engine, sandboxed=mode == "beta")
     token = secrets.token_hex(16)
     if mode == "beta":
-        settings, headers = beta_settings(), signed_in()
+        settings, headers = beta_settings(), with_sandbox()
     else:
         settings = Settings(_env_file=None, docket_review_token=SecretStr(token))
         headers = {"Authorization": "Bearer " + token}
@@ -794,7 +641,7 @@ def test_every_compose_service_that_runs_docket_code_receives_the_beta_settings(
     for name in docket:
         environment = services[name]["environment"]
         assert environment["DOCKET_ENV"] == "${DOCKET_ENV:-local}", name
-        for setting in ("DOCKET_INVITE_CODES", "DOCKET_SESSION_KEY", "DOCKET_BASE_URL"):
+        for setting in ("DOCKET_ADDRESS_KEY", "DOCKET_BASE_URL"):
             assert environment[setting] == "${" + setting + ":-}", (name, setting)
         assert environment["DOCKET_TRUST_PROXY"] == "${DOCKET_TRUST_PROXY:-0}", name
         # Any default for the cap would count as set and hide the beta refusal.
@@ -837,59 +684,6 @@ async def test_local_body_limit_also_covers_the_line_feed_spelling():
     assert reads == 10 * 1024 + 1
 
 
-async def test_a_code_that_is_not_utf8_is_refused_before_it_counts(postgres_engine):
-    async with beta_client(engine=postgres_engine) as (http, _, _, _):
-        response = await http.post(
-            "/reviewer/session",
-            content=b'{"code": "\\ud800"}',
-            headers=forwarded("192.0.2.50") | {"Content-Type": "application/json"},
-        )
-        assert response.status_code == 422, response.text
-    with Session(postgres_engine) as session:
-        assert session.query(SigninFailure).count() == 0
-
-
-async def test_a_pasted_code_with_spaces_signs_in_and_counts_nothing(postgres_engine):
-    async with beta_client(engine=postgres_engine) as (http, _, _, _):
-        response = await http.post(
-            "/reviewer/session", json={"code": f"  {CODE}\n"}, headers=forwarded("192.0.2.51")
-        )
-        assert response.status_code == 204, response.text
-        blank = await http.post(
-            "/reviewer/session", json={"code": "   "}, headers=forwarded("192.0.2.51")
-        )
-        assert blank.status_code == 422
-    with Session(postgres_engine) as session:
-        assert session.query(SigninFailure).count() == 0
-    assert "signIn(input.value.trim())" in Path("web/login.html").read_text()
-
-
-@pytest.mark.parametrize(
-    "body",
-    [
-        b'"\\ud800"',
-        b'["\\ud800"]',
-        b"1e999999",
-        b"[",
-        b"\xff\xfe",
-        b"null",
-        b'{"\\ud800": "x"}',
-        b"[" * 5000 + b"]" * 5000,
-    ],
-)
-async def test_a_malformed_signin_body_is_a_fixed_422_and_counts_nothing(postgres_engine, body):
-    async with beta_client(engine=postgres_engine) as (http, _, _, _):
-        response = await http.post(
-            "/reviewer/session",
-            content=body,
-            headers=forwarded("192.0.2.52") | {"Content-Type": "application/json"},
-        )
-        assert response.status_code == 422, response.text
-        assert response.json() == {"detail": "Send one invite code as text."}
-    with Session(postgres_engine) as session:
-        assert session.query(SigninFailure).count() == 0
-
-
 @pytest.mark.parametrize("mode", ["beta", "local"])
 @pytest.mark.parametrize("body", [b'"\\ud800"', b'["\\ud800"]', b"1e999999"])
 async def test_a_malformed_review_body_is_a_fixed_422_and_never_reaches_temporal(
@@ -898,7 +692,7 @@ async def test_a_malformed_review_body_is_a_fixed_422_and_never_reaches_temporal
     document = held_document(postgres_engine, sandboxed=mode == "beta")
     token = secrets.token_hex(16)
     if mode == "beta":
-        settings, headers = beta_settings(), signed_in()
+        settings, headers = beta_settings(), with_sandbox()
     else:
         settings = Settings(_env_file=None, docket_review_token=SecretStr(token))
         headers = {"Authorization": "Bearer " + token}

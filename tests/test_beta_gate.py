@@ -33,7 +33,6 @@ from docket.beta import (
     valid_session,
 )
 from docket.db import Document, Event, Sandbox, SigninFailure
-from docket.review_access import BETA_ROUTES, Access
 from docket.sandbox import SANDBOX_COOKIE, token_hash
 from docket.settings import Settings
 from docket.worker import run_worker
@@ -50,6 +49,12 @@ PUBLIC = {
     ("GET", "/healthz"),
     ("POST", "/reviewer/session"),
     ("GET", "/assets/{path:path}"),
+}
+# FastAPI's own pages. The beta serves none of them: each gets the gate's 404.
+REFUSED = {
+    (method, path)
+    for method in ("GET", "HEAD")
+    for path in ("/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc")
 }
 
 
@@ -159,8 +164,7 @@ def route_table(app) -> list[tuple[str, str]]:
 async def test_only_the_public_routes_answer_without_a_session_across_the_route_table():
     async with beta_client() as (http, _, _, app):
         table = route_table(app)
-        refused = {route for route, access in BETA_ROUTES.items() if access == Access.REFUSED}
-        assert len(table) > len(PUBLIC | refused)
+        assert len(table) > len(PUBLIC | REFUSED)
         open_routes = set()
         for method, template in table:
             response = await http.request(
@@ -170,12 +174,14 @@ async def test_only_the_public_routes_answer_without_a_session_across_the_route_
                 open_routes.add((method, template))
             else:
                 assert response.headers["cache-control"] == "no-store"
-            if (method, template) in refused:
+            if (method, template) in REFUSED:
                 assert response.status_code == 404, (method, template)
-        assert open_routes == PUBLIC | refused
+                assert response.headers["cache-control"] == "no-store"
+        assert open_routes == PUBLIC | REFUSED
         for method, path in [("GET", "/not-a-route"), ("HEAD", "/"), ("POST", "/healthz")]:
             response = await http.request(method, path, headers={"Origin": BASE})
             assert response.status_code == 404, (method, path)
+            assert response.headers["cache-control"] == "no-store"
 
 
 async def test_a_valid_bearer_token_is_refused_in_beta():
@@ -417,18 +423,23 @@ async def test_visitor_documents_are_refused_before_any_body_is_read(path):
 async def test_bodies_over_16_kb_are_refused_before_the_handler(postgres_engine):
     document = held_document(postgres_engine)
     async with beta_client(engine=postgres_engine) as (http, _, temporal, app):
-        path = f"/review/{document}/dismiss"
+        # The gate reads the body before any handler looks the document up, so an unknown
+        # id and the visitor's own document both get the 413.
         large = json.dumps({"reason": "x" * 17 * 1024}).encode()
-        response = await http.post(path, content=large, headers=signed_in())
-        assert response.status_code == 413
         session = [(b"cookie", cookie()["Cookie"].encode()), (b"origin", BASE.encode())]
-        status, reads = await call_raw(app, "POST", path, session)
-        assert status == 413 and reads == 17
+        for target in (uuid.uuid4(), document):
+            path = f"/review/{target}/dismiss"
+            response = await http.post(path, content=large, headers=signed_in())
+            assert response.status_code == 413, target
+            status, reads = await call_raw(app, "POST", path, session)
+            assert status == 413 and reads == 17, target
         sign_in = await http.post("/reviewer/session", content=large, headers={"Origin": BASE})
         assert sign_in.status_code == 413
         assert temporal.updates == []
         fits = await http.post(
-            path, content=b"[" + b" " * (16 * 1024 - 2) + b"]", headers=signed_in()
+            f"/review/{document}/dismiss",
+            content=b"[" + b" " * (16 * 1024 - 2) + b"]",
+            headers=signed_in(),
         )
         assert fits.status_code == 422
 

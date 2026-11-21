@@ -1,25 +1,22 @@
 import hmac
 import json
+import re
 import secrets
 from collections.abc import Callable, Sequence
 from enum import StrEnum
 from pathlib import Path
 
-from starlette.requests import cookie_parser
 from starlette.responses import HTMLResponse, PlainTextResponse
 from starlette.routing import BaseRoute, Match, Mount
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from docket.beta import SESSION_COOKIE, header_values, same_origin, valid_session
+from docket.beta import same_origin
 from docket.settings import Settings
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 
 
-ACCESS_FORMS = {
-    "token": {"__LABEL__": "Reviewer token", "__BUTTON__": "Unlock review"},
-    "invite": {"__LABEL__": "Invite code", "__BUTTON__": "Sign in"},
-}
+FORM = re.compile(r"<!--form-->.*?<!--/form-->", re.DOTALL)
 BETA_MAX_BODY = 16 * 1024
 # Visitors never send their own documents to the beta; these are refused before any body is read.
 BETA_CLOSED_WRITES = {("POST", "/documents"), ("POST", "/inbound")}
@@ -41,7 +38,6 @@ BETA_ROUTES: dict[tuple[str, str], Access] = {
     ("GET", "/healthz"): Access.PUBLIC,
     ("GET", "/reviewer"): Access.PUBLIC,
     ("GET", "/assets/{path:path}"): Access.PUBLIC,
-    ("POST", "/reviewer/session"): Access.PUBLIC,
     ("GET", "/review"): Access.SANDBOX,
     ("POST", "/review/{document_id}/{action}"): Access.SANDBOX,
     ("GET", "/documents/{document_id}"): Access.SANDBOX,
@@ -89,13 +85,10 @@ def reviewer_page(status_code: int = 200, access: str = "token"):
     }
     html = (WEB / "login.html").read_text().replace("__NONCE__", nonce)
     html = html.replace("__ASSETS__", json.dumps(paths).replace("<", "\\u003c"))
-    for placeholder, text in ACCESS_FORMS[access].items():
-        html = html.replace(placeholder, text)
-    # A 200 in invite mode means the session cookie was valid, so the page opens the app.
-    signed_in = access == "invite" and status_code == 200
-    html = html.replace("__ACCESS__", json.dumps(access)).replace(
-        "__SIGNED_IN__", json.dumps(signed_in)
-    )
+    # "sandbox" opens the review app at once, so it has no form to fill in.
+    if access == "sandbox":
+        html = FORM.sub("", html)
+    html = html.replace("__ACCESS__", json.dumps(access))
     return HTMLResponse(
         html,
         status_code,
@@ -121,12 +114,6 @@ def public(method: str, path: str) -> bool:
     # ASGI paths arrive percent-decoded but not dot-normalised, so /home/../review must not
     # count as a front-page file.
     return all(part not in {".", ".."} for part in path.split("/"))
-
-
-def has_session(scope: Scope, settings: Settings) -> bool:
-    cookies = cookie_parser("; ".join(header_values(scope["headers"], b"cookie")))
-    value = cookies.get(SESSION_COOKIE)
-    return value is not None and valid_session(settings, value)
 
 
 def refuse(status: int, text: str) -> PlainTextResponse:
@@ -217,8 +204,9 @@ class ReviewerAccess:
         await no_store(self.app, scope, receive, send)
 
     async def beta(self, scope: Scope, receive: Receive, send: Send, settings: Settings):
-        """Beta access is the session cookie alone: a Bearer token grants nothing, whether or
-        not one is configured."""
+        """Beta access is by route alone: each sandbox-scoped route shows the visitor their
+        own sandbox, named by its cookie, and nothing else. A Bearer token grants nothing,
+        whether or not one is configured."""
         method, path = scope["method"], scope["path"]
         # Under a root path the router matches the path without it while this gate reads the
         # full path, so a private route could pass as a public one.
@@ -234,20 +222,14 @@ class ReviewerAccess:
         # "/documents/" and "//documents" never reach the handler, but refusing them here too
         # means their bodies are never read either.
         normal = "/" + "/".join(part for part in path.split("/") if part)
-        closed = access == Access.CLOSED or (method, normal) in BETA_CLOSED_WRITES
-        if access == Access.REFUSED and not closed:
-            return await refuse(404, "Not found.")(scope, receive, send)
-        signed_in = has_session(scope, settings)
-        if (method, path) == ("GET", "/reviewer") and not signed_in:
-            return await reviewer_page(401, "invite")(scope, receive, send)
-        if access != Access.PUBLIC and not signed_in:
-            return await refuse(401, "Sign in with an invite code first.")(scope, receive, send)
-        if method != "GET" and not same_origin(scope, settings):
-            return await refuse(403, "Cross-site requests are refused.")(scope, receive, send)
-        if closed:
+        if access == Access.CLOSED or (method, normal) in BETA_CLOSED_WRITES:
             return await refuse(403, "The hosted beta does not accept documents.")(
                 scope, receive, send
             )
+        if access == Access.REFUSED:
+            return await refuse(404, "Not found.")(scope, receive, send)
+        if method != "GET" and not same_origin(scope, settings):
+            return await refuse(403, "Cross-site requests are refused.")(scope, receive, send)
         replay = await buffered_body(scope, receive, BETA_MAX_BODY)
         if isinstance(replay, PlainTextResponse):
             return await replay(scope, receive, send)

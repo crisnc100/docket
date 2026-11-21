@@ -1,0 +1,231 @@
+"""A sandbox made on the first write: its cookie, the hourly cap on new ones, and what the
+database keeps of a visitor (plan PR 1, S1, S3 and S11)."""
+
+import base64
+import hashlib
+import os
+import subprocess
+import uuid
+
+import pytest
+from sqlalchemy import func, select, text
+from sqlalchemy.orm import Session
+
+from docket.beta import address_hash
+from docket.db import Base, SampleSend, Sandbox, SandboxCreation
+from docket.sandbox import (
+    SANDBOX_COOKIE,
+    SANDBOX_DELETED,
+    TOO_MANY_SANDBOXES,
+    SandboxClosed,
+)
+from tests.sandboxes import held_in, make_sandbox, sandbox_cookie
+from tests.test_beta_gate import BASE, beta_client, beta_settings, concrete, route_table
+
+LIFE_SECONDS = 50 * 60
+
+
+@pytest.fixture(autouse=True)
+def clean_environment(monkeypatch):
+    for name in list(os.environ):
+        if name.startswith(("DOCKET_FAILPOINT", "DOCKET_DAILY_BUDGET_USD")):
+            monkeypatch.delenv(name)
+
+
+class FakeIngress:
+    def __init__(self, error: Exception | None = None):
+        self.sandboxes = []
+        self.error = error
+
+    async def submit(self, content, filename, **kwargs):
+        if self.error is not None:
+            raise self.error
+        self.sandboxes.append(kwargs["sandbox"])
+        return str(uuid.uuid4())
+
+
+def sender(address: str, token: str | None = None) -> dict:
+    headers = {"Origin": BASE, "X-Forwarded-For": address}
+    return headers | ({"Cookie": sandbox_cookie(token)} if token else {})
+
+
+def created_token(response) -> str:
+    name, _, rest = response.headers["set-cookie"].partition("=")
+    assert name == SANDBOX_COOKIE
+    return rest.split("; ")[0]
+
+
+def rows(engine) -> dict[str, int]:
+    with Session(engine) as session:
+        return {
+            table.name: session.scalar(select(func.count()).select_from(table)) or 0
+            for table in Base.metadata.sorted_tables
+        }
+
+
+def pg_dump(engine) -> str:
+    with engine.connect() as connection:
+        schema = connection.execute(text("SELECT current_schema()")).scalar_one()
+    result = subprocess.run(
+        ["docker", "compose", "exec", "-T", "postgres"]
+        + ["pg_dump", "-U", "docket", "-d", "docket", "-n", schema],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        stdin=subprocess.DEVNULL,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "CREATE TABLE" in result.stdout
+    return result.stdout
+
+
+async def sample(http, headers):
+    # Each call is its own browser: only the cookie a test passes is sent.
+    http.cookies.clear()
+    return await http.post("/beta/samples", json={"case_type": "clean"}, headers=headers)
+
+
+# S1
+
+
+async def test_the_first_write_sets_the_cookie_with_exactly_its_flags_and_stores_its_hash(
+    postgres_engine,
+):
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = ingress = FakeIngress()
+        first = await sample(http, sender("192.0.2.10"))
+        assert first.status_code == 200, first.text
+        name, _, rest = first.headers["set-cookie"].partition("=")
+        value, *flags = rest.split("; ")
+        assert name == SANDBOX_COOKIE == "__Host-docket_sandbox"
+        assert flags == [
+            "HttpOnly",
+            "Secure",
+            "SameSite=Strict",
+            "Path=/",
+            f"Max-Age={LIFE_SECONDS}",
+        ]
+        assert len(base64.urlsafe_b64decode(value + "==")) == 16
+        # The next write with the cookie goes to the same sandbox and sets nothing.
+        again = await sample(http, sender("192.0.2.10", value))
+        assert again.status_code == 200 and "set-cookie" not in again.headers
+    with Session(postgres_engine) as session:
+        [stored] = session.scalars(select(Sandbox)).all()
+    assert stored.token_hash == hashlib.sha256(value.encode()).hexdigest()
+    assert ingress.sandboxes == [stored.id, stored.id]
+    dump = pg_dump(postgres_engine)
+    assert stored.token_hash in dump
+    assert value not in dump
+
+
+async def test_in_its_last_five_minutes_a_sandbox_hands_the_next_write_to_a_new_one(
+    postgres_engine,
+):
+    ending, ending_token = make_sandbox(postgres_engine, minutes_left=4.5)
+    lasting, lasting_token = make_sandbox(postgres_engine, minutes_left=6)
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = ingress = FakeIngress()
+        kept = await sample(http, sender("192.0.2.11", lasting_token))
+        rolled = await sample(http, sender("192.0.2.11", ending_token))
+    assert "set-cookie" not in kept.headers
+    assert rolled.headers["set-cookie"].endswith(f"Max-Age={LIFE_SECONDS}")
+    fresh = created_token(rolled)
+    assert ingress.sandboxes[0] == lasting
+    assert ingress.sandboxes[1] not in {ending, lasting}
+    with Session(postgres_engine) as session:
+        assert session.scalar(select(func.count()).select_from(Sandbox)) == 3
+        assert fresh not in {ending_token, lasting_token}
+
+
+async def test_a_sample_whose_sandbox_was_deleted_first_is_a_409_with_a_plain_message(
+    postgres_engine,
+):
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = FakeIngress(SandboxClosed("gone"))
+        response = await sample(http, sender("192.0.2.12"))
+    assert response.status_code == 409
+    assert response.json() == {"detail": SANDBOX_DELETED}
+
+
+# S3
+
+
+async def test_no_get_writes_anything(postgres_engine):
+    live, live_token = make_sandbox(postgres_engine)
+    _, expired_token = make_sandbox(postgres_engine, minutes_left=-1)
+    document = held_in(postgres_engine, live)
+    before = rows(postgres_engine)
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        gets = [template for method, template in route_table(app) if method == "GET"]
+        assert ("GET", "/beta/samples") in route_table(app)
+        for template in gets:
+            path = concrete(template.replace("{document_id}", str(document)))
+            for token in (None, "not-a-sandbox", expired_token, live_token):
+                await http.get(path, headers=sender("192.0.2.13", token))
+    assert rows(postgres_engine) == before
+
+
+async def test_the_eleventh_new_sandbox_in_an_hour_from_one_address_is_refused(postgres_engine):
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = FakeIngress()
+        tokens = []
+        for _ in range(10):
+            response = await sample(http, sender("192.0.2.20"))
+            assert response.status_code == 200, response.text
+            tokens.append(created_token(response))
+        refused = await sample(http, sender("192.0.2.20"))
+        assert refused.status_code == 429
+        assert refused.json() == {"detail": TOO_MANY_SANDBOXES}
+        assert "set-cookie" not in refused.headers
+        # The refusal took no sample slot, and a sandbox already made still takes samples.
+        assert (await sample(http, sender("192.0.2.20", tokens[0]))).status_code == 200
+        assert (await sample(http, sender("192.0.2.21"))).status_code == 200
+    hashed = address_hash(beta_settings(), "192.0.2.20")
+    with Session(postgres_engine) as session:
+        assert session.scalar(select(func.count()).select_from(Sandbox)) == 11
+        assert (
+            session.scalar(select(func.count()).where(SandboxCreation.address_hash == hashed)) == 10
+        )
+        assert session.scalar(select(func.count()).where(SampleSend.address_hash == hashed)) == 11
+
+
+async def test_two_addresses_in_one_ipv6_64_share_the_cap(postgres_engine):
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = FakeIngress()
+        for index in range(10):
+            response = await sample(http, sender(f"2001:db8:5:6::{index + 1:x}"))
+            assert response.status_code == 200, response.text
+        neighbour = await sample(http, sender("2001:db8:5:6:ffff::1"))
+        assert neighbour.status_code == 429
+        elsewhere = await sample(http, sender("2001:db8:5:7::1"))
+        assert elsewhere.status_code == 200
+
+
+async def test_a_refused_sample_makes_no_sandbox(postgres_engine):
+    hashed = address_hash(beta_settings(), "192.0.2.30")
+    with Session(postgres_engine) as session, session.begin():
+        for _ in range(20):
+            session.add(SampleSend(address_hash=hashed))
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = ingress = FakeIngress()
+        response = await sample(http, sender("192.0.2.30"))
+    assert response.status_code == 429 and "set-cookie" not in response.headers
+    assert ingress.sandboxes == []
+    assert rows(postgres_engine)["sandboxes"] == rows(postgres_engine)["sandbox_creations"] == 0
+
+
+# S11
+
+
+async def test_the_database_holds_no_client_address(postgres_engine):
+    addresses = ["203.0.113.77", "2001:db8:77:1::5"]
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = FakeIngress()
+        for address in addresses:
+            assert (await sample(http, sender(address))).status_code == 200
+    dump = pg_dump(postgres_engine)
+    for value in addresses + ["2001:db8:77:1::/64", "2001:db8:77:1"]:
+        assert value not in dump, value
+    # The counters did store something for each: the keyed hash.
+    for value in ["203.0.113.77", "2001:db8:77:1::/64"]:
+        assert address_hash(beta_settings(), value) in dump

@@ -107,9 +107,16 @@ def test_the_migration_upgrades_downgrades_and_upgrades_again(postgres_engine):
         with_children(session, sandbox_id)
         local = with_children(session, None, "UNIT-0002")
     # Down to PR 1's base: the sandbox's document and its rows go first, the local one stays.
+    with Session(postgres_engine) as session, session.begin():
+        session.execute(text("INSERT INTO sample_sends (address_hash) VALUES (:h)"), {"h": HASH})
     migrate(postgres_engine, command.downgrade, BASE_REVISION)
     tables = set(inspect(postgres_engine).get_table_names())
-    assert "sandboxes" not in tables
+    assert "sandboxes" not in tables and "sandbox_creations" not in tables
+    assert "signin_failures" in tables
+    # The old code counts raw addresses, so no hash is left for it to misread.
+    with postgres_engine.connect() as connection:
+        assert connection.execute(text("SELECT count(*) FROM sample_sends")).scalar_one() == 0
+        connection.execute(text("SELECT address FROM sample_sends"))
     assert "sandbox_id" not in {
         column["name"] for column in inspect(postgres_engine).get_columns("documents")
     }

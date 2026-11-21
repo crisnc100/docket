@@ -26,11 +26,9 @@ import time
 from pathlib import Path
 
 import httpx
-from pydantic import SecretStr
 
-from docket.beta import SESSION_COOKIE, session_value
 from docket.corpus import SAMPLE_CASE_TYPES
-from docket.settings import Settings
+from docket.sandbox import SANDBOX_COOKIE
 
 ADDRESSES = [f"198.51.100.{index}" for index in (11, 12, 13, 14)]
 PROJECT = "docket-load"
@@ -149,13 +147,9 @@ async def review_one(http: httpx.AsyncClient, headers: dict, outcomes: dict) -> 
 
 async def run(env_file: Path, minutes: float, samples: int) -> dict:
     values = env_values(env_file)
-    settings = Settings(
-        _env_file=None,
-        docket_invite_codes=SecretStr(values["DOCKET_INVITE_CODES"]),
-        docket_session_key=SecretStr(values["DOCKET_SESSION_KEY"]),
-    )
-    code = values["DOCKET_INVITE_CODES"].split(",")[0].strip()
-    cookie = f"{SESSION_COOKIE}={session_value(settings, code)}"
+    # Each address is one browser: its first sample creates its sandbox, and the rest go there.
+    cookies: dict[str, str] = {}
+    sender: dict[str, str] = {}
     origin = values["DOCKET_BASE_URL"]
     published = compose(env_file, "port", "api", "8000")
     if published.returncode != 0 or not published.stdout.strip().startswith("127.0.0.1:"):
@@ -172,17 +166,23 @@ async def run(env_file: Path, minutes: float, samples: int) -> dict:
     started = time.monotonic()
     async with httpx.AsyncClient(base_url=base, timeout=30) as http:
         for index in range(samples):
-            headers = {
-                "Cookie": cookie,
-                "Origin": origin,
-                "X-Forwarded-For": ADDRESSES[index % len(ADDRESSES)],
-            }
+            address = ADDRESSES[index % len(ADDRESSES)]
+            headers = {"Origin": origin, "X-Forwarded-For": address}
+            if address in cookies:
+                headers["Cookie"] = cookies[address]
             case_type = SAMPLE_CASE_TYPES[index % len(SAMPLE_CASE_TYPES)]
             response = await http.post(
                 "/beta/samples", json={"case_type": case_type}, headers=headers
             )
+            # The cookie is Secure, so the client would not send it back over plain http.
+            created = response.headers.get("set-cookie", "")
+            if created.startswith(SANDBOX_COOKIE + "="):
+                cookies[address] = created.split(";", 1)[0]
+                headers["Cookie"] = cookies[address]
             if response.status_code == 200:
-                (after if reset is not None else before).append(response.json()["document_id"])
+                document_id = response.json()["document_id"]
+                sender[document_id] = address
+                (after if reset is not None else before).append(document_id)
             else:
                 key = str(response.status_code)
                 refused[key] = refused.get(key, 0) + 1
@@ -197,7 +197,9 @@ async def run(env_file: Path, minutes: float, samples: int) -> dict:
                 await asyncio.sleep(wait)
         await asyncio.sleep(20)
         for document_id in before + after:
-            trace = await http.get(f"/documents/{document_id}", headers=headers)
+            trace = await http.get(
+                f"/documents/{document_id}", headers={"Cookie": cookies[sender[document_id]]}
+            )
             status = (
                 trace.json()["status"] if trace.status_code == 200 else f"http {trace.status_code}"
             )

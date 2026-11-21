@@ -9,7 +9,13 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, RootModel
 from sqlalchemy import select
@@ -17,16 +23,7 @@ from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowUpdateFailedError
 from temporalio.service import RPCError
 
-from docket.beta import (
-    client_address,
-    known_code,
-    refuse_unsafe_start,
-    release_attempt,
-    reserve_attempt,
-    retry_after,
-    session_cookie,
-    session_value,
-)
+from docket.beta import address_hash, client_address, refuse_unsafe_start
 from docket.beta_reset import reset_status
 from docket.beta_samples import (
     PAUSED,
@@ -45,7 +42,19 @@ from docket.db import Document, DocumentSource, Event
 from docket.ingress import Ingress
 from docket.review_access import ReviewerAccess, reviewer_page
 from docket.runtime import Runtime
-from docket.sandbox import Owner, owned_document, raw_key, request_owner
+from docket.sandbox import (
+    SANDBOX_DELETED,
+    TOO_MANY_SANDBOXES,
+    Owner,
+    SandboxClosed,
+    TooManySandboxes,
+    cookie_token,
+    owned_document,
+    raw_key,
+    request_owner,
+    sandbox_cookie,
+    write_target,
+)
 from docket.webhook import BodyLimit, RateLimit, valid_signature
 
 
@@ -78,12 +87,6 @@ def encodes_as_utf8(value: str) -> bool:
     except UnicodeEncodeError:
         return False
     return True
-
-
-class InviteCode(BaseModel):
-    # Pasted codes often carry spaces; stripping them keeps a right code from counting as wrong.
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    code: str = Field(min_length=1, max_length=256)
 
 
 class ReviewBody(RootModel[dict[str, str]]):
@@ -378,8 +381,24 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         state = await asyncio.to_thread(gate.state)
         if state != "ready":
             raise HTTPException(503, REFUSALS[state])
-        address = client_address(request.scope, gate.settings)
-        refused = await asyncio.to_thread(take_slot, gate.engine, address)
+        hashed = address_hash(gate.settings, client_address(request.scope, gate.settings))
+        token = cookie_token(request.scope["headers"])
+
+        def reserve():
+            """The sandbox and the sample slot, together or not at all."""
+            with Session(gate.engine) as session:
+                target = write_target(session, token, hashed)
+                refused = take_slot(session, hashed)
+                if refused is None:
+                    session.commit()
+                else:
+                    session.rollback()
+                return target, refused
+
+        try:
+            target, refused = await asyncio.to_thread(reserve)
+        except TooManySandboxes as exc:
+            raise HTTPException(429, TOO_MANY_SANDBOXES) from exc
         if refused is not None:
             text, wait = refused
             raise HTTPException(429, text, headers={"Retry-After": str(wait)})
@@ -392,11 +411,16 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
                 source="sample",
                 sender=SAMPLE_SENDER,
                 guard=no_reset_running,
-                sandbox=(await asyncio.to_thread(owner, request)).sandbox_id,
+                sandbox=target.sandbox_id,
             )
         except ResetRunning as exc:
             raise HTTPException(503, RESET_RUNNING) from exc
-        return {"document_id": document_id}
+        except SandboxClosed as exc:
+            raise HTTPException(409, SANDBOX_DELETED) from exc
+        headers = {}
+        if target.token is not None:
+            headers["Set-Cookie"] = sandbox_cookie(target.token)
+        return JSONResponse({"document_id": document_id}, headers=headers)
 
     static = Path(__file__).resolve().parent.parent / "web" / "dist"
     app.mount("/assets", StaticFiles(directory=static / "assets", check_dir=False), name="assets")
@@ -405,36 +429,7 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
     @app.get("/reviewer", include_in_schema=False)
     def review_page():
         beta = app.state.runtime.settings.docket_env == "beta"
-        return reviewer_page(access="invite" if beta else "token")
-
-    @app.post("/reviewer/session", include_in_schema=False)
-    async def reviewer_session(request: Request):
-        settings = app.state.runtime.settings
-        if settings.docket_env != "beta":
-            raise HTTPException(404, "Not found")
-        body = await read_json(request, InviteCode, "Send one invite code as text.")
-        if not encodes_as_utf8(body.code):
-            raise HTTPException(422, "The code must be valid UTF-8 text")
-        engine = app.state.runtime.engine
-        address = client_address(request.scope, settings)
-        attempt = await asyncio.to_thread(reserve_attempt, engine, address)
-        if attempt is None:
-            wait = await asyncio.to_thread(retry_after, engine, address)
-            raise HTTPException(
-                429,
-                "Too many wrong codes from this address. Try again later.",
-                headers={"Retry-After": str(wait)},
-            )
-        if not known_code(settings, body.code):
-            raise HTTPException(401, "That invite code is not valid.")
-        await asyncio.to_thread(release_attempt, engine, attempt)
-        return Response(
-            status_code=204,
-            headers={
-                "Set-Cookie": session_cookie(session_value(settings, body.code)),
-                "Cache-Control": "no-store",
-            },
-        )
+        return reviewer_page(access="sandbox" if beta else "token")
 
     return app
 

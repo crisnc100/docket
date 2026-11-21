@@ -17,12 +17,7 @@ from temporalio.service import RPCError, RPCStatusCode
 
 from docket.beta_samples import RESET_LOCK, RESETTING, SAMPLE_SENDER, set_flag
 from docket.core.ledger import TERMINAL_STATUSES
-from docket.db import (
-    BetaFlag,
-    Document,
-    SampleSend,
-    SigninFailure,
-)
+from docket.db import BetaFlag, Document, SampleSend, SandboxCreation
 from docket.ingress import Ingress
 from docket.runtime import Runtime
 
@@ -166,7 +161,7 @@ def clear_tables(engine: Engine) -> None:
 def prune_counters(engine: Engine) -> None:
     window_start = func.now() - COUNTER_WINDOW
     with Session(engine) as session, session.begin():
-        session.execute(delete(SigninFailure).where(SigninFailure.at <= window_start))
+        session.execute(delete(SandboxCreation).where(SandboxCreation.at <= window_start))
         session.execute(delete(SampleSend).where(SampleSend.at <= window_start))
 
 

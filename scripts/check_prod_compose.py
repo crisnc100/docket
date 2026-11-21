@@ -17,7 +17,7 @@ DOCKET = {"api", "worker", "reset"}
 # The six long-running services' limits together: 3.3 GB.
 TOTAL_LIMIT = (768 + 512 + 512 + 512 + 768 + 256) * 1024 * 1024
 SECRETS = ("POSTGRES_PASSWORD", "S3_ACCESS_KEY", "S3_SECRET_KEY", "ANTHROPIC_API_KEY")
-SECRETS += ("DOCKET_INVITE_CODES", "DOCKET_SESSION_KEY")
+SECRETS += ("DOCKET_ADDRESS_KEY",)
 
 
 def render(env_file: Path) -> dict:

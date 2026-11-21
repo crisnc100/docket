@@ -10,14 +10,13 @@ import httpx
 import pytest
 
 from docket.api import create_app
-from docket.beta import SESSION_COOKIE, session_value
 from docket.corpus import sample_document
 from docket.ingress import Ingress
 from docket.review_access import BETA_ROUTES, Access
 from docket.runtime import Runtime
 from docket.sandbox import raw_key
 from tests.sandboxes import held_in, make_sandbox, sandbox_cookie
-from tests.test_beta_gate import BASE, CODE, FakeTemporal, beta_settings, route_table
+from tests.test_beta_gate import BASE, FakeTemporal, beta_settings, route_table
 
 PDF = b"%PDF-1.4\n% sandbox route test\n"
 
@@ -73,9 +72,7 @@ async def beta_app(runtime, temporal):
 
 
 def visitor(token: str | None) -> dict:
-    session = f"{SESSION_COOKIE}={session_value(beta_settings(), CODE)}"
-    cookies = [session] + ([sandbox_cookie(token)] if token else [])
-    return {"Cookie": "; ".join(cookies), "Origin": BASE}
+    return ({"Cookie": sandbox_cookie(token)} if token else {}) | {"Origin": BASE}
 
 
 def store(runtime, sandbox_id, content: bytes) -> str:
@@ -110,6 +107,8 @@ async def test_no_sandbox_scoped_route_answers_for_another_visitors_document(bet
         app.state.ingress = ingress = FakeIngress()
 
         async def call(method, template, token, document_id=document):
+            # Each call is its own browser: only the cookie a test passes is sent.
+            http.cookies.clear()
             called.add((method, template))
             path = template.replace("{document_id}", str(document_id))
             if template == "/review/{document_id}/{action}":
@@ -155,8 +154,10 @@ async def test_no_sandbox_scoped_route_answers_for_another_visitors_document(bet
         for token in (other_token, None, expired_token, owner_token):
             [response] = await call("POST", "/beta/samples", token)
             assert response.status_code == 200, response.text
-        # A sample lands in the sender's own sandbox, never in another's.
-        assert ingress.sandboxes == [other, None, None, owner]
+        # A sample lands in the sender's own sandbox, or a new one, never in another's.
+        sent_to = ingress.sandboxes
+        assert sent_to[0] == other and sent_to[3] == owner
+        assert len(set(sent_to)) == 4 and None not in sent_to
 
     scoped = {key for key, access in BETA_ROUTES.items() if access == Access.SANDBOX}
     assert called == scoped

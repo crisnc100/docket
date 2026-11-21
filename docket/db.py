@@ -117,16 +117,6 @@ class BudgetLedger(Base):
     spent_usd: Mapped[Decimal] = mapped_column(Numeric(18, 9), nullable=False)
 
 
-class SigninFailure(Base):
-    """One beta sign-in attempt. A right code deletes its row, so the rows left in the last
-    hour are the wrong codes that count toward the lockout."""
-
-    __tablename__ = "signin_failures"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    address: Mapped[str] = mapped_column(String, index=True)
-    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-
 class SampleCount(Base):
     """Beta samples sent on one UTC day, from every address together."""
 
@@ -137,12 +127,22 @@ class SampleCount(Base):
 
 
 class SampleSend(Base):
-    """One beta sample sent from an address. The rows from the last 60 minutes count toward
-    that address's cap."""
+    """One beta sample sent from an address, stored as its keyed hash. The rows from the last
+    60 minutes count toward that address's cap."""
 
     __tablename__ = "sample_sends"
     id: Mapped[int] = mapped_column(primary_key=True)
-    address: Mapped[str] = mapped_column(String, index=True)
+    address_hash: Mapped[str] = mapped_column(String, index=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SandboxCreation(Base):
+    """One new sandbox from an address, stored as its keyed hash. The rows from the last 60
+    minutes count toward that address's cap."""
+
+    __tablename__ = "sandbox_creations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    address_hash: Mapped[str] = mapped_column(String, index=True)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

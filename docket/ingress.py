@@ -69,14 +69,15 @@ class Ingress:
         digest = hashlib.sha256(content).hexdigest()
         key = raw_key(sandbox, digest)
         held = writing_to(self.runtime.engine, sandbox) if sandbox else contextlib.nullcontext()
-        async with held:
+        async with held as connection:
             await asyncio.to_thread(
                 self.runtime.storage.put_if_absent, key, content, digest, original_filename=filename
             )
             fire("ingress.after_raw")
 
             def persist():
-                with Session(self.runtime.engine) as session, session.begin():
+                bind = connection if connection is not None else self.runtime.engine
+                with Session(bind) as session, session.begin():
                     if guard is not None:
                         guard(session)
                     new_id = uuid.uuid4()

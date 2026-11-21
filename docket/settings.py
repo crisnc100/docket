@@ -19,10 +19,11 @@ class Settings(BaseSettings):
     openrouter_api_key: SecretStr = SecretStr("")
     anthropic_api_key: SecretStr = SecretStr("")
     docket_review_token: SecretStr | None = None
-    # "beta" is the shared hosted demo: an invite-code sign-in replaces the reviewer token.
+    # "beta" is the hosted demo: each browser gets a private sandbox instead of the reviewer
+    # token.
     docket_env: Literal["local", "beta"] = "local"
-    docket_invite_codes: SecretStr = SecretStr("")
-    docket_session_key: SecretStr = SecretStr("")
+    # Keys the hashes the beta's limits store in place of a client's address.
+    docket_address_key: SecretStr = SecretStr("")
     # Set only behind a proxy that appends the client address to X-Forwarded-For.
     docket_trust_proxy: bool = False
     docket_base_url: str = ""

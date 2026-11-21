@@ -65,10 +65,9 @@ services:
       DOCKET_MODEL_PROVIDER: ${DOCKET_MODEL_PROVIDER:-anthropic}
       DOCKET_MODEL: ${DOCKET_MODEL:-claude-haiku-5-5}
       # DOCKET_ENV=beta must reach every process, so a beta setting never silently runs
-      # local. With no cap and no invite settings, beta then refuses to start.
+      # local. With no cap and no address key, beta then refuses to start.
       DOCKET_ENV: ${DOCKET_ENV:-local}
-      DOCKET_INVITE_CODES: ${DOCKET_INVITE_CODES:-}
-      DOCKET_SESSION_KEY: ${DOCKET_SESSION_KEY:-}
+      DOCKET_ADDRESS_KEY: ${DOCKET_ADDRESS_KEY:-}
       DOCKET_TRUST_PROXY: ${DOCKET_TRUST_PROXY:-0}
       DOCKET_BASE_URL: ${DOCKET_BASE_URL:-}
     depends_on:

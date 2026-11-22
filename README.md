@@ -70,7 +70,9 @@ Both have a **10 MB limit (10 MiB, 10 × 1,024 × 1,024 bytes)** on the whole re
 including upload or encoding overhead. Oversize requests return 413.
 Locally, every route except the webhook, the health check and the front page with its files needs a reviewer Bearer token.
 With `DOCKET_ENV=beta` there is no sign-up: each browser gets a private sandbox that nobody
-else can see, and everything in it is deleted within 55 minutes, or at once with "Delete now".
+else can see, and everything in it is deleted within 55 minutes. "Delete now" removes its rows
+and stored files before it answers, and the last copies, in the workflow store and on disk,
+within a few minutes.
 Visitors cannot upload. They send server-made sample documents instead, within per-address
 and daily caps and behind a kill switch.
 [Run the hosted beta](#run-the-hosted-beta) is the runbook.

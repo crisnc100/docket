@@ -10,7 +10,9 @@ The hosted beta has no sign-up and no invite codes. Each browser gets a private 
 on its first write, named by a cookie of 128 random bits; the database keeps only the
 cookie's SHA-256. A sandbox lives 50 minutes. Its documents, their files and their
 workflow histories are visible to that browser only, and everything it held is deleted
-from Postgres, the S3 store and Temporal within 55 minutes, or at once with "Delete now".
+from Postgres, the S3 store and Temporal within 55 minutes. "Delete now" removes the
+rows and the stored files before it answers; the last copies, in Temporal and on disk, go
+within a few minutes, through the sweep when Delete now's own attempt is not enough.
 
 The sandbox is part of a document's identity: the same bytes in two sandboxes are two
 documents, two stored files under `sbx/<sandbox>/raw/<sha256>`, and two workflows. A
@@ -19,7 +21,10 @@ recorded. So deleting a sandbox leaves no second copy anywhere.
 
 Deletion runs in two places:
 
-- **Delete now** deletes one sandbox from all three stores, then answers.
+- **Delete now** deletes one sandbox from all three stores. When it answers, the rows and
+  the objects are gone; a closed workflow's history and freed disk bytes can take longer
+  (see the measurements), and the sweep erases what is left. While the sweep is behind,
+  its answer promises no time.
 - **The sweep** runs every 2 minutes, with one pass per store and a 50-second budget per
   pass. Each pass decides what to delete from what is live in Postgres, so a store that
   is down stops only its own pass. If no run completes for 10 minutes, new writes stop
@@ -39,6 +44,11 @@ is deleted with the rest; one that comes after writes nothing.
   left to expire.
 - `DeleteWorkflowExecution` removes a running workflow; `describe` reported it gone 11 ms
   after the call returned. A second delete answers "not found".
+- For a closed workflow the same call only queues the deletion. Measured on 2026-11-22,
+  the call returned in 5 to 8 ms and `describe` still found the workflow for 32.1, 34.4
+  and 32.4 seconds after it; a running workflow in the same run was gone after 18 ms.
+  A document that was filed, dismissed or failed has a closed workflow, so Delete now does
+  not promise its history is gone when it answers.
 - `WorkflowId STARTS_WITH 'doc-' AND TaskQueue = '<queue>'` lists the document workflows
   on one queue, so the sweep sees only Docket's.
 - A deleted history's bytes stay readable in the SQLite file unless the server runs with

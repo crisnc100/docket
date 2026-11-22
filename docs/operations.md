@@ -141,7 +141,9 @@ The model suggestion cannot approve it for the reviewer.
 
 Beta mode is a public demo that visitors use with no sign-up. Each browser gets a private
 sandbox: nobody else can see or act on what it holds, and everything in it is deleted
-within 55 minutes, or at once with "Delete now". Local use is unchanged. The README's
+within 55 minutes. "Delete now" removes its rows and stored files before it answers; the
+last copies, in Temporal and on disk, are erased within a few minutes. Local use is
+unchanged. The README's
 "Run the hosted beta" section covers `compose.prod.yaml`, `.env.beta.example` and the
 steps on the host. [ADR 010](adr/010-sandboxes.md) records the choice and the
 measurements behind the deletion.
@@ -267,8 +269,8 @@ Samples do it in beta; in local mode the route returns 404 before reading the bo
 **Document trace.** `GET /documents/{id}` also returns `filename` and `sender`, so the
 review page can show a document that is not in the queue, such as a sample being read.
 
-**Delete now.** `DELETE /sandbox` deletes the visitor's sandbox from every store, then
-answers. Every write to a sandbox holds the sandbox's lock shared for the whole write:
+**Delete now.** `DELETE /sandbox` deletes the visitor's sandbox from every store. Every
+write to a sandbox holds the sandbox's lock shared for the whole write:
 it checks that the sandbox is open, stores the PDF, writes the rows and starts the
 workflow. Delete now takes the lock exclusively, waiting up to 10 seconds, then:
 
@@ -280,14 +282,22 @@ workflow. Delete now takes the lock exclusively, waiting up to 10 seconds, then:
    object's bytes from a queue about a second after the delete, so a vacuum straight away
    would miss them.
 
-It answers 200, `{"deleted": true}`, and clears the cookie. A write already under way
+It answers 200, `{"deleted": true, "detail": "Deleted. The last copies in the workflow
+store and on disk are erased within a few minutes."}`, and clears the cookie. By then the
+rows and the objects are gone, and nothing the visitor sent can be reached. The last
+copies take longer: Temporal deletes a closed workflow's history from a queue, about 30
+seconds after the call, and a vacuum can miss bytes SeaweedFS has not yet freed. The
+sweep's Temporal pass and its vacuum erase whatever is left, so with a healthy sweep the
+last copies are gone after its next complete run. A write already under way
 when Delete now arrives is deleted with the rest; one that reaches the lock after it
 finds no sandbox and writes nothing. If the lock is not free within 10 seconds, Delete
 now closes the sandbox instead, so no later write goes to it, and answers 202,
 `{"deleted": false, "detail": "Deleting; this finishes within a few minutes."}`. A store
 that fails gets the same 202. In both cases the sweep finishes the job. No cookie, or a
 cookie for no sandbox, gets the same 200 as a real delete, so the answer reveals nothing.
-Delete now works even while the sweep is behind.
+Delete now still deletes while the sweep is behind, but nothing then erases the last
+copies, so it answers 202, `{"deleted": false, "detail": "Deleted from Docket's database;
+erasing the last copies is delayed."}`, with no time promised.
 
 A model call already in progress cannot be recalled: one waiting out a retry delay can
 still send the document's text to the model for a few seconds after Delete now answers.
@@ -333,7 +343,8 @@ before objects, so a sample accepted while it runs could keep its rows and lose 
 minutes of its start: a 50-minute life, up to 2 minutes until the next run, and up to 3
 minutes for the run. If no run has completed in the last 10 minutes, the beta fails
 closed: samples, and so new sandboxes, and review actions get 503 "Docket is catching up.
-Try again in a few minutes.", and `GET /beta/samples` reports `catching_up`. The review page
+Try again in a few minutes.", and `GET /beta/samples` reports `catching_up`. Delete now
+still deletes, and answers 202 with no time promised. The review page
 asks again every 30 seconds and on "Refresh queue", and lets a sample go once it is ready. Data already in stays
 until the sweep recovers. A held document's workflow ends on its own after
 `DOCKET_REVIEW_TIMEOUT_SECONDS`, at most an hour in beta.

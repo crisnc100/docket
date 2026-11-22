@@ -50,10 +50,14 @@ def set_caps(engine) -> None:
 
 
 def caps(engine) -> tuple[Decimal | None, int | None]:
+    """Today's spend and sample count, read back from the only rows there are, which must be
+    keyed by today's UTC date."""
+    today = datetime.now(UTC).date()
     with Session(engine) as session:
-        return session.scalar(select(BudgetLedger.spent_usd)), session.scalar(
-            select(SampleCount.count)
-        )
+        spend = session.execute(select(BudgetLedger.day, BudgetLedger.spent_usd)).all()
+        count = session.execute(select(SampleCount.day, SampleCount.count)).all()
+    assert [day for day, _ in spend] == [today] and [day for day, _ in count] == [today]
+    return spend[0][1], count[0][1]
 
 
 @pytest.fixture(autouse=True)
@@ -212,6 +216,7 @@ async def test_with_temporal_unreachable_rows_and_objects_go_and_histories_go_ne
     assert objects(beta, f"sbx/{gone}/") == []
     assert await histories(temporal, sent) == sent
     assert sweep_age(engine) is None
+    assert caps(engine) == CAPS
     report = await sweep_once(beta, reachable(temporal))
     assert report["complete"] is True and report["temporal_deleted"] == 2
     assert await histories(temporal, sent) == []

@@ -38,6 +38,7 @@ test('S12: two browsers stay apart, a sample is reviewed, and Delete now empties
   const [cookie] = await first.context.cookies();
   expect(cookie).toMatchObject({ name: '__Host-docket_sandbox', httpOnly: true, secure: true, sameSite: 'Strict', path: '/' });
   expect(await page.evaluate(() => document.cookie)).toBe('');
+  expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
   await expect(page.locator('.sandbox-line')).toHaveText(/^Private to this browser · deleted in (49|50) minutes · Delete now$/);
   await expect(page.getByRole('navigation', { name: 'Review queue' }).getByRole('link')).toHaveCount(1);
 
@@ -149,5 +150,35 @@ test('S12: Send waits for Delete now, a sandbox that is gone leaves nothing, and
   await expect(page.locator('.sandbox-line')).toHaveText('Private to this browser · starts with your first sample');
   expect(new URL(page.url()).hash).toBe('');
   await expect(page.locator('iframe, object, embed')).toHaveCount(0);
+  await context.close();
+});
+
+test('S12: a held document opens, previews after a reload, and its suggestion is approved', async ({ browser }) => {
+  const name = process.env.DOCKET_DOCUMENT_NAME!;
+  const context = await browser.newContext();
+  // The sandbox the test put the document in, as the browser that sent it would hold it.
+  await context.addCookies([{
+    name: '__Host-docket_sandbox', value: process.env.DOCKET_SANDBOX_COOKIE!,
+    url: process.env.DOCKET_BROWSER_URL!, httpOnly: true, secure: true, sameSite: 'Strict',
+  }]);
+  const page = await context.newPage();
+  const authorized: string[] = [];
+  page.on('request', request => {
+    if (request.headers()['authorization'] !== undefined) authorized.push(request.url());
+  });
+  await page.goto('/reviewer');
+  await page.getByRole('navigation', { name: 'Review queue' }).getByRole('link', { name: new RegExp(name) }).click();
+  await expect(page.getByRole('heading', { name })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name })).toBeVisible();
+  await expect(page.getByTitle('PDF preview')).toHaveAttribute('src', /^blob:/);
+  await page.screenshot({ path: test.info().outputPath('beta-review-open.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Approve suggested', exact: true }).click();
+  await expect(page.getByTestId('document-status')).toHaveText('Status: filed', { timeout: 60_000 });
+  await page.getByText('Document trace', { exact: true }).click();
+  await expect(page.locator('pre')).toContainText('review_approved');
+  await page.screenshot({ path: test.info().outputPath('beta-review-filed.png'), fullPage: true });
+  expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
+  expect(authorized).toEqual([]);
   await context.close();
 });

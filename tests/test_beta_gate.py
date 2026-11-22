@@ -196,6 +196,13 @@ async def test_every_route_answers_as_its_pinned_class_without_a_sandbox(postgre
                     assert response.json() == {"detail": "Unknown document"}, route
             else:
                 if template == "/assets/{path:path}":
+                    # home.css belongs to the front page, under /home/, so the review page's
+                    # build has none: the gate lets the request through and the file server,
+                    # not the gate, answers 404.
+                    assert (response.status_code, response.text) == (
+                        404,
+                        '{"detail":"Not Found"}',
+                    ), response.text
                     # A file the review page's build really has.
                     built = min(path.name for path in BUILT_ASSETS.iterdir())
                     response = await http.get("/assets/" + built)

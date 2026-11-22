@@ -1,7 +1,8 @@
 """S12: the beta stack in a real browser. Two browsers each get a private sandbox, one sends a
 sample and reviews it, the countdown shows, and Delete now empties the page; with cookies
 blocked, the page explains and sends nothing; Send waits for Delete now, a sandbox that is
-gone leaves nothing on the page, and a refusal clears by itself (web/tests/beta.spec.ts).
+gone leaves nothing on the page, and a refusal clears by itself; and a held document with a
+model suggestion opens, previews and is approved (web/tests/beta.spec.ts).
 
 The sandbox cookie is Secure, and Chromium drops Secure cookies from a plain-http host other
 than localhost. The browser therefore shares the beta API container's network and opens
@@ -14,12 +15,21 @@ import secrets
 import shutil
 import subprocess
 import uuid
+from pathlib import Path
 
 import httpx
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
+from sqlalchemy.orm import Session
+from temporalio.client import Client
 
+from docket.db import Document
+from docket.ingress import Ingress
 from docket.sweep import record_complete
+from tests.sandboxes import make_sandbox
+
+# A seed-11 document whose recorded answers give it a model suggestion.
+DOCUMENT = "doc-0075-decoy_near_miss_address.pdf"
 
 
 def docker(*args, env=None):
@@ -85,6 +95,32 @@ async def test_playwright_beta_sandboxes_review_and_delete_now(runtime):
             assert (await client.get("/healthz")).json() == {"status": "ok"}
             assert (await client.get("/review")).json() == {"items": []}
 
+        # Visitors cannot send their own documents, so the held one goes into a sandbox of the
+        # test's making through ingress, on the beta worker's queue and model; the browser is
+        # handed that sandbox's cookie.
+        runtime.settings = runtime.settings.model_copy(
+            update={
+                "docket_task_queue": queue,
+                "docket_model": environment["DOCKET_MODEL"],
+                "docket_run_budget_usd": 0.01,
+            }
+        )
+        sandbox_id, sandbox_token = make_sandbox(runtime.engine)
+        temporal = await Client.connect(runtime.settings.temporal_address)
+        content = Path("corpus/seed-11", DOCUMENT).read_bytes()
+        document_id = await Ingress(runtime, temporal).submit(
+            content, DOCUMENT, sender="reviewer@example.test", sandbox=sandbox_id
+        )
+        # The worker container extracts and replays the model answer, so allow a minute.
+        for _ in range(300):
+            with Session(runtime.engine) as session:
+                status = session.get(Document, uuid.UUID(document_id)).status
+            if status == "needs_review":
+                break
+            await asyncio.sleep(0.2)
+        else:
+            raise AssertionError(f"Document stayed {status}: " + docker("logs", names[0]))
+
         browser = "docket-browser-beta-test-" + uuid.uuid4().hex
         names.append(browser)
         result = await asyncio.to_thread(
@@ -103,11 +139,16 @@ async def test_playwright_beta_sandboxes_review_and_delete_now(runtime):
                 "DOCKET_BROWSER_URL=http://localhost:8000",
                 "-e",
                 "DOCKET_ACCESS=sandbox",
+                "-e",
+                "DOCKET_DOCUMENT_NAME=" + DOCUMENT,
+                "-e",
+                "DOCKET_SANDBOX_COOKIE",
                 "docket-v01-browser",
             ],
             capture_output=True,
             text=True,
             timeout=270,
+            env=os.environ | {"DOCKET_SANDBOX_COOKIE": sandbox_token},
         )
         copy_error = ""
         try:
@@ -116,7 +157,7 @@ async def test_playwright_beta_sandboxes_review_and_delete_now(runtime):
             copy_error = str(exc)
         assert result.returncode == 0, result.stdout + result.stderr + copy_error
         assert not copy_error, copy_error
-        assert "3 passed" in result.stdout and "skipped" not in result.stdout, result.stdout
+        assert "4 passed" in result.stdout and "skipped" not in result.stdout, result.stdout
         print(result.stdout)
     finally:
         for name in names:

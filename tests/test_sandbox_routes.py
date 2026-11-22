@@ -14,7 +14,7 @@ from docket.corpus import sample_document
 from docket.ingress import Ingress
 from docket.review_access import BETA_ROUTES, Access
 from docket.runtime import Runtime
-from docket.sandbox import raw_key
+from docket.sandbox import raw_key, spent_cookie
 from docket.sweep import record_complete
 from tests.sandboxes import held_in, make_sandbox, sandbox_cookie
 from tests.test_beta_gate import BASE, FakeTemporal, beta_settings, route_table
@@ -165,13 +165,20 @@ async def test_no_sandbox_scoped_route_answers_for_another_visitors_document(bet
         }
         assert len({str(value) for value in options.values()}) == 1
 
+        posted = {}
         for token in (other_token, None, expired_token, owner_token):
-            [response] = await call("POST", "/beta/samples", token)
-            assert response.status_code == 200, response.text
-        # A sample lands in the sender's own sandbox, or a new one, never in another's.
+            [posted[token]] = await call("POST", "/beta/samples", token)
+        for token in (other_token, None, owner_token):
+            assert posted[token].status_code == 200, posted[token].text
+        # An expired cookie starts no sandbox: the browser is told to drop it.
+        assert posted[expired_token].status_code == 409
+        assert posted[expired_token].json()["code"] == "sandbox_ended"
+        assert posted[expired_token].headers["set-cookie"] == spent_cookie()
+        # A sample lands in the sender's own sandbox, or a new one for a browser with no
+        # cookie, never in another's.
         sent_to = ingress.sandboxes
-        assert sent_to[0] == other and sent_to[3] == owner
-        assert len(set(sent_to)) == 4 and None not in sent_to
+        assert sent_to[0] == other and sent_to[2] == owner
+        assert len(set(sent_to)) == 3 and None not in sent_to and expired not in sent_to
 
         # The countdown is each visitor's own; the owner's sandbox lives 40 minutes.
         left = {

@@ -17,10 +17,13 @@ from docket.beta import address_hash
 from docket.db import Base, SampleSend, Sandbox, SandboxCreation
 from docket.sandbox import (
     SANDBOX_COOKIE,
-    SANDBOX_DELETED,
+    SANDBOX_ENDED,
+    SANDBOX_ENDING,
     TOO_MANY_SANDBOXES,
     SandboxClosed,
+    close_sandbox,
     seconds_left,
+    spent_cookie,
 )
 from tests.sandboxes import held_in, make_sandbox, sandbox_cookie
 from tests.test_beta_gate import BASE, beta_client, beta_settings, concrete, route_table
@@ -121,7 +124,7 @@ async def test_the_first_write_sets_the_cookie_with_exactly_its_flags_and_stores
     assert value not in dump
 
 
-async def test_in_its_last_five_minutes_a_sandbox_hands_the_next_write_to_a_new_one(
+async def test_in_its_last_five_minutes_a_sandbox_refuses_the_next_write_and_starts_no_other(
     postgres_engine,
 ):
     ending, ending_token = make_sandbox(postgres_engine, minutes_left=4.5)
@@ -129,26 +132,49 @@ async def test_in_its_last_five_minutes_a_sandbox_hands_the_next_write_to_a_new_
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = ingress = FakeIngress()
         kept = await sample(http, sender("192.0.2.11", lasting_token))
-        rolled = await sample(http, sender("192.0.2.11", ending_token))
-    assert "set-cookie" not in kept.headers
-    fresh = created_token(rolled)
-    max_age = int(rolled.headers["set-cookie"].rpartition("Max-Age=")[2])
-    assert LIFE_SECONDS - 5 <= max_age <= LIFE_SECONDS
-    assert ingress.sandboxes[0] == lasting
-    assert ingress.sandboxes[1] not in {ending, lasting}
-    with Session(postgres_engine) as session:
-        assert session.scalar(select(func.count()).select_from(Sandbox)) == 3
-        assert fresh not in {ending_token, lasting_token}
+        refused = await sample(http, sender("192.0.2.11", ending_token))
+    assert kept.status_code == 200 and "set-cookie" not in kept.headers
+    assert refused.status_code == 409
+    assert refused.json() == {"detail": SANDBOX_ENDING, "code": "sandbox_ending"}
+    # The cookie still opens the sandbox's documents and Delete now, so it is kept.
+    assert "set-cookie" not in refused.headers
+    assert ingress.sandboxes == [lasting]
+    assert rows(postgres_engine)["sandboxes"] == 2
+    assert rows(postgres_engine)["sample_sends"] == 1
 
 
-async def test_a_sample_whose_sandbox_was_deleted_first_is_a_409_with_a_plain_message(
+async def test_a_sample_whose_sandbox_was_deleted_first_is_a_409_that_spends_its_cookie(
     postgres_engine,
 ):
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = FakeIngress(SandboxClosed("gone"))
         response = await sample(http, sender("192.0.2.12"))
     assert response.status_code == 409
-    assert response.json() == {"detail": SANDBOX_DELETED}
+    assert response.json() == {"detail": SANDBOX_ENDED, "code": "sandbox_ended"}
+    assert response.headers["set-cookie"] == spent_cookie()
+
+
+async def test_a_request_with_a_cookie_never_starts_a_sandbox(postgres_engine):
+    expired, expired_token = make_sandbox(postgres_engine, minutes_left=-1)
+    closed, closed_token = make_sandbox(postgres_engine)
+    close_sandbox(postgres_engine, closed)
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = ingress = FakeIngress()
+        before = rows(postgres_engine)
+        for token in ("not-a-sandbox", expired_token, closed_token):
+            refused = await sample(http, sender("192.0.2.16", token))
+            assert refused.status_code == 409, (token, refused.text)
+            assert refused.json() == {"detail": SANDBOX_ENDED, "code": "sandbox_ended"}
+            assert refused.headers["set-cookie"] == spent_cookie()
+        # Nothing was written for them: no sandbox, no count against the address, no slot.
+        assert rows(postgres_engine) == before
+        assert ingress.sandboxes == []
+        # Only the same browser without its cookie starts one.
+        started = await sample(http, sender("192.0.2.16"))
+    assert started.status_code == 200
+    assert ingress.sandboxes[0] not in {expired, closed}
+    assert created_token(started) not in {expired_token, closed_token}
+    assert rows(postgres_engine)["sandboxes"] == before["sandboxes"] + 1
 
 
 async def test_the_cookie_lasts_only_as_long_as_its_sandbox(postgres_engine):

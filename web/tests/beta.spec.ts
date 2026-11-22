@@ -55,7 +55,7 @@ test('S12: two browsers stay apart, a sample is reviewed, and Delete now empties
 
   await sendSample(page);
   await page.getByRole('button', { name: 'Delete now' }).click();
-  await expect(page.getByRole('status').first()).toHaveText('Everything this browser sent is deleted.');
+  await expect(page.getByRole('status').first()).toHaveText('This sandbox is deleted.');
   await expect(page.getByRole('navigation', { name: 'Review queue' }).getByRole('link')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible();
   await expect(page.locator('.sandbox-line')).toHaveText('Private to this browser · starts with your first sample');
@@ -129,7 +129,7 @@ test('S12: Send waits for Delete now, a sandbox that is gone leaves nothing, and
   await expect(send).toBeDisabled();
   await page.route('**/review', route => route.fulfill({ status: 500, json: { detail: 'Request failed' } }));
   answer();
-  await expect(page.getByRole('status').first()).toHaveText('Everything this browser sent is deleted.');
+  await expect(page.getByRole('status').first()).toHaveText('This sandbox is deleted.');
   await expect(send).toBeEnabled();
   await expect(queueLinks).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible();
@@ -150,6 +150,74 @@ test('S12: Send waits for Delete now, a sandbox that is gone leaves nothing, and
   await expect(page.locator('.sandbox-line')).toHaveText('Private to this browser · starts with your first sample');
   expect(new URL(page.url()).hash).toBe('');
   await expect(page.locator('iframe, object, embed')).toHaveCount(0);
+  await context.close();
+});
+
+test('S12: an ended or ending sandbox is handled, and one tab sends or deletes at a time', async ({ browser }) => {
+  const context = await browser.newContext();
+  const first = await context.newPage();
+  const deletes: string[] = [];
+  context.on('request', request => {
+    if (request.method() === 'DELETE' && new URL(request.url()).pathname === '/sandbox') deletes.push(request.url());
+  });
+  await first.goto('/reviewer');
+  const send = first.getByRole('button', { name: 'Send a sample document' });
+  const fresh = first.getByRole('button', { name: 'Start fresh' });
+  const links = first.getByRole('navigation', { name: 'Review queue' }).getByRole('link');
+  const old = await sendSample(first);
+  await expect(links).toHaveCount(1);
+
+  // An answer that the sandbox ended takes its documents off the page.
+  await first.route('**/beta/samples', route => route.request().method() === 'POST'
+    ? route.fulfill({ status: 409, json: { detail: 'That sandbox ended. Send again.', code: 'sandbox_ended' } })
+    : route.continue());
+  await send.click();
+  await expect(first.locator('.sample-state')).toHaveText('That sandbox ended. Send again.');
+  await expect(links).toHaveCount(0);
+  await expect(first.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible();
+  expect(new URL(first.url()).hash).toBe('');
+  await expect(first.locator('.sandbox-line')).toHaveText('Private to this browser · starts with your first sample');
+  await expect(send).toBeEnabled();
+  await first.unroute('**/beta/samples');
+
+  // In its last minutes the sandbox refuses; Start fresh deletes it and sends to a new one.
+  const ending = 'This sandbox ends in less than five minutes, so it takes no new samples. Start fresh to delete it and send this sample to a new one.';
+  let refusals = 0;
+  await first.route('**/beta/samples', route => route.request().method() === 'POST' && refusals++ === 0
+    ? route.fulfill({ status: 409, json: { detail: ending, code: 'sandbox_ending' } })
+    : route.continue());
+  await send.click();
+  await expect(first.locator('.sample-state')).toHaveText(ending);
+  await expect(fresh).toBeVisible();
+  expect(deletes).toEqual([]);
+  await fresh.click();
+  await expect(first.locator('.sample-state')).toHaveText('The sample is waiting for review in the queue.', { timeout: 60_000 });
+  expect(deletes).toHaveLength(1);
+  await expect(fresh).toBeHidden();
+  await expect(links).toHaveCount(1);
+  expect(decodeURIComponent(new URL(first.url()).hash.slice(1))).not.toBe(old);
+  await first.unroute('**/beta/samples');
+
+  // A send held at the server keeps Delete now off in its tab and holds back another tab's.
+  const second = await context.newPage();
+  await second.goto('/reviewer');
+  await expect(second.getByRole('navigation', { name: 'Review queue' }).getByRole('link')).toHaveCount(1);
+  let answer: () => void = () => {};
+  const answered = new Promise<void>(resolve => { answer = resolve; });
+  await first.route('**/beta/samples', async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    await answered;
+    await route.continue();
+  });
+  await send.click();
+  await expect(first.getByRole('button', { name: 'Delete now' })).toBeDisabled();
+  await second.getByRole('button', { name: 'Delete now' }).click();
+  await second.waitForTimeout(1_000);
+  expect(deletes).toHaveLength(1);
+  answer();
+  await expect(second.getByRole('status').first()).toHaveText('This sandbox is deleted.', { timeout: 30_000 });
+  expect(deletes).toHaveLength(2);
+  await first.unroute('**/beta/samples');
   await context.close();
 });
 

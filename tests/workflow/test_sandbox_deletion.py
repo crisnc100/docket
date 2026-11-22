@@ -13,7 +13,7 @@ from docket import sweep
 from docket.corpus import pdf, sample_document
 from docket.db import Document, Event, Sandbox
 from docket.ingress import Ingress
-from docket.sandbox import SANDBOX_DELETED, lock_key, writing_to
+from docket.sandbox import SANDBOX_ENDED, lock_key, writing_to
 from docket.sweep import DELETING, sweep_once
 from tests.sandboxes import make_sandbox, sandbox_cookie
 from tests.test_beta_gate import BASE
@@ -183,7 +183,9 @@ async def test_a_sample_that_reaches_the_lock_after_delete_now_writes_nothing(
     finally:
         release.set()
     assert deleted.status_code == 200
-    assert refused.status_code == 409 and refused.json() == {"detail": SANDBOX_DELETED}
+    assert refused.status_code == 409
+    assert refused.json() == {"detail": SANDBOX_ENDED, "code": "sandbox_ended"}
+    assert refused.headers["set-cookie"] == SPENT
     assert leftovers(engine, sandbox_id) == 0
     assert objects(beta, f"sbx/{sandbox_id}/") == []
     with Session(engine) as session:

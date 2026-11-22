@@ -245,6 +245,8 @@ async def test_fifty_parallel_samples_from_one_address_let_exactly_twenty_throug
 
 
 async def test_the_days_301st_sample_is_refused_and_takes_no_address_slot(postgres_engine):
+    # The sandbox the visitor's cookie names: a cookie never starts one.
+    open_sandbox(postgres_engine)
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = FakeIngress()
         assert (
@@ -280,6 +282,8 @@ def sent_earlier(engine, address: str, when: str, times: int = 20) -> None:
 
 async def test_the_address_cap_rolls_across_the_clock_hour(postgres_engine):
     address = "198.51.100.30"
+    # The sandbox the visitor's cookie names: a cookie never starts one.
+    open_sandbox(postgres_engine)
     # Twenty samples in the last moment of the previous clock hour: the 21st, sent in this
     # clock hour and within 60 minutes of them, is refused.
     sent_earlier(postgres_engine, address, "date_trunc('hour', now()) - interval '1 millisecond'")
@@ -298,6 +302,8 @@ async def test_the_address_cap_rolls_across_the_clock_hour(postgres_engine):
 
 async def test_samples_older_than_sixty_minutes_stop_counting(postgres_engine):
     address = "198.51.100.31"
+    # The sandbox the visitor's cookie names: a cookie never starts one.
+    open_sandbox(postgres_engine)
     sent_earlier(postgres_engine, address, "now() - interval '61 minutes'")
     sent_earlier(postgres_engine, address, "now() - interval '59 minutes'", times=19)
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
@@ -331,6 +337,8 @@ async def test_with_less_than_one_document_left_the_button_gets_paused_for_today
 
 
 async def test_exactly_one_document_left_still_sends(postgres_engine):
+    # The sandbox the visitor's cookie names: a cookie never starts one.
+    open_sandbox(postgres_engine)
     spend(postgres_engine, Decimal("1.00") - ceiling())
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = FakeIngress()
@@ -387,6 +395,8 @@ async def test_the_pause_lifts_when_the_utc_day_changes(postgres_engine):
 async def test_switching_off_refuses_samples_with_no_restart_and_on_restores_them(
     postgres_engine,
 ):
+    # The sandbox the visitor's cookie names: a cookie never starts one.
+    open_sandbox(postgres_engine)
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = ingress = FakeIngress()
         body = {"case_type": "clean"}
@@ -580,6 +590,8 @@ def test_the_beta_switch_command_flips_the_switch_and_refuses_outside_beta(
 
 
 async def test_no_beta_route_lets_visitor_bytes_reach_ingress_or_storage(postgres_engine):
+    # The sandbox the visitor's cookie names: a cookie never starts one.
+    open_sandbox(postgres_engine)
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         writes = {
             (method, path) for method, path in route_table(app) if method not in {"GET", "HEAD"}

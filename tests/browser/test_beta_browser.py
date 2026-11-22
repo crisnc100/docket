@@ -1,8 +1,10 @@
 """S12: the beta stack in a real browser. Two browsers each get a private sandbox, one sends a
 sample and reviews it, the countdown shows, and Delete now empties the page; with cookies
 blocked, the page explains and sends nothing; Send waits for Delete now, a sandbox that is
-gone leaves nothing on the page, and a refusal clears by itself; and a held document with a
-model suggestion opens, previews and is approved (web/tests/beta.spec.ts).
+gone leaves nothing on the page, and a refusal clears by itself; an ended sandbox leaves the
+page, an ending one offers Start fresh, and a send in one tab holds back Delete now in
+another; and a held document with a model suggestion opens, previews and is approved
+(web/tests/beta.spec.ts).
 
 The sandbox cookie is Secure, and Chromium drops Secure cookies from a plain-http host other
 than localhost. The browser therefore shares the beta API container's network and opens
@@ -157,7 +159,7 @@ async def test_playwright_beta_sandboxes_review_and_delete_now(runtime):
             copy_error = str(exc)
         assert result.returncode == 0, result.stdout + result.stderr + copy_error
         assert not copy_error, copy_error
-        assert "4 passed" in result.stdout and "skipped" not in result.stdout, result.stdout
+        assert "5 passed" in result.stdout and "skipped" not in result.stdout, result.stdout
         print(result.stdout)
     finally:
         for name in names:

@@ -537,29 +537,39 @@ Commands run in the release folder, with
 deploy, check free memory, and free disk of at least 5 GB: Temporal's file reuses freed space
 but never shrinks, and a burst of the largest uploads can use about 1 GB.
 
-**PR 1:**
-1. `cp .env.beta .env.beta.bak-$(date +%Y%m%d)`. In `.env.beta`:
+**PR 1:** the old release runs a nightly `reset` service that the new compose file does not
+name, so the old file stops it. Nothing writes from step 1 until step 5 starts the API, so the
+cleanup in step 4 can never delete a new sandbox.
+1. With the old release still checked out: `cp .env.beta .env.beta.bak-$(date +%Y%m%d)`,
+   then `compose stop api worker` and `compose rm -sf reset`.
+2. Check out the new release. In `.env.beta`:
    - delete `DOCKET_INVITE_CODES` and `DOCKET_SESSION_KEY`;
    - add `DOCKET_ADDRESS_KEY=$(openssl rand -hex 32)`;
    - set `DOCKET_REVIEW_TIMEOUT_SECONDS=3000`.
 
    Then `python3 scripts/check_prod_compose.py .env.beta` must print `OK`.
-2. `compose stop api worker reset`, so that no old container runs on the new schema (item 16).
-3. `compose up -d --build --wait --remove-orphans`, then
-   `compose run --rm --no-deps sweep docket beta-sweep --all` to delete the old shared queue.
-4. Caddy does not change.
-5. Checks:
+3. `compose build`, then `compose up -d --wait --remove-orphans temporal seaweedfs postgres`,
+   which restarts Temporal with `secure_delete` on, then `compose run --rm migrate`.
+4. Still with the API, the worker and the sweep stopped:
+   `compose run --rm --no-deps sweep docket beta-sweep --all` deletes the old shared queue,
+   its files and its histories. It must end with `'complete': True`; if Temporal was still
+   starting, run it again.
+5. `compose up -d --wait --remove-orphans` starts the API, the worker and the sweep.
+6. Caddy does not change.
+7. Checks:
+   - `compose ps` lists no `reset` container;
    - `/healthz` says `ok`;
    - `docket beta-status` shows a complete sweep under 3 minutes old;
    - two browsers stay separate;
    - a sample gets a live answer;
    - "Delete now" empties the page.
-6. Rollback:
+8. Rollback:
    - `compose stop api worker sweep`;
    - `compose run --rm --no-deps sweep docket beta-sweep --all`, which must end with
      `'complete': True`: the downgrade deletes only rows, so the sandboxes' objects and
-     histories go first;
+     histories go first, while nothing writes;
    - `compose run --rm migrate alembic downgrade c3d81f5a7e20` (PR 1's base revision);
+   - `compose rm -sf sweep`, which the old compose file does not name;
    - check out the previous release;
    - restore the `.env.beta` backup;
    - `compose up -d --build --wait --remove-orphans`.

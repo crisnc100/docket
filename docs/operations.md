@@ -69,7 +69,9 @@ The workflow runs these steps:
 Every document ends with one final status and a reason: `filed`, `dismissed`,
 `needs_review_expired`, `rejected` or `failed`. In `observe` mode `would_file` and
 `would_review` replace the first three; `rejected` and `failed` still apply. `docket reconcile` starts workflows for
-uploads that never got one and marks abandoned documents `failed`.
+uploads that never got one and marks abandoned documents `failed`. In beta it starts a
+sandbox's workflow under the sandbox's lock, as a new write does, and skips a sandbox that
+is closed or expired.
 [ADR-002](adr/002-review-workflow-patching.md) explains how to change the
 workflow while reviews are still waiting.
 
@@ -169,7 +171,8 @@ from your network. Try again later." An IPv6 address counts by its /64, and an
 IPv4-mapped one as the IPv4 address. With `DOCKET_TRUST_PROXY=1` the address is the last
 `X-Forwarded-For` hop, because the proxy appends it and anything before it came from the
 client. Set it only behind such a proxy. The counters store an HMAC of the address under
-`DOCKET_ADDRESS_KEY`, never the address. Changing the key starts every count again.
+`DOCKET_ADDRESS_KEY`, never the address. Changing the key starts each address's hourly
+counts again; the day's sample count and spend carry on, since neither is kept per address.
 
 **Routes.** Every route is in one table in `docket/review_access.py`, and the gate
 refuses any route that is not:
@@ -190,7 +193,9 @@ at `/reviewer` opens with no form.
 
 **Request limits.** Every request that is not a `GET` must carry an `Origin` header that
 matches `DOCKET_BASE_URL`, or it returns 403. An unset `DOCKET_BASE_URL` therefore
-refuses every such request. Every body is limited to 16 KB.
+refuses every such request. Every body is limited to 16 KB. On a document's routes the
+visitor's ownership of the document is checked before any of the body is read, so another
+visitor's document, or one that does not exist, gets its 404 with nothing read.
 
 **Review actions.** A dismiss reason must not be blank and has at most 300 characters.
 An approve must name one of the candidates the review page offers for that document.
@@ -231,7 +236,9 @@ and `non_pdf` always end rejected; `empty_text_layer` is the same file for every
   until midnight UTC.
 
 The new sandbox and the sample slots are taken together or not at all, so a refusal on
-any cap takes nothing. A send that then fails at ingress keeps its slot. A send whose
+any cap takes nothing. A send that then fails at ingress keeps its slot; if it started a
+sandbox, the browser never gets that cookie, so the sandbox is closed and the sweep deletes
+whatever the failed write left in it. A send whose
 sandbox was deleted before its write began gets 409, "This sandbox was just deleted. Send
 again to start a new one.", and writes nothing. The counts live in the
 `sandbox_creations`, `sample_sends` and `sample_counts` tables, so they survive a
@@ -308,13 +315,16 @@ its budget carries on at the next run. A run in which all three passes finished 
 the time in the `sweep_complete` row of `beta_flags`. A run that takes over 3 minutes
 exits, and Compose restarts the service. `docket beta-sweep` runs once by hand and exits
 1 unless all three passes finished. `docket beta-sweep --all` deletes every sandbox,
-live ones too, every document outside a sandbox, and every object in the bucket.
+live ones too, every document outside a sandbox, and every object in the bucket. It is for
+maintenance only, with the API, the worker and the `sweep` service stopped: it deletes rows
+before objects, so a sample accepted while it runs could keep its rows and lose its file.
 
 **The bound.** With a healthy sweep, everything a sandbox held is gone within 55
 minutes of its start: a 50-minute life, up to 2 minutes until the next run, and up to 3
 minutes for the run. If no run has completed in the last 10 minutes, the beta fails
-closed: samples, and so new sandboxes, get 503 "Docket is catching up. Try again in a
-few minutes.", and `GET /beta/samples` reports `catching_up`. Data already in stays
+closed: samples, and so new sandboxes, and review actions get 503 "Docket is catching up.
+Try again in a few minutes.", and `GET /beta/samples` reports `catching_up`. The review page
+asks again every 30 seconds and on "Refresh queue", and lets a sample go once it is ready. Data already in stays
 until the sweep recovers. A held document's workflow ends on its own after
 `DOCKET_REVIEW_TIMEOUT_SECONDS`, at most an hour in beta.
 

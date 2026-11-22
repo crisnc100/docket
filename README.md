@@ -237,8 +237,9 @@ the first missing setting.
    every service has limits and log rotation; only the worker gets the model key; no
    secret is on a command line. It never prints a value. It stops if one of the settings
    is also set in the shell, because compose would use the shell's value.
-3. **Start.** `docker compose -f compose.prod.yaml --env-file .env.beta up -d --build --wait`
+3. **Start.** `docker compose -f compose.prod.yaml --env-file .env.beta up -d --build --wait --remove-orphans`
    builds the image, runs the migrations and returns once every service is healthy.
+   `--remove-orphans` removes any container of a service this file no longer names.
    `sweep` runs its first pass at once. Until one completes, samples get 503 "Docket is
    catching up".
 4. **Check it.** `curl -s http://127.0.0.1:8001/healthz` prints `{"status":"ok"}`, and
@@ -270,8 +271,28 @@ the first missing setting.
    Never reload a file that did not validate. To roll back, copy the backup over
    `/etc/caddy/Caddyfile`, validate it, and reload.
 
-Day to day, define `compose() { docker compose -f compose.prod.yaml --env-file .env.beta "$@"; }`
-in the shell first:
+Below, define `compose() { docker compose -f compose.prod.yaml --env-file .env.beta "$@"; }`
+in the shell first.
+
+**Upgrade from the invite-code release.** That release runs a nightly `reset` service, which
+this compose file does not name, and its shared queue belongs to no sandbox. Nothing writes
+from step 1 until step 5 starts the API, so the cleanup in step 4 cannot delete a new sandbox:
+
+1. With the old release still checked out: `cp .env.beta .env.beta.bak-$(date +%Y%m%d)`,
+   then `compose stop api worker` and `compose rm -sf reset`.
+2. Check out the new release. In `.env.beta`, delete `DOCKET_INVITE_CODES` and
+   `DOCKET_SESSION_KEY`, add `DOCKET_ADDRESS_KEY`, and set
+   `DOCKET_REVIEW_TIMEOUT_SECONDS=3000`; `python3 scripts/check_prod_compose.py .env.beta`
+   must print `OK`.
+3. `compose build`, then `compose up -d --wait --remove-orphans temporal seaweedfs postgres`,
+   which restarts Temporal with `secure_delete` on, then `compose run --rm migrate`.
+4. `compose run --rm --no-deps sweep docket beta-sweep --all` deletes the old queue, its
+   files and its histories. It must end with `'complete': True`; if Temporal was still
+   starting, run it again.
+5. `compose up -d --wait --remove-orphans` starts the API, the worker and the sweep, and
+   `compose ps` lists no `reset`.
+
+Day to day:
 
 - **Live answers off and on.** `compose exec -T api docket beta-switch off` prints
   `Live answers are off.`, and `... beta-switch on` prints `Live answers are on.` Samples
@@ -281,8 +302,12 @@ in the shell first:
   sandboxes and samples with how many addresses are at each limit, and the day's spend.
 - **Sweep by hand.** `compose run --rm --no-deps sweep docket beta-sweep` runs the three
   passes once, prints `Sweep: {...}`, and exits 1 unless all three finished.
-  `... beta-sweep --all` deletes every sandbox, live ones too, every document outside a
-  sandbox, and every object in the bucket.
+- **Delete everything.** Maintenance only, never day to day: `beta-sweep --all` deletes every
+  sandbox, live ones too, every document outside a sandbox, and every object in the bucket.
+  A sample accepted while it runs could keep its rows and lose its file, so stop writes
+  first: `compose stop api worker sweep`, then
+  `compose run --rm --no-deps sweep docket beta-sweep --all`, then
+  `compose up -d --wait`.
 - **Logs.** `compose logs --tail 50 sweep` shows the result line of each run.
 - **Back up.** Never: no copy of Docket's volumes is made, because a copy would keep what
   a sandbox held past its hour.

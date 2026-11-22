@@ -44,7 +44,14 @@ COUNTER_WINDOW = timedelta(hours=1)
 # The flag's updated_at is when the last run whose three passes all finished ended.
 SWEPT = "sweep_complete"
 CATCHING_UP = "Docket is catching up. Try again in a few minutes."
+# Delete now answers when nothing is reachable. Temporal deletes a closed workflow's history
+# only from a queue, and SeaweedFS may skip a vacuum, so the sweep erases what is left.
+DELETED = (
+    "Deleted. The last copies in the workflow store and on disk are erased within a few minutes."
+)
 DELETING = "Deleting; this finishes within a few minutes."
+# While the sweep is behind, nothing erases those last copies, so no time is promised.
+ERASE_DELAYED = "Deleted from Docket's database; erasing the last copies is delayed."
 READY_FILE = Path("/tmp/docket-sweep-ready")
 TEMPORAL_TIMEOUT = timedelta(seconds=10)
 # SeaweedFS frees a deleted object's bytes from a queue it works through about once a

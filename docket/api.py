@@ -57,7 +57,14 @@ from docket.sandbox import (
     spent_cookie,
     write_target,
 )
-from docket.sweep import CATCHING_UP, DELETING, delete_now, sweep_stale
+from docket.sweep import (
+    CATCHING_UP,
+    DELETED,
+    DELETING,
+    ERASE_DELAYED,
+    delete_now,
+    sweep_stale,
+)
 from docket.webhook import BodyLimit, RateLimit, valid_signature
 
 
@@ -472,13 +479,16 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
     @app.delete("/sandbox", include_in_schema=False)
     async def delete_sandbox(request: Request):
         """Delete now. It answers the same with no cookie or an unknown one, so it reveals
-        nothing, and it works even while the sweep is behind."""
+        nothing. It deletes even while the sweep is behind, but then answers 202 with no
+        time promised."""
         require_beta()
         token = cookie_token(request.scope["headers"])
         complete = await delete_now(app.state.runtime, app.state.temporal, token)
         headers = {"Set-Cookie": spent_cookie()}
+        if await asyncio.to_thread(sweep_stale, app.state.runtime.engine):
+            return JSONResponse({"deleted": False, "detail": ERASE_DELAYED}, 202, headers=headers)
         if complete:
-            return JSONResponse({"deleted": True}, headers=headers)
+            return JSONResponse({"deleted": True, "detail": DELETED}, headers=headers)
         return JSONResponse({"deleted": False, "detail": DELETING}, 202, headers=headers)
 
     static = Path(__file__).resolve().parent.parent / "web" / "dist"

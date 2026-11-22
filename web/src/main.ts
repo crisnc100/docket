@@ -88,7 +88,6 @@ queue.setAttribute('aria-label', 'Review queue');
 const detail = element('section');
 detail.setAttribute('aria-label', 'Document');
 const NO_COOKIES = 'Your sandbox needs a cookie to stay private to this browser, and this browser blocks cookies here. Allow cookies for this site and reload to send a sample.';
-const DELETED = 'This sandbox is deleted.';
 
 function cookiesWork() {
   if (!navigator.cookieEnabled) return false;
@@ -165,7 +164,7 @@ async function deleteSandboxNow() {
   showSandbox();
   // The page is already empty, so a refresh that fails leaves the answer in place.
   void refresh().catch(() => {});
-  return response.status === 202 && typeof body.detail === 'string' ? body.detail : DELETED;
+  return typeof body.detail === 'string' ? body.detail : 'Deleted.';
 }
 async function deleteSandbox() {
   message.textContent = await deleteSandboxNow();

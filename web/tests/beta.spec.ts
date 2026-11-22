@@ -1,52 +1,92 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Browser, type Page } from '@playwright/test';
 
-const code = process.env.DOCKET_INVITE_CODE!;
-const name = process.env.DOCKET_DOCUMENT_NAME!;
+// S12: each browser opens its own private sandbox on the beta stack, with no form.
+const KIND = 'Address not on file';
 
-test('A7: an invite code signs in and one held document is reviewed on the beta stack', async ({ page }) => {
+async function openDocket(browser: Browser) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const sent: string[] = [];
   const authorized: string[] = [];
   page.on('request', request => {
+    if (request.method() === 'POST' && request.url().endsWith('/beta/samples')) sent.push(request.url());
     if (request.headers()['authorization'] !== undefined) authorized.push(request.url());
   });
   const response = await page.goto('/reviewer');
-  expect(response!.status()).toBe(401);
-  await expect(page.getByLabel('Reviewer token')).toHaveCount(0);
-  await page.getByLabel('Invite code').fill('not-the-code-' + '0'.repeat(16));
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('status')).toHaveText('That invite code is not valid.');
-  await expect(page.getByRole('navigation', { name: 'Review queue' })).toHaveCount(0);
-  // A pasted code with spaces around it still signs in.
-  await page.getByLabel('Invite code').fill('  ' + code + ' ');
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  expect(response!.status()).toBe(200);
   await expect(page.getByRole('navigation', { name: 'Review queue' })).toBeVisible();
+  return { context, page, sent, authorized };
+}
 
-  const session = (await page.context().cookies()).find(cookie => cookie.name === '__Host-docket_session');
-  expect(session).toBeDefined();
-  expect(session!).toMatchObject({ httpOnly: true, secure: true, sameSite: 'Strict', path: '/' });
-  expect(session!.value).not.toContain(code);
-  expect(await page.evaluate(() => document.cookie)).not.toContain('docket_session');
-  expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
-  expect(page.url()).not.toContain(code);
+async function sendSample(page: Page) {
+  await expect(page.getByRole('button', { name: 'Send a sample document' })).toBeEnabled();
+  await page.getByLabel('Kind of document').selectOption({ label: KIND });
+  await page.getByRole('button', { name: 'Send a sample document' }).click();
+  await expect(page.locator('.sample-state')).toHaveText('The sample is waiting for review in the queue.', { timeout: 60_000 });
+  return decodeURIComponent(new URL(page.url()).hash.slice(1));
+}
 
-  // A visitor's own upload, sent by the signed-in page with its cookie and origin, is refused.
-  const upload = await page.evaluate(async () => {
-    const form = new FormData();
-    form.append('file', new Blob(['%PDF-1.4'], { type: 'application/pdf' }), 'visitor.pdf');
-    return (await fetch('/documents', { method: 'POST', body: form })).status;
-  });
-  expect(upload).toBe(403);
+test('S12: two browsers stay apart, a sample is reviewed, and Delete now empties the page', async ({ browser }) => {
+  const first = await openDocket(browser);
+  const second = await openDocket(browser);
+  const { page } = first;
+  await expect(page.getByLabel('Reviewer token')).toHaveCount(0);
+  await expect(page.locator('.sandbox-line')).toHaveText('Private to this browser · starts with your first sample');
+  expect(await page.context().cookies()).toEqual([]);
 
-  await page.getByRole('navigation', { name: 'Review queue' }).getByRole('link', { name: new RegExp(name) }).click();
-  await expect(page.getByRole('heading', { name })).toBeVisible();
+  const id = await sendSample(page);
+  const [cookie] = await first.context.cookies();
+  expect(cookie).toMatchObject({ name: '__Host-docket_sandbox', httpOnly: true, secure: true, sameSite: 'Strict', path: '/' });
+  expect(await page.evaluate(() => document.cookie)).toBe('');
+  await expect(page.locator('.sandbox-line')).toHaveText(/^Private to this browser · deleted in (49|50) minutes · Delete now$/);
+  await expect(page.getByRole('navigation', { name: 'Review queue' }).getByRole('link')).toHaveCount(1);
+
+  // The second browser sees none of it, even with the document's id.
+  await second.page.goto('/reviewer#' + id);
+  await expect(second.page.getByRole('navigation', { name: 'Review queue' }).getByRole('link')).toHaveCount(0);
+  await expect(second.page.getByRole('status').first()).toHaveText('Unknown document');
+  expect((await second.context.cookies()).length).toBe(0);
+
+  await page.getByLabel('Dismiss reason').fill('Not one of ours.');
+  await page.getByRole('button', { name: 'Dismiss', exact: true }).click();
+  await expect(page.getByTestId('document-status')).toHaveText('Status: dismissed', { timeout: 60_000 });
+  await page.screenshot({ path: test.info().outputPath('beta-sandbox-dismissed.png'), fullPage: true });
+
+  await sendSample(page);
+  await page.getByRole('button', { name: 'Delete now' }).click();
+  await expect(page.getByRole('status').first()).toHaveText('Everything this browser sent is deleted.');
+  await expect(page.getByRole('navigation', { name: 'Review queue' }).getByRole('link')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible();
+  await expect(page.locator('.sandbox-line')).toHaveText('Private to this browser · starts with your first sample');
+  expect(await first.context.cookies()).toEqual([]);
   await page.reload();
-  await expect(page.getByRole('heading', { name })).toBeVisible();
-  await expect(page.getByLabel('Invite code')).toHaveCount(0);
-  await expect(page.getByTitle('PDF preview')).toHaveAttribute('src', /^blob:/);
-  await page.screenshot({ path: test.info().outputPath('beta-review-open.png'), fullPage: true });
-  await page.getByRole('button', { name: 'Approve suggested', exact: true }).click();
-  await expect(page.getByTestId('document-status')).toHaveText('Status: filed', { timeout: 60_000 });
-  await page.getByText('Document trace', { exact: true }).click();
-  await expect(page.locator('pre')).toContainText('review_approved');
-  await page.screenshot({ path: test.info().outputPath('beta-review-filed.png'), fullPage: true });
-  expect(authorized).toEqual([]);
+  await expect(page.getByRole('navigation', { name: 'Review queue' }).getByRole('link')).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('beta-sandbox-deleted.png'), fullPage: true });
+  expect(second.sent).toEqual([]);
+  // The cookie is the only access: no request carries a Bearer token.
+  expect([...first.authorized, ...second.authorized]).toEqual([]);
+  await first.context.close();
+  await second.context.close();
+});
+
+test('S12: with cookies blocked the page explains and sends nothing', async ({ browser }) => {
+  const context = await browser.newContext();
+  // What a browser that blocks this site's cookies shows the page.
+  await context.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, 'cookieEnabled', { get: () => false });
+    Object.defineProperty(Document.prototype, 'cookie', { get: () => '', set: () => {} });
+  });
+  const page = await context.newPage();
+  const sent: string[] = [];
+  page.on('request', request => {
+    if (request.method() !== 'GET') sent.push(request.method() + ' ' + request.url());
+  });
+  await page.goto('/reviewer');
+  await expect(page.locator('.sample-state')).toHaveText(
+    'Your sandbox needs a cookie to stay private to this browser, and this browser blocks cookies here. Allow cookies for this site and reload to send a sample.');
+  await expect(page.getByRole('button', { name: 'Send a sample document' })).toBeHidden();
+  await expect(page.locator('.sandbox-line')).toBeHidden();
+  await page.screenshot({ path: test.info().outputPath('beta-cookies-blocked.png'), fullPage: true });
+  expect(sent).toEqual([]);
+  await context.close();
 });

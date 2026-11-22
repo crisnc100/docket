@@ -161,10 +161,14 @@ Set `DOCKET_ENV=beta` to turn it on. These settings apply:
 sandbox. The answer sets the cookie `__Host-docket_sandbox`: `HttpOnly`, `Secure`,
 `SameSite=Strict`, `Path=/`, and a `Max-Age` of the sandbox's 50 minutes. Its value is
 128 random bits. The database stores only its SHA-256, so the database cannot hand a
-cookie back. Later writes with the cookie go to the same sandbox. In its last five
-minutes a sandbox takes nothing new: the next write starts a new sandbox and sets a new
-cookie, so nothing a visitor sends is deleted moments later. No `GET` creates a sandbox
-or writes anything.
+cookie back. Later writes with the cookie go to the same sandbox. Only a request with
+no cookie creates one, so a browser holds one sandbox and Delete now reaches all of it.
+A cookie whose sandbox is closed, expired or gone gets 409, `{"detail": "That sandbox
+ended. Send again.", "code": "sandbox_ended"}`, and the answer clears the cookie, so the
+browser's next send starts a new sandbox. In its last five minutes a sandbox takes
+nothing new, so nothing a visitor sends is deleted moments later: a send gets 409 with
+the code `sandbox_ending`, and the page offers "Start fresh", which runs Delete now and
+sends the sample again. No `GET` creates a sandbox or writes anything.
 
 One address may start 10 sandboxes an hour. The 11th gets 429, "Too many new sandboxes
 from your network. Try again later." An IPv6 address counts by its /64, and an
@@ -239,8 +243,9 @@ The new sandbox and the sample slots are taken together or not at all, so a refu
 any cap takes nothing. A send that then fails at ingress keeps its slot; if it started a
 sandbox, the browser never gets that cookie, so the sandbox is closed and the sweep deletes
 whatever the failed write left in it. A send whose
-sandbox was deleted before its write began gets 409, "This sandbox was just deleted. Send
-again to start a new one.", and writes nothing. The counts live in the
+sandbox ended, or was deleted before its write began, gets the 409 `sandbox_ended` answer
+and writes nothing; a send in a sandbox's last five minutes gets `sandbox_ending`. Neither
+takes a slot. The counts live in the
 `sandbox_creations`, `sample_sends` and `sample_counts` tables, so they survive a
 restart.
 
@@ -291,7 +296,12 @@ still send the document's text to the model for a few seconds after Delete now a
 `{"expires_in": null}`. The review page counts down from it: "Private to this browser ·
 deleted in N minutes · Delete now". Before its first write, the page checks that the
 browser keeps cookies for the site. If it does not, the page says the sandbox needs a
-cookie to stay private, and sends nothing.
+cookie to stay private, and sends nothing. Sends and Delete now from all of a browser's
+tabs take turns under one Web Lock, so two first sends cannot start two sandboxes and
+Delete now's answer cannot clear the cookie of a sandbox a send just started; a browser
+without the Web Locks API gets this only within one tab. Delete now is off while a send
+waits for its answer. Delete now names no sandbox: from any tab it deletes the browser's
+current one.
 
 **The sweep.** `docket beta-sweep --service` is the `sweep` service in
 `compose.prod.yaml`. It runs every 2 minutes, start to start, and waits for nothing but

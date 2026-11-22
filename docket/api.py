@@ -40,10 +40,12 @@ from docket.ingress import Ingress
 from docket.review_access import ReviewerAccess, reviewer_page
 from docket.runtime import Runtime
 from docket.sandbox import (
-    SANDBOX_DELETED,
+    SANDBOX_ENDED,
+    SANDBOX_ENDING,
     TOO_MANY_SANDBOXES,
     Owner,
     SandboxClosed,
+    SandboxEnding,
     TooManySandboxes,
     close_sandbox,
     cookie_token,
@@ -412,10 +414,23 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
                     session.rollback()
                 return target, refused
 
+        def ended():
+            """The cookie names a sandbox that ended, so the browser drops it and its next
+            send starts a new one."""
+            return JSONResponse(
+                {"detail": SANDBOX_ENDED, "code": "sandbox_ended"},
+                409,
+                headers={"Set-Cookie": spent_cookie()},
+            )
+
         try:
             target, refused = await asyncio.to_thread(reserve)
         except TooManySandboxes as exc:
             raise HTTPException(429, TOO_MANY_SANDBOXES) from exc
+        except SandboxClosed:
+            return ended()
+        except SandboxEnding:
+            return JSONResponse({"detail": SANDBOX_ENDING, "code": "sandbox_ending"}, 409)
         if refused is not None:
             text, wait = refused
             raise HTTPException(429, text, headers={"Retry-After": str(wait)})
@@ -429,8 +444,8 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
                 sender=SAMPLE_SENDER,
                 sandbox=target.sandbox_id,
             )
-        except SandboxClosed as exc:
-            raise HTTPException(409, SANDBOX_DELETED) from exc
+        except SandboxClosed:
+            return ended()
         except BaseException:
             # The browser never gets the cookie of a sandbox this request made, so whatever
             # the failed write left in it goes to the sweep. Its slots stay taken.

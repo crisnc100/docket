@@ -20,17 +20,25 @@ from docket.db import Document, Sandbox, SandboxCreation
 SANDBOX_COOKIE = "__Host-docket_sandbox"
 UNKNOWN_DOCUMENT = "Unknown document"
 SANDBOX_LIFE = timedelta(minutes=50)
-# In its last minutes a sandbox takes no new document: the next one starts a fresh sandbox,
-# so nothing a visitor sends is deleted moments later.
+# In its last minutes a sandbox takes no new document, so nothing a visitor sends is deleted
+# moments later. The page offers "Start fresh" instead.
 ROLLOVER = timedelta(minutes=5)
 CREATION_LIMIT = 10
 CREATION_WINDOW = timedelta(hours=1)
 TOO_MANY_SANDBOXES = "Too many new sandboxes from your network. Try again later."
-SANDBOX_DELETED = "This sandbox was just deleted. Send again to start a new one."
+SANDBOX_ENDED = "That sandbox ended. Send again."
+SANDBOX_ENDING = (
+    "This sandbox ends in less than five minutes, so it takes no new samples. Start fresh "
+    "to delete it and send this sample to a new one."
+)
 
 
 class SandboxClosed(Exception):
     """The sandbox was deleted, or expired, before the write could start."""
+
+
+class SandboxEnding(Exception):
+    """The cookie's sandbox is in its last minutes and takes no new document."""
 
 
 class TooManySandboxes(Exception):
@@ -85,20 +93,6 @@ def live_sandbox(session: Session, token: str | None) -> Sandbox | None:
     )
 
 
-def writable_sandbox(session: Session, token: str | None) -> Sandbox | None:
-    """The cookie's sandbox while it still takes documents: open, and not in its last
-    minutes."""
-    if token is None:
-        return None
-    return session.scalar(
-        select(Sandbox).where(
-            Sandbox.token_hash == token_hash(token),
-            Sandbox.closed_at.is_(None),
-            Sandbox.expires_at > func.now() + ROLLOVER,
-        )
-    )
-
-
 def _creation_lock(address_hash: str) -> int:
     return int.from_bytes(
         hashlib.sha256(b"sandbox-creation:" + address_hash.encode()).digest()[:8], signed=True
@@ -106,13 +100,27 @@ def _creation_lock(address_hash: str) -> int:
 
 
 def write_target(session: Session, token: str | None, address_hash: str) -> WriteTarget:
-    """The sandbox a write from this request goes to, inside the caller's transaction: the
-    cookie's sandbox while it takes documents, or else a new one. Raises TooManySandboxes
-    when the address has started its limit in the last hour; the count is taken under a lock
-    for the address, so parallel requests never pass it."""
-    current = writable_sandbox(session, token)
-    if current is not None:
-        return WriteTarget(current.id, None)
+    """The sandbox a write from this request goes to, inside the caller's transaction.
+
+    A request with a cookie writes only to that cookie's sandbox and never starts another, so
+    one browser holds one sandbox and "Delete now" reaches all of it. It raises SandboxClosed
+    when that sandbox is closed, expired or gone, and SandboxEnding in its last minutes. A
+    request with no cookie starts a sandbox, or raises TooManySandboxes when the address has
+    started its limit in the last hour; the count is taken under a lock for the address, so
+    parallel requests never pass it."""
+    if token is not None:
+        state = session.execute(
+            select(
+                Sandbox.id,
+                Sandbox.closed_at.is_(None) & (Sandbox.expires_at > func.now()),
+                Sandbox.expires_at > func.now() + ROLLOVER,
+            ).where(Sandbox.token_hash == token_hash(token))
+        ).first()
+        if state is None or not state[1]:
+            raise SandboxClosed
+        if not state[2]:
+            raise SandboxEnding
+        return WriteTarget(state[0], None)
     window_start = func.now() - CREATION_WINDOW
     session.execute(select(func.pg_advisory_xact_lock(_creation_lock(address_hash))))
     session.execute(

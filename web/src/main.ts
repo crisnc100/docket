@@ -88,7 +88,7 @@ queue.setAttribute('aria-label', 'Review queue');
 const detail = element('section');
 detail.setAttribute('aria-label', 'Document');
 const NO_COOKIES = 'Your sandbox needs a cookie to stay private to this browser, and this browser blocks cookies here. Allow cookies for this site and reload to send a sample.';
-const DELETED = 'Everything this browser sent is deleted.';
+const DELETED = 'This sandbox is deleted.';
 
 function cookiesWork() {
   if (!navigator.cookieEnabled) return false;
@@ -104,10 +104,14 @@ function cookiesWork() {
 const sandboxLine = block('p', 'sample-note sandbox-line');
 const deleteNow = button('Delete now', deleteSandbox, 'quiet small');
 let sandboxEnds: number | undefined;
-// Sending and Delete now never overlap: a sample sent while Delete now waits for the stores
-// would start a new sandbox whose cookie the delete's answer then clears.
+// Sending and Delete now never overlap, in this tab or another: a delete's answer spends the
+// cookie, so a first send that finished during it would leave a sandbox this browser can no
+// longer reach. Without the Web Locks API only this tab is covered.
 let deleting = false;
 let posting = false;
+function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
+  return 'locks' in navigator ? navigator.locks.request('docket-sandbox', () => work()) : work();
+}
 let syncSample = () => {};
 let recheckSamples = () => {};
 function syncControls() {
@@ -142,23 +146,29 @@ async function loadSandbox() {
   sandboxEnds = expires_in === null ? undefined : Date.now() + expires_in * 1000;
   showSandbox();
 }
-async function deleteSandbox() {
+// Deletes the browser's sandbox, whichever tab started it, empties the page and returns the
+// answer to show.
+async function deleteSandboxNow() {
   deleting = true;
   syncControls();
+  let response: Response;
   try {
-    const response = await authorizedFetch('/sandbox', { method: 'DELETE' });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Delete now failed. Try again.');
-    sandboxEnds = undefined;
-    clearSandboxView();
-    showSandbox();
-    message.textContent = response.status === 202 && typeof body.detail === 'string' ? body.detail : DELETED;
+    response = await oneAtATime(() => authorizedFetch('/sandbox', { method: 'DELETE' }));
   } finally {
     deleting = false;
     syncControls();
   }
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Delete now failed. Try again.');
+  sandboxEnds = undefined;
+  clearSandboxView();
+  showSandbox();
   // The page is already empty, so a refresh that fails leaves the answer in place.
   void refresh().catch(() => {});
+  return response.status === 202 && typeof body.detail === 'string' ? body.detail : DELETED;
+}
+async function deleteSandbox() {
+  message.textContent = await deleteSandboxNow();
 }
 if (cookieAccess) window.setInterval(showSandbox, 15_000);
 
@@ -462,15 +472,24 @@ function samplePanel() {
   send.disabled = true;
   const state = block('p', 'sample-state');
   state.setAttribute('role', 'status');
-  panel.append(title, note, label, send, state, sandboxLine);
+  // Offered only when the sandbox is in its last minutes and refuses new samples.
+  const fresh = element('button', 'Start fresh');
+  fresh.type = 'button';
+  fresh.className = 'quiet small';
+  fresh.hidden = true;
+  panel.append(title, note, label, send, state, fresh, sandboxLine);
 
   let ready = false;
   let inFlight = false;
-  syncSample = () => { send.disabled = kinds.disabled = !ready || deleting || posting; };
-  const settle = (canSend: boolean, text: string) => {
+  syncSample = () => {
+    send.disabled = kinds.disabled = !ready || deleting || posting;
+    fresh.disabled = inFlight || deleting || posting;
+  };
+  const settle = (canSend: boolean, text: string, offerFresh = false) => {
     ready = canSend;
     send.textContent = 'Send a sample document';
     state.textContent = text;
+    fresh.hidden = !offerFresh;
     syncSample();
   };
   // Without the cookie, every sample would start a sandbox this browser could never open
@@ -499,17 +518,30 @@ function samplePanel() {
   };
   window.setInterval(recheckSamples, 30_000);
 
-  send.addEventListener('click', () => {
-    if (!ready || deleting) return;
+  const run = (work: () => Promise<SampleResult>) => {
     ready = false;
     inFlight = true;
-    void sendSample(kinds.value, send, kinds, state)
-      .then(result => { inFlight = false; settle(result.canSend, result.text); })
+    fresh.hidden = true;
+    void work()
+      .then(result => { inFlight = false; settle(result.canSend, result.text, result.startFresh); })
       .catch(() => { inFlight = false; settle(true, 'The sample could not be sent. Try again.'); });
+  };
+  send.addEventListener('click', () => {
+    if (!ready || deleting) return;
+    run(() => sendSample(kinds.value, send, kinds, state));
+  });
+  fresh.addEventListener('click', () => {
+    if (inFlight || deleting || posting) return;
+    const caseType = kinds.value;
+    run(async () => {
+      await deleteSandboxNow();
+      return sendSample(caseType, send, kinds, state);
+    });
   });
   return panel;
 }
-async function sendSample(caseType: string, send: HTMLButtonElement, kinds: HTMLSelectElement, state: HTMLElement) {
+type SampleResult = { canSend: boolean; text: string; startFresh?: boolean };
+async function sendSample(caseType: string, send: HTMLButtonElement, kinds: HTMLSelectElement, state: HTMLElement): Promise<SampleResult> {
   send.disabled = kinds.disabled = true;
   send.textContent = 'Sending…';
   state.textContent = '';
@@ -517,10 +549,10 @@ async function sendSample(caseType: string, send: HTMLButtonElement, kinds: HTML
   syncControls();
   let response: Response;
   try {
-    response = await authorizedFetch('/beta/samples', {
+    response = await oneAtATime(() => authorizedFetch('/beta/samples', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ case_type: caseType }),
-    });
+    }));
   } finally {
     posting = false;
     syncControls();
@@ -528,10 +560,19 @@ async function sendSample(caseType: string, send: HTMLButtonElement, kinds: HTML
   const body = await response.json().catch(() => ({}));
   const detail = typeof body.detail === 'string' ? body.detail : '';
   if (response.status === 503) return { canSend: false, text: detail || SAMPLE_STATES.paused };
+  if (response.status === 409 && body.code === 'sandbox_ending') return { canSend: true, text: detail, startFresh: true };
+  if (response.status === 409 && body.code === 'sandbox_ended') {
+    // The answer spent the cookie, so nothing from that sandbox stays on the page.
+    sandboxEnds = undefined;
+    clearSandboxView();
+    showSandbox();
+    void refresh().catch(() => {});
+    return { canSend: true, text: detail };
+  }
   if (!response.ok) return { canSend: true, text: detail || 'The sample could not be sent. Try again.' };
   const id = String(body.document_id);
   state.textContent = 'Sample sent. Docket is reading it…';
-  // The first sample starts the sandbox, and one in a sandbox's last minutes starts a new one.
+  // The first sample starts the sandbox.
   void loadSandbox().catch(() => {});
   window.location.hash = id;
   // From here the sample exists, so no error below may suggest sending it again.

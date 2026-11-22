@@ -3,18 +3,17 @@ right after it answers, and samples racing it (plan PR 1, S4 and S5)."""
 
 import asyncio
 import threading
-import time
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from docket import sandbox as sandbox_module
 from docket import sweep
-from docket.corpus import sample_document
+from docket.corpus import pdf, sample_document
 from docket.db import Document, Event, Sandbox
 from docket.ingress import Ingress
-from docket.sandbox import SANDBOX_DELETED, writing_to
+from docket.sandbox import SANDBOX_DELETED, lock_key, writing_to
 from docket.sweep import DELETING, sweep_once
 from tests.sandboxes import make_sandbox, sandbox_cookie
 from tests.test_beta_gate import BASE
@@ -101,31 +100,57 @@ async def test_deleting_one_of_two_sandboxes_with_the_same_bytes_leaves_the_othe
 # S5
 
 
-def slow(target, seconds: float, started: threading.Event):
+def held(target, reached: threading.Event, release: threading.Event):
+    """target, stopped where it is called until the test releases it."""
+
     def wrapped(*args, **kwargs):
-        started.set()
-        time.sleep(seconds)
+        reached.set()
+        assert release.wait(30), "the test never released the write"
         return target(*args, **kwargs)
 
     return wrapped
+
+
+async def lock_awaited(engine, sandbox_id) -> bool:
+    """Whether some session is waiting for the sandbox's lock, within five seconds."""
+    key = lock_key(sandbox_id) & 0xFFFFFFFFFFFFFFFF
+    for _ in range(100):
+        with engine.connect() as connection:
+            waiting = connection.execute(
+                text(
+                    "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted"
+                    " AND classid::bigint = :high AND objid::bigint = :low AND objsubid = 1"
+                ),
+                {"high": key >> 32, "low": key & 0xFFFFFFFF},
+            ).scalar_one()
+        if waiting:
+            return True
+        await asyncio.sleep(0.05)
+    return False
 
 
 async def test_a_sample_already_writing_is_deleted_with_the_sandbox(beta, temporal, monkeypatch):
     engine = beta.engine
     sweep.record_complete(engine)
     sandbox_id, token = make_sandbox(engine)
-    writing = threading.Event()
-    # The delay sits inside the write, after the sandbox's lock is taken.
+    reached, release = threading.Event(), threading.Event()
+    # Held inside the write, with the sandbox's lock taken, until Delete now waits for it.
     monkeypatch.setattr(
-        beta.storage, "put_if_absent", slow(beta.storage.put_if_absent, 1.5, writing)
+        beta.storage, "put_if_absent", held(beta.storage.put_if_absent, reached, release)
     )
-    async with api(beta, temporal) as http:
-        sample = asyncio.create_task(
-            http.post("/beta/samples", json={"case_type": "clean"}, headers=visitor(token))
-        )
-        await asyncio.to_thread(writing.wait, 10)
-        deleted = await http.delete("/sandbox", headers=visitor(token))
-        written = await sample
+    try:
+        async with api(beta, temporal) as http:
+            sample = asyncio.create_task(
+                http.post("/beta/samples", json={"case_type": "clean"}, headers=visitor(token))
+            )
+            assert await asyncio.to_thread(reached.wait, 10)
+            delete = asyncio.create_task(http.delete("/sandbox", headers=visitor(token)))
+            assert await lock_awaited(engine, sandbox_id)
+            release.set()
+            written = await sample
+            deleted = await delete
+    finally:
+        release.set()
     assert written.status_code == 200, written.text
     document_id = written.json()["document_id"]
     assert deleted.status_code == 200 and deleted.json() == {"deleted": True}
@@ -140,18 +165,23 @@ async def test_a_sample_that_reaches_the_lock_after_delete_now_writes_nothing(
     engine = beta.engine
     sweep.record_complete(engine)
     sandbox_id, token = make_sandbox(engine)
-    reached = threading.Event()
-    # The delay sits inside the write, after the sandbox was chosen and before its lock.
+    reached, release = threading.Event(), threading.Event()
+    # Held after the sandbox was chosen and before its lock, until Delete now has finished.
     monkeypatch.setattr(
-        sandbox_module, "_take_shared", slow(sandbox_module._take_shared, 1.5, reached)
+        sandbox_module, "_take_shared", held(sandbox_module._take_shared, reached, release)
     )
-    async with api(beta, temporal) as http:
-        sample = asyncio.create_task(
-            http.post("/beta/samples", json={"case_type": "clean"}, headers=visitor(token))
-        )
-        await asyncio.to_thread(reached.wait, 10)
-        deleted = await http.delete("/sandbox", headers=visitor(token))
-        refused = await sample
+    try:
+        async with api(beta, temporal) as http:
+            sample = asyncio.create_task(
+                http.post("/beta/samples", json={"case_type": "clean"}, headers=visitor(token))
+            )
+            assert await asyncio.to_thread(reached.wait, 10)
+            deleted = await http.delete("/sandbox", headers=visitor(token), timeout=60)
+            assert not sample.done()
+            release.set()
+            refused = await sample
+    finally:
+        release.set()
     assert deleted.status_code == 200
     assert refused.status_code == 409 and refused.json() == {"detail": SANDBOX_DELETED}
     assert leftovers(engine, sandbox_id) == 0
@@ -165,6 +195,43 @@ async def test_a_sample_that_reaches_the_lock_after_delete_now_writes_nothing(
         )
     ]
     assert listed == []
+
+
+# Recovery
+
+
+async def test_reconcile_starts_a_sandbox_workflow_only_while_its_sandbox_is_open(
+    beta, temporal, monkeypatch
+):
+    engine = beta.engine
+    writer = Ingress(beta, temporal)
+
+    async def never(request):
+        pass
+
+    # Written as a sample is, but its workflow never started.
+    monkeypatch.setattr(writer, "start", never)
+    gone, _ = make_sandbox(engine)
+    open_, _ = make_sandbox(engine)
+    stuck = await writer.submit(pdf(["Stuck while Delete now ran"]), "a.pdf", sandbox=gone)
+    waiting = await writer.submit(pdf(["Stuck in an open sandbox"]), "b.pdf", sandbox=open_)
+    assert await histories(temporal, [stuck, waiting]) == []
+    recovery = Ingress(beta, temporal)
+    # Delete now holds the lock: recovery waits for it, then finds the sandbox gone.
+    with engine.connect() as holder:
+        holder.execute(select(func.pg_advisory_lock(lock_key(gone))))
+        holder.commit()
+        task = asyncio.create_task(recovery.reconcile(older_than_minutes=-1))
+        try:
+            assert await lock_awaited(engine, gone)
+            holder.execute(delete(Sandbox).where(Sandbox.id == gone))
+            holder.commit()
+        finally:
+            holder.execute(select(func.pg_advisory_unlock(lock_key(gone))))
+            holder.commit()
+    counts = await task
+    assert counts["started"] == 1
+    assert await histories(temporal, [stuck, waiting]) == [waiting]
 
 
 # When Delete now cannot finish

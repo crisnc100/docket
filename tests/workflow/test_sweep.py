@@ -265,10 +265,12 @@ async def api(runtime, temporal):
             yield http
 
 
-async def test_a_stale_sweep_stops_new_sandboxes_and_samples_but_not_delete_now(beta, temporal):
+async def test_a_stale_sweep_stops_new_sandboxes_samples_and_reviews_but_not_delete_now(
+    beta, temporal
+):
     engine = beta.engine
     sandbox_id, token = make_sandbox(engine)
-    await send(beta, temporal, sandbox_id, count=1)
+    [document_id] = await send(beta, temporal, sandbox_id, count=1)
     visitor = {"Origin": BASE, "X-Forwarded-For": "192.0.2.40"}
     sample = {"case_type": "clean"}
     async with api(beta, temporal) as http:
@@ -281,6 +283,16 @@ async def test_a_stale_sweep_stops_new_sandboxes_and_samples_but_not_delete_now(
         assert options.json()["state"] == "catching_up"
         owned = visitor | {"Cookie": sandbox_cookie(token)}
         assert (await http.post("/beta/samples", json=sample, headers=owned)).status_code == 503
+        # A dismiss reason is new text too. Ownership is still checked first, so an id that
+        # is not the visitor's gets its 404, not the 503.
+        dismiss = {"reason": "Not ours."}
+        # Bounded: with no worker, a dismiss that got through would wait on Temporal for good.
+        review = await asyncio.wait_for(
+            http.post(f"/review/{document_id}/dismiss", json=dismiss, headers=owned), 15
+        )
+        assert review.status_code == 503 and review.json() == {"detail": CATCHING_UP}
+        unknown = await http.post(f"/review/{uuid.uuid4()}/dismiss", json=dismiss, headers=owned)
+        assert unknown.status_code == 404
         with Session(engine) as session:
             assert session.scalar(select(func.count()).select_from(Sandbox)) == 1
         age_sweep(engine, 11)

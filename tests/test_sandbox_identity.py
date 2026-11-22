@@ -134,7 +134,12 @@ def test_the_migration_upgrades_downgrades_and_upgrades_again(postgres_engine):
                 ),
                 {"id": uuid.uuid4(), "hash": HASH},
             )
+    # The old code's rows: raw addresses, which must not survive as hashes.
+    with postgres_engine.begin() as connection:
+        connection.execute(text("INSERT INTO sample_sends (address) VALUES ('203.0.113.9')"))
     migrate(postgres_engine, command.upgrade, "head")
+    with postgres_engine.connect() as connection:
+        assert connection.execute(text("SELECT count(*) FROM sample_sends")).scalar_one() == 0
     with postgres_engine.connect() as connection:
         assert compare_metadata(MigrationContext.configure(connection), Base.metadata) == []
     with Session(postgres_engine) as session:

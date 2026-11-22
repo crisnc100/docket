@@ -24,7 +24,7 @@ from temporalio.client import Client
 from docket.db import Document
 from docket.ingress import Ingress
 from docket.sandbox import raw_key
-from docket.sweep import sweep_once, temporal_connector
+from docket.sweep import record_complete, sweep_once, temporal_connector
 from tests.sandboxes import make_sandbox, sandbox_cookie
 from tests.test_sandbox_gate import pg_dump
 
@@ -57,6 +57,13 @@ def folder(service: str) -> bytes:
     return subprocess.run(
         ["docker", "cp", f"{container}:/data", "-"], capture_output=True, timeout=120, check=True
     ).stdout
+
+
+def container_logs(name: str) -> str:
+    """Both streams of one read, which must succeed: a failed read is no evidence."""
+    result = subprocess.run(["docker", "logs", name], capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stderr
+    return result.stdout + result.stderr
 
 
 def found(markers: dict[str, str], haystack: bytes | str) -> set[str]:
@@ -96,6 +103,8 @@ async def test_deleted_sandboxes_leave_their_marker_in_no_store_and_no_log(runti
         "DOCKET_REVIEW_TOKEN": "",
     }
     markers = {name: f"DKTMARK{name}{secrets.token_hex(12)}" for name in ("now", "swept", "kept")}
+    # Review actions wait for a recent sweep, and none has run here yet.
+    record_complete(runtime.engine)
     engine = runtime.engine
     try:
         for service in ("worker", "api"):
@@ -155,7 +164,8 @@ async def test_deleted_sandboxes_leave_their_marker_in_no_store_and_no_log(runti
             assert found(markers, folder("temporal")) == everywhere
 
             now = {"Origin": BASE, "Cookie": sandbox_cookie(sandboxes["now"][1])}
-            deleted = await http.delete("/sandbox", headers=now)
+            # Delete now waits 3 seconds before the vacuum, which may take up to 30.
+            deleted = await http.delete("/sandbox", headers=now, timeout=60)
             assert deleted.status_code == 200 and deleted.json() == {"deleted": True}
         with engine.begin() as connection:
             connection.execute(
@@ -179,9 +189,7 @@ async def test_deleted_sandboxes_leave_their_marker_in_no_store_and_no_log(runti
         assert markers["kept"].encode() in runtime.read(raw_key(kept_id, digest))
 
         logs = docker("compose", "logs", "--no-color") + "".join(
-            subprocess.run(["docker", "logs", name], capture_output=True, text=True).stdout
-            + subprocess.run(["docker", "logs", name], capture_output=True, text=True).stderr
-            for name in names
+            container_logs(name) for name in names
         )
         assert found(markers, logs) == set()
     finally:

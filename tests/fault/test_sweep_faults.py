@@ -46,8 +46,9 @@ async def test_the_sweep_carries_on_while_temporal_is_stopped_and_catches_up_aft
     # Connected before Temporal stops, as the running service would be.
     connect = temporal_connector(address)
     await connect()
-    docker("compose", "stop", "temporal")
     try:
+        # Inside the try, so a stop that fails partway still restarts Temporal for later tests.
+        docker("compose", "stop", "temporal")
         report = await sweep_once(runtime, connect)
         assert report["temporal"] == "failed" and report["complete"] is False
         assert report["postgres"] == report["storage"] == "complete"

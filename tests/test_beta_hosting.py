@@ -188,10 +188,13 @@ def test_the_example_names_every_beta_setting_and_its_blanks_are_refused():
     compose = (ROOT / "compose.prod.yaml").read_text()
     assert set(re.findall(r"\$\{(\w+)", compose)) == set(values)
     filled = {name: value for name, value in values.items() if value}
+    assert values["DOCKET_ADDRESS_KEY"] == ""
     settings = Settings(
         _env_file=None,
         **{name.lower(): value for name, value in filled.items() if name != "DOCKET_PORT"},
         docket_env="beta",
+        # Blank as in the example, so a key in the shell cannot fill it.
+        docket_address_key=SecretStr(values["DOCKET_ADDRESS_KEY"]),
     )
     problems = startup_problems(settings, {})
     assert any(problem.startswith("DOCKET_ADDRESS_KEY") for problem in problems)

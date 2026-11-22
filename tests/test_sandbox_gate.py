@@ -20,6 +20,7 @@ from docket.sandbox import (
     SANDBOX_DELETED,
     TOO_MANY_SANDBOXES,
     SandboxClosed,
+    seconds_left,
 )
 from tests.sandboxes import held_in, make_sandbox, sandbox_cookie
 from tests.test_beta_gate import BASE, beta_client, beta_settings, concrete, route_table
@@ -101,13 +102,12 @@ async def test_the_first_write_sets_the_cookie_with_exactly_its_flags_and_stores
         name, _, rest = first.headers["set-cookie"].partition("=")
         value, *flags = rest.split("; ")
         assert name == SANDBOX_COOKIE == "__Host-docket_sandbox"
-        assert flags == [
-            "HttpOnly",
-            "Secure",
-            "SameSite=Strict",
-            "Path=/",
-            f"Max-Age={LIFE_SECONDS}",
-        ]
+        assert flags[:4] == ["HttpOnly", "Secure", "SameSite=Strict", "Path=/"]
+        assert len(flags) == 5 and flags[4].startswith("Max-Age=")
+        # The seconds its sandbox had left when the answer went, read again just after.
+        max_age = int(flags[4].removeprefix("Max-Age="))
+        left = seconds_left(postgres_engine, value)
+        assert left is not None and left <= max_age <= left + 2 <= LIFE_SECONDS + 2
         assert len(base64.urlsafe_b64decode(value + "==")) == 16
         # The next write with the cookie goes to the same sandbox and sets nothing.
         again = await sample(http, sender("192.0.2.10", value))
@@ -131,8 +131,9 @@ async def test_in_its_last_five_minutes_a_sandbox_hands_the_next_write_to_a_new_
         kept = await sample(http, sender("192.0.2.11", lasting_token))
         rolled = await sample(http, sender("192.0.2.11", ending_token))
     assert "set-cookie" not in kept.headers
-    assert rolled.headers["set-cookie"].endswith(f"Max-Age={LIFE_SECONDS}")
     fresh = created_token(rolled)
+    max_age = int(rolled.headers["set-cookie"].rpartition("Max-Age=")[2])
+    assert LIFE_SECONDS - 5 <= max_age <= LIFE_SECONDS
     assert ingress.sandboxes[0] == lasting
     assert ingress.sandboxes[1] not in {ending, lasting}
     with Session(postgres_engine) as session:
@@ -148,6 +149,43 @@ async def test_a_sample_whose_sandbox_was_deleted_first_is_a_409_with_a_plain_me
         response = await sample(http, sender("192.0.2.12"))
     assert response.status_code == 409
     assert response.json() == {"detail": SANDBOX_DELETED}
+
+
+async def test_the_cookie_lasts_only_as_long_as_its_sandbox(postgres_engine):
+    class SlowIngress(FakeIngress):
+        async def submit(self, content, filename, **kwargs):
+            # Stands for a write slow enough that the sandbox's clock has run on.
+            with Session(postgres_engine) as session, session.begin():
+                session.execute(
+                    text("UPDATE sandboxes SET expires_at = now() + interval '100 seconds'")
+                )
+            return await super().submit(content, filename, **kwargs)
+
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = SlowIngress()
+        response = await sample(http, sender("192.0.2.14"))
+    assert response.status_code == 200
+    assert 95 <= int(response.headers["set-cookie"].rpartition("Max-Age=")[2]) <= 100
+
+
+async def test_a_first_sample_that_fails_closes_its_sandbox_and_keeps_its_slots(
+    postgres_engine,
+):
+    live, live_token = make_sandbox(postgres_engine)
+    async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = FakeIngress(RuntimeError("Temporal is down"))
+        failed = await sample(http, sender("192.0.2.15"))
+        # A failure in a sandbox the browser already has leaves it open: its cookie still
+        # reaches it.
+        again = await sample(http, sender("192.0.2.15", live_token))
+    assert failed.status_code == again.status_code == 500
+    assert "set-cookie" not in failed.headers
+    with Session(postgres_engine) as session:
+        made = session.scalars(select(Sandbox).where(Sandbox.id != live)).all()
+        assert len(made) == 1 and made[0].closed_at is not None
+        assert session.get(Sandbox, live).closed_at is None
+    assert rows(postgres_engine)["sandbox_creations"] == 1
+    assert rows(postgres_engine)["sample_sends"] == 2
 
 
 # S3

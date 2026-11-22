@@ -26,6 +26,7 @@ from docket.sandbox import SANDBOX_COOKIE, token_hash
 from docket.settings import Settings
 from docket.sweep import record_complete
 from docket.worker import run_worker
+from tests.sandboxes import held_in, make_sandbox, sandbox_cookie
 
 BASE = "https://docket.example.test"
 KEY = secrets.token_hex(32)
@@ -62,7 +63,8 @@ REFUSED = {
 @pytest.fixture(autouse=True)
 def clean_environment(monkeypatch):
     for name in list(os.environ):
-        if name.startswith(("DOCKET_FAILPOINT", "DOCKET_DAILY_BUDGET_USD")):
+        # An address key in the shell would fill the "address key missing" case.
+        if name.startswith(("DOCKET_FAILPOINT", "DOCKET_DAILY_BUDGET_USD", "DOCKET_ADDRESS_KEY")):
             monkeypatch.delenv(name)
 
 
@@ -73,6 +75,8 @@ def beta_settings(drop: tuple[str, ...] = (), **overrides) -> Settings:
         "docket_trust_proxy": True,
         "docket_base_url": BASE,
         "docket_daily_budget_usd": 1.00,
+        # Set here, so a longer timeout in the shell never makes the safe settings unsafe.
+        "docket_review_timeout_seconds": 3000,
     } | overrides
     return Settings(_env_file=None, **{key: values[key] for key in values if key not in drop})
 
@@ -341,19 +345,41 @@ async def test_visitor_documents_are_refused_before_any_body_is_read(path):
         assert await call_raw(app, "POST", path, chunked) == (403, 0)
 
 
-async def test_bodies_over_16_kb_are_refused_before_the_handler(postgres_engine):
+async def test_a_document_route_checks_ownership_before_reading_any_of_the_body(
+    postgres_engine,
+):
     document = held_document(postgres_engine)
+    other, _ = make_sandbox(postgres_engine)
+    others_document = held_in(postgres_engine, other)
+    expired, expired_token = make_sandbox(postgres_engine, minutes_left=-1)
+    expired_document = held_in(postgres_engine, expired)
     async with beta_client(engine=postgres_engine) as (http, _, temporal, app):
-        # The gate reads the body before any handler looks the document up, so an unknown
-        # id and the visitor's own document both get the 413.
         large = json.dumps({"reason": "x" * 17 * 1024}).encode()
-        session = [(b"cookie", cookie()["Cookie"].encode()), (b"origin", BASE.encode())]
-        for target in (uuid.uuid4(), document):
+        origin = {"Origin": BASE}
+        visitor = cookie()
+        refused = [
+            ("no such document", uuid.uuid4(), visitor),
+            ("another visitor's", others_document, visitor),
+            ("no cookie", document, {}),
+            ("an expired sandbox", expired_document, {"Cookie": sandbox_cookie(expired_token)}),
+        ]
+        for case, target, headers in refused:
             path = f"/review/{target}/dismiss"
-            response = await http.post(path, content=large, headers=with_sandbox())
-            assert response.status_code == 413, target
-            status, reads = await call_raw(app, "POST", path, session)
-            assert status == 413 and reads == 17, target
+            raw = [
+                (key.lower().encode(), value.encode()) for key, value in (headers | origin).items()
+            ]
+            assert await call_raw(app, "POST", path, raw) == (404, 0), case
+            http.cookies.clear()
+            response = await http.post(path, content=large, headers=headers | origin)
+            assert response.status_code == 404, case
+            assert response.json() == {"detail": "Unknown document"}, case
+        # The visitor's own document: the body is read, and refused once it passes 16 KB.
+        path = f"/review/{document}/dismiss"
+        raw = [(b"cookie", visitor["Cookie"].encode()), (b"origin", BASE.encode())]
+        assert await call_raw(app, "POST", path, raw) == (413, 17)
+        response = await http.post(path, content=large, headers=with_sandbox())
+        assert response.status_code == 413
+        assert response.headers["cache-control"] == "no-store"
         sample = await http.post("/beta/samples", content=large, headers={"Origin": BASE})
         assert sample.status_code == 413
         assert temporal.updates == []

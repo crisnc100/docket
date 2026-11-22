@@ -225,3 +225,25 @@ async def test_two_sandboxes_with_the_same_bytes_get_two_documents_files_and_pre
             assert preview.status_code == 200 and preview.content == sample.content
         crossed = await http.get(f"/documents/{ids[0]}/file", headers=visitor(second_token))
         assert crossed.status_code == 404
+
+
+async def test_a_preview_whose_file_went_with_its_sandbox_is_a_404(beta_runtime, monkeypatch):
+    engine = beta_runtime.engine
+    sandbox, token = make_sandbox(engine)
+    # Its file was never stored.
+    document = held_in(engine, sandbox)
+    async with beta_app(beta_runtime, FakeTemporal()) as (_, http):
+        path = f"/documents/{document}/file"
+        # The document is still there, so its missing file is a storage fault.
+        assert (await http.get(path, headers=visitor(token))).status_code == 500
+        read = beta_runtime.read
+
+        def deleted_first(key):
+            # Delete now taking the sandbox between the lookup and the read.
+            with engine.begin() as connection:
+                connection.exec_driver_sql("DELETE FROM sandboxes WHERE id = %s", (sandbox,))
+            return read(key)
+
+        monkeypatch.setattr(beta_runtime, "read", deleted_first)
+        gone = await http.get(path, headers=visitor(token))
+    assert gone.status_code == 404 and gone.json() == {"detail": "Unknown document"}

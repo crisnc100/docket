@@ -2,6 +2,7 @@
 
 import subprocess
 
+import httpx
 import pytest
 
 from scripts.load import beta_load
@@ -122,3 +123,22 @@ def test_the_run_refuses_settings_the_shell_would_override(monkeypatch, tmp_path
     monkeypatch.setattr(beta_load, "compose", answers("http://stub:8080"))
     with pytest.raises(beta_load.LoadRefused, match="ANTHROPIC_API_KEY"):
         beta_load.confirm_stub(tmp_path, STUB_KEY)
+
+
+async def test_the_run_waits_for_a_first_complete_sweep_and_gives_up_after_its_limit():
+    answers = iter([{"status": "stale"}, {"status": "stale"}, {"status": "ok"}])
+    asked = []
+
+    def health(request: httpx.Request) -> httpx.Response:
+        asked.append(request.url.path)
+        return httpx.Response(200, json=next(answers))
+
+    transport = httpx.MockTransport(health)
+    async with httpx.AsyncClient(transport=transport, base_url="http://api") as http:
+        await beta_load.first_sweep(http, timeout=30)
+    assert asked == ["/healthz"] * 3
+
+    stale = httpx.MockTransport(lambda request: httpx.Response(200, json={"status": "stale"}))
+    async with httpx.AsyncClient(transport=stale, base_url="http://api") as http:
+        with pytest.raises(beta_load.LoadRefused, match="no sweep completed"):
+            await beta_load.first_sweep(http, timeout=0.1)

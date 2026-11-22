@@ -69,10 +69,11 @@ Upload with `POST /documents`, or send a signed email payload to `POST /inbound`
 Both have a **10 MB limit (10 MiB, 10 × 1,024 × 1,024 bytes)** on the whole request,
 including upload or encoding overhead. Oversize requests return 413.
 Locally, every route except the webhook, the health check and the front page with its files needs a reviewer Bearer token.
-With `DOCKET_ENV=beta` the review page and every API route need an invite-code session instead;
-only the front page, the health check and the sign-in stay open, and visitors cannot upload.
-They send server-made sample documents instead, within per-address and daily caps and behind a kill switch.
-The demo resets every night; [Run the hosted beta](#run-the-hosted-beta) is the runbook.
+With `DOCKET_ENV=beta` there is no sign-up: each browser gets a private sandbox that nobody
+else can see, and everything in it is deleted within 55 minutes, or at once with "Delete now".
+Visitors cannot upload. They send server-made sample documents instead, within per-address
+and daily caps and behind a kill switch.
+[Run the hosted beta](#run-the-hosted-beta) is the runbook.
 The webhook uses a shared-secret signature and a timestamp within five minutes.
 See [operations](docs/operations.md) for headers, routes, settings, services and
 [beta mode](docs/operations.md#hosted-beta-mode).
@@ -214,12 +215,13 @@ have a memory and CPU limit, restart unless stopped, and rotate their logs:
 | `seaweedfs`: the S3 store | 512 MB | 129 MB |
 | `api`, the only service with a published port, on `127.0.0.1` | 512 MB | 260 MB |
 | `worker`, the only service with the model key | 768 MB | 276 MB |
-| `reset`: the nightly reset at 08:00 UTC | 256 MB | 197 MB; 179 MB for a reset run by hand |
-| **Total** | **3.3 GB** | **1.4 GB**, counting both reset containers |
+| `sweep`: deletes what expired and deleted sandboxes held, every 2 minutes | 256 MB | Not measured |
+| **Total** | **3.3 GB** | **1.4 GB**, measured with the nightly reset the sweep replaced |
 
 `migrate` and `temporal-data-init` run once at start and exit. The load run
 (`scripts/load/beta_load.py`) sent 60 samples in 10 minutes from four addresses, with
-review actions and one reset, against a local stand-in for the model API. It runs as
+review actions and one nightly reset, against a local stand-in for the model API; it now
+runs a sweep by hand where the reset was. It runs as
 its own Compose project, `docket-load`, on fresh volumes, and sends nothing until it has
 checked that the worker's model address is the stand-in and the key is not a real one. [ADR 009](docs/adr/009-hosting.md) has the details.
 
@@ -228,21 +230,21 @@ from `.env.beta` only through `--env-file .env.beta`. Without it, compose stops 
 the first missing setting.
 
 1. **Settings.** `cp .env.beta.example .env.beta && chmod 600 .env.beta`, then fill in
-   every blank and replace both placeholder codes. `openssl rand -hex 32` makes each random
-   value. The API key is the beta's own, with a monthly spend limit set at the provider.
+   every blank. `openssl rand -hex 32` makes each random value, `DOCKET_ADDRESS_KEY`
+   included. The API key is the beta's own, with a monthly spend limit set at the provider.
 2. **Check the settings.** `python3 scripts/check_prod_compose.py .env.beta` prints
    `OK: 8 services.` and what it checked: only the API is published, on 127.0.0.1;
    every service has limits and log rotation; only the worker gets the model key; no
    secret is on a command line. It never prints a value. It stops if one of the settings
    is also set in the shell, because compose would use the shell's value.
 3. **Start.** `docker compose -f compose.prod.yaml --env-file .env.beta up -d --build --wait`
-   builds the image, runs the migrations and returns once every service is healthy. On a
-   first start, `reset` finds no reset since 08:00 UTC and seeds the queue at once.
-4. **Check it.** `curl -s http://127.0.0.1:8001/healthz` prints
-   `{"status":"ok","resetting":false,"last_reset_age_seconds":42}`, and
-   `curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8001/review` prints `401`.
-   `docker compose -f compose.prod.yaml --env-file .env.beta ps` lists the six services
-   as `healthy`.
+   builds the image, runs the migrations and returns once every service is healthy.
+   `sweep` runs its first pass at once. Until one completes, samples get 503 "Docket is
+   catching up".
+4. **Check it.** `curl -s http://127.0.0.1:8001/healthz` prints `{"status":"ok"}`, and
+   `curl -s http://127.0.0.1:8001/review` prints `{"items":[]}`: with no sandbox cookie
+   there is nothing to see. `docker compose -f compose.prod.yaml --env-file .env.beta ps`
+   lists the six services as `healthy`.
 5. **Caddy.** Back up the Caddyfile, add this block beside the others, validate, then
    reload:
 
@@ -274,31 +276,16 @@ in the shell first:
 - **Live answers off and on.** `compose exec -T api docket beta-switch off` prints
   `Live answers are off.`, and `... beta-switch on` prints `Live answers are on.` Samples
   get 503 while it is off. No restart is needed.
-- **Reset by hand.** `compose run --rm --no-deps reset docket beta-reset` prints
-  `Beta reset: {'terminated': ..., 'objects_removed': ..., 'seeded': {'needs_review': 12}}`.
-  It runs in its own container, so it never shares the `reset` service's memory limit.
-  While another reset runs, it prints `A reset is already running.` and exits 1.
-- **Logs.** `compose logs --tail 50 reset` shows the result line of each reset the service
-  ran. A reset by hand prints its own.
-- **Back up.** Postgres holds the spend ledger and the day's sample count, the state that
-  outlives a reset. Each backup is written to a `.partial` file and moved into place
-  only if every step succeeded, so a failed dump exits non-zero and never replaces a good
-  backup:
-
-  ```sh
-  (set -o pipefail; f=docket-$(date +%F).sql.gz
-   compose exec -T postgres pg_dump -U docket docket | gzip > "$f.partial" && mv "$f.partial" "$f")
-  ```
-
-  For a copy of all three volumes, run `compose stop`, then this, then `compose start`:
-
-  ```sh
-  for v in postgres-data temporal-data seaweedfs-data; do
-    docker run --rm --user 0 -v docket-hosted_$v:/data:ro -v "$PWD":/backup docket-hosted-app \
-      sh -c "tar czf /backup/$v.tgz.partial -C /data . && mv /backup/$v.tgz.partial /backup/$v.tgz" ||
-      { echo "backup of $v failed"; break; }
-  done
-  ```
+- **Status.** `compose exec -T api docket beta-status` prints how long ago the last
+  complete sweep ran, the sandboxes live and waiting for the sweep, the last hour's new
+  sandboxes and samples with how many addresses are at each limit, and the day's spend.
+- **Sweep by hand.** `compose run --rm --no-deps sweep docket beta-sweep` runs the three
+  passes once, prints `Sweep: {...}`, and exits 1 unless all three finished.
+  `... beta-sweep --all` deletes every sandbox, live ones too, every document outside a
+  sandbox, and every object in the bucket.
+- **Logs.** `compose logs --tail 50 sweep` shows the result line of each run.
+- **Back up.** Never: no copy of Docket's volumes is made, because a copy would keep what
+  a sandbox held past its hour.
 - **Stop.** `compose down` stops and removes the containers. The volumes stay.
 
 ## Check and explore

@@ -119,12 +119,13 @@ A 401 clears its saved token; a server or network failure keeps it for retry.
 | `GET /` | Open the public front page; no token needed |
 | `GET /home/{file}` | Read the front page's own files; no token needed |
 | `GET /reviewer` | Open the review page |
-| `POST /reviewer/session` | Beta only: send JSON with `code` to sign in |
 | `GET /review` | List act-mode documents waiting for review, oldest first |
 | `GET /documents/{id}` | Read status, reason and the event trace |
 | `GET /documents/{id}/file` | Read the PDF preview with reviewer authorization |
 | `POST /review/{id}/approve` | Send JSON with `record_id` to approve a known record |
 | `POST /review/{id}/dismiss` | Send JSON with a nonempty `reason` to dismiss |
+| `GET /sandbox` | Beta only: the seconds the visitor's sandbox has left |
+| `DELETE /sandbox` | Beta only: Delete now |
 
 A terminal document or duplicate, late or invalid review action returns 409.
 So does an action other than `approve` or `dismiss`.
@@ -136,49 +137,60 @@ The model suggestion cannot approve it for the reviewer.
 
 ## Hosted beta mode
 
-Beta mode is for a shared demo that visitors reach without a reviewer token.
-Local use is unchanged. The README's "Run the hosted beta" section covers
-`compose.prod.yaml`, `.env.beta.example` and the steps on the host.
+Beta mode is a public demo that visitors use with no sign-up. Each browser gets a private
+sandbox: nobody else can see or act on what it holds, and everything in it is deleted
+within 55 minutes, or at once with "Delete now". Local use is unchanged. The README's
+"Run the hosted beta" section covers `compose.prod.yaml`, `.env.beta.example` and the
+steps on the host. [ADR 010](adr/010-sandboxes.md) records the choice and the
+measurements behind the deletion.
 
 Set `DOCKET_ENV=beta` to turn it on. These settings apply:
 
 | Setting | What it does |
 | --- | --- |
 | `DOCKET_ENV` | `local` (the default) or `beta` |
-| `DOCKET_INVITE_CODES` | Valid invite codes, separated by commas |
-| `DOCKET_SESSION_KEY` | The secret that signs session cookies |
+| `DOCKET_ADDRESS_KEY` | The secret that keys the hashes the limits store in place of addresses, at least 32 bytes |
 | `DOCKET_TRUST_PROXY` | `1` reads the client address from `X-Forwarded-For` |
-| `DOCKET_BASE_URL` | The site's own origin, such as `https://demo.example`; every `POST` must come from it |
+| `DOCKET_BASE_URL` | The site's own origin, such as `https://demo.example`; every request that is not a `GET` must come from it |
+| `DOCKET_REVIEW_TIMEOUT_SECONDS` | How long a held document waits for review; at most 3600 in beta, 3000 in the example settings |
+| `SEAWEEDFS_MASTER_URL` | SeaweedFS's master, which removes deleted objects' bytes from its files on request |
 
-**Sign-in.** A visitor enters an invite code on the review page. The server answers
-with the cookie `__Host-docket_session`, which is `HttpOnly`, `Secure` and
-`SameSite=Strict`. The cookie holds the time it was issued and a keyed hash of that time
-and the code, never the code itself. It is refused after seven days, or as soon as its
-code is removed from `DOCKET_INVITE_CODES`. A Bearer token grants nothing in beta,
-whether or not one is configured.
+**Sandboxes.** A visitor's first write, which in this version is a sample, creates the
+sandbox. The answer sets the cookie `__Host-docket_sandbox`: `HttpOnly`, `Secure`,
+`SameSite=Strict`, `Path=/`, and a `Max-Age` of the sandbox's 50 minutes. Its value is
+128 random bits. The database stores only its SHA-256, so the database cannot hand a
+cookie back. Later writes with the cookie go to the same sandbox. In its last five
+minutes a sandbox takes nothing new: the next write starts a new sandbox and sets a new
+cookie, so nothing a visitor sends is deleted moments later. No `GET` creates a sandbox
+or writes anything.
 
-**Public routes.** Only four need no session: `GET /`, `GET /home/{file}`,
-`GET /healthz` and `POST /reviewer/session`, the sign-in. Everything else returns 401,
-and `GET /reviewer` shows the invite-code form. `POST /inbound` is not public in beta.
+One address may start 10 sandboxes an hour. The 11th gets 429, "Too many new sandboxes
+from your network. Try again later." An IPv6 address counts by its /64, and an
+IPv4-mapped one as the IPv4 address. With `DOCKET_TRUST_PROXY=1` the address is the last
+`X-Forwarded-For` hop, because the proxy appends it and anything before it came from the
+client. Set it only behind such a proxy. The counters store an HMAC of the address under
+`DOCKET_ADDRESS_KEY`, never the address. Changing the key starts every count again.
+
+**Routes.** Every route is in one table in `docket/review_access.py`, and the gate
+refuses any route that is not:
+
+- Public: `GET /`, `GET /home/{file}`, `GET /healthz`, `GET /reviewer` and
+  `GET /assets/{file}`.
+- Sandbox-scoped: the review queue, a document's status and file, review actions,
+  samples, and `GET` and `DELETE /sandbox`. Each shows only the visitor's own sandbox. A
+  document in another sandbox, or any document without a live sandbox cookie, gets the
+  same 404, "Unknown document", as an id that does not exist.
+- Closed: `POST /documents` and `POST /inbound` return 403 before any body is read, so
+  visitors cannot send their own documents.
+- Refused: FastAPI's `/docs`, `/docs/oauth2-redirect`, `/openapi.json` and `/redoc`
+  return 404, like any route not in the table.
+
+A Bearer token grants nothing in beta, whether or not one is configured. The review page
+at `/reviewer` opens with no form.
 
 **Request limits.** Every request that is not a `GET` must carry an `Origin` header that
 matches `DOCKET_BASE_URL`, or it returns 403. An unset `DOCKET_BASE_URL` therefore
-refuses every `POST`. `POST /documents` and `POST /inbound` return 403 before any body
-is read, so visitors cannot send their own documents. Every other body is limited to
-16 KB.
-
-**Lockout.** Each sign-in attempt is stored as a row in the `signin_failures` table,
-and a right code deletes its row. Once an address has 10 wrong codes in the last
-60 minutes, its next attempt gets 429 with a `Retry-After` header, even with the right
-code. The count is kept in Postgres, so it
-survives a restart. With `DOCKET_TRUST_PROXY=1` the address is the last
-`X-Forwarded-For` hop, because the proxy appends it and anything before it came from
-the client. Set it only behind such a proxy.
-
-A local database that ran the first version of migration `b7e2c41a9d05` has the old
-table shape. Drop the table and run the migration again:
-`docker compose exec postgres psql -U docket -d docket -c "DROP TABLE signin_failures"`,
-then `uv run alembic stamp 690f4793dd3f` and `uv run alembic upgrade head`.
+refuses every such request. Every body is limited to 16 KB.
 
 **Review actions.** A dismiss reason must not be blank and has at most 300 characters.
 An approve must name one of the candidates the review page offers for that document.
@@ -186,14 +198,14 @@ Both break the rule with 422.
 
 **Sample documents.** A visitor cannot upload, so the beta offers samples instead: the
 server makes one synthetic PDF of a case type the visitor picks and runs it through the
-normal pipeline. The model is called in the configured `DOCKET_MODEL_MODE`, which is
-`live` on the hosted beta. In `replay`, a fresh sample has no recording and ends
-`failed` with `replay_miss`. A document with no candidate record never reaches the model
-in either mode. The sender shows as "Sample generator". Two
+normal pipeline, in the visitor's sandbox. The model is called in the configured
+`DOCKET_MODEL_MODE`, which is `live` on the hosted beta. In `replay`, a fresh sample has
+no recording and ends `failed` with `replay_miss`. A document with no candidate record
+never reaches the model in either mode. The sender shows as "Sample generator". Two
 routes serve this, and both return 404 outside beta:
 
 - `GET /beta/samples` lists the case types with plain labels, and a `state` of `ready`,
-  `off`, `paused` or `resetting`.
+  `off`, `paused` or `catching_up`.
 - `POST /beta/samples` takes `{"case_type": "<value from the list>"}` and returns the
   new `document_id`. The server picks the random seed, so a visitor never chooses a file.
 
@@ -204,22 +216,26 @@ and `non_pdf` always end rejected; `empty_text_layer` is the same file for every
 
 **Caps.** A send is refused when any of these holds:
 
-- A reset is running: 503 with the message "The demo is being reset. Try again in a
-  minute."
+- The sweep is behind: 503 with the message "Docket is catching up. Try again in a few
+  minutes." (see the sweep below).
 - Live answers are off: 503 with the message "Live answers are turned off right now."
 - Live answers are paused: 503. Today's spend plus the most one document can cost is
   above `DOCKET_DAILY_BUDGET_USD`. The check runs again on every request, so the pause
   lasts until enough of today's budget is free. That is normally when the UTC day
   changes, but a call that costs less than it reserved frees some sooner.
+- The send would start a sandbox, and the address has started 10 in the last hour: 429.
 - The address has sent 20 samples in the last 60 minutes: 429 with a `Retry-After`
   header and a message naming the wait in whole minutes. The window rolls, so a slot
   frees 60 minutes after the send that took it.
 - All 300 samples for the UTC day are sent: 429 with `Retry-After` set to the seconds
   until midnight UTC.
 
-A refusal on either cap takes neither slot. A send that then fails at ingress keeps its
-slot. The counts live in the `sample_sends` and `sample_counts` tables, so they survive
-a restart.
+The new sandbox and the sample slots are taken together or not at all, so a refusal on
+any cap takes nothing. A send that then fails at ingress keeps its slot. A send whose
+sandbox was deleted before its write began gets 409, "This sandbox was just deleted. Send
+again to start a new one.", and writes nothing. The counts live in the
+`sandbox_creations`, `sample_sends` and `sample_counts` tables, so they survive a
+restart.
 
 **Kill switch.** `docket beta-switch off` stops live model answers and
 `docket beta-switch on` resumes them. It writes one row to the `beta_flags` table, and
@@ -231,29 +247,105 @@ suggested record, and it is then filed or held as usual. A document already wait
 review stays reviewable.
 `docket spike-models` reads the switch too.
 
-**Request bodies.** `POST /reviewer/session`, `POST /beta/samples` and
-`POST /review/{id}/{action}` read their bodies as raw JSON text. A body that is not valid
-JSON of the right shape returns 422 with a fixed message that never repeats the input.
-Review actions do this in both modes. Sign-in and samples do it in beta; in local mode
-those two routes return 404 before reading the body.
+**Request bodies.** `POST /beta/samples` and `POST /review/{id}/{action}` read their
+bodies as raw JSON text. A body that is not valid JSON of the right shape returns 422
+with a fixed message that never repeats the input. Review actions do this in both modes.
+Samples do it in beta; in local mode the route returns 404 before reading the body.
 
 **Document trace.** `GET /documents/{id}` also returns `filename` and `sender`, so the
 review page can show a document that is not in the queue, such as a sample being read.
 
-**Startup refusals.** The API, the worker, `docket beta-reset`, `docket reconcile`,
-`docket eval` and `docket spike-models` exit before doing any work when the
-configuration is unsafe, and print every problem. They never print a secret value. They refuse when:
+**Delete now.** `DELETE /sandbox` deletes the visitor's sandbox from every store, then
+answers. Every write to a sandbox holds the sandbox's lock shared for the whole write:
+it checks that the sandbox is open, stores the PDF, writes the rows and starts the
+workflow. Delete now takes the lock exclusively, waiting up to 10 seconds, then:
 
-- `DOCKET_INVITE_CODES` is unset, has a blank entry, or has a code shorter than 16
-  characters;
-- a code appears in `.env.beta.example`, which the image ships for this check;
-- `DOCKET_SESSION_KEY` is shorter than 32 bytes;
+1. deletes the sandbox's row, which deletes its documents, events, sources and filings
+   with it;
+2. deletes each document's workflow history from Temporal;
+3. deletes every object under `sbx/<sandbox>/`, waits 3 seconds, and asks SeaweedFS to
+   vacuum, which rewrites its files without the deleted bytes. SeaweedFS frees a deleted
+   object's bytes from a queue about a second after the delete, so a vacuum straight away
+   would miss them.
+
+It answers 200, `{"deleted": true}`, and clears the cookie. A write already under way
+when Delete now arrives is deleted with the rest; one that reaches the lock after it
+finds no sandbox and writes nothing. If the lock is not free within 10 seconds, Delete
+now closes the sandbox instead, so no later write goes to it, and answers 202,
+`{"deleted": false, "detail": "Deleting; this finishes within a few minutes."}`. A store
+that fails gets the same 202. In both cases the sweep finishes the job. No cookie, or a
+cookie for no sandbox, gets the same 200 as a real delete, so the answer reveals nothing.
+Delete now works even while the sweep is behind.
+
+A model call already in progress cannot be recalled: one waiting out a retry delay can
+still send the document's text to the model for a few seconds after Delete now answers.
+
+`GET /sandbox` returns `{"expires_in": <seconds>}` for the visitor's live sandbox, or
+`{"expires_in": null}`. The review page counts down from it: "Private to this browser ·
+deleted in N minutes · Delete now". Before its first write, the page checks that the
+browser keeps cookies for the site. If it does not, the page says the sandbox needs a
+cookie to stay private, and sends nothing.
+
+**The sweep.** `docket beta-sweep --service` is the `sweep` service in
+`compose.prod.yaml`. It runs every 2 minutes, start to start, and waits for nothing but
+the database schema. Each run has three passes, each against one store and each with
+its own 50-second budget:
+
+1. **Postgres.** Deletes every sandbox that is expired or closed. Those with documents go
+   first, then closed ones, one at a time and under each sandbox's lock, oldest first. A
+   sandbox whose lock is still held after 10 seconds is left for the next run. Expired
+   empty ones go after, in bulk, oldest first. The pass also deletes counter rows more
+   than an hour old, which no longer count toward any limit.
+2. **Temporal.** Lists the `doc-` workflows on Docket's task queue and deletes each one
+   whose document row is gone.
+3. **S3.** Deletes the objects of every sandbox that is not live, then vacuums SeaweedFS,
+   3 seconds after any delete. Every run vacuums, so bytes an earlier vacuum came too
+   soon for go on the next run.
+
+Each pass decides what to delete from what is live in Postgres, not from what another
+pass did. So Temporal being down stops only the Temporal pass, and a pass cut short by
+its budget carries on at the next run. A run in which all three passes finished records
+the time in the `sweep_complete` row of `beta_flags`. A run that takes over 3 minutes
+exits, and Compose restarts the service. `docket beta-sweep` runs once by hand and exits
+1 unless all three passes finished. `docket beta-sweep --all` deletes every sandbox,
+live ones too, every document outside a sandbox, and every object in the bucket.
+
+**The bound.** With a healthy sweep, everything a sandbox held is gone within 55
+minutes of its start: a 50-minute life, up to 2 minutes until the next run, and up to 3
+minutes for the run. If no run has completed in the last 10 minutes, the beta fails
+closed: samples, and so new sandboxes, get 503 "Docket is catching up. Try again in a
+few minutes.", and `GET /beta/samples` reports `catching_up`. Data already in stays
+until the sweep recovers. A held document's workflow ends on its own after
+`DOCKET_REVIEW_TIMEOUT_SECONDS`, at most an hour in beta.
+
+**What is wiped, and what stays on disk.** SeaweedFS's vacuum rewrites its volume files
+without the deleted objects. Temporal runs with `--sqlite-pragma secure_delete=on`, so a
+deleted history's bytes are zeroed in its file. Postgres keeps deleted rows in its files
+until it reuses the space; the only free text among them is a dismiss reason, at most 300
+characters, and the counters hold address hashes. `pg_dump` shows none of it. Docket
+logs no document text, address or dismiss reason. The review page's preview is a blob
+URL, released when the page closes. None of the beta's volumes is backed up, because a
+copy would keep what a sandbox held past its hour.
+
+**Status.** `docket beta-status` prints, from Postgres alone: the age of the last
+complete sweep, sandboxes live and waiting for the sweep, documents, new sandboxes and
+samples in the last hour with how many addresses are at each limit, the day's samples,
+the switch and the day's spend. An office behind one address shares its limits, and this
+is where that shows.
+
+**Startup refusals.** The API, the worker, `docket beta-sweep`, `docket reconcile`,
+`docket eval` and `docket spike-models` exit before doing any work when the
+configuration is unsafe, and print every problem. They never print a secret value. They
+refuse when:
+
+- `DOCKET_ADDRESS_KEY` is shorter than 32 bytes;
 - `DOCKET_REVIEW_TOKEN` is set to anything but blank;
 - `DOCKET_TRUST_PROXY` is off;
 - any variable starting with `DOCKET_FAILPOINT` is set;
 - `DOCKET_DAILY_BUDGET_USD` is not set explicitly, or is above 1.00;
 - the model mode is not `live` or `replay`. `docket eval` checks its `--mode`, and
   `docket spike-models` is checked as `live`, because each uses that mode;
+- `DOCKET_REVIEW_TIMEOUT_SECONDS` is above 3600;
 - `UVICORN_ROOT_PATH` is set.
 
 **Site root only.** In beta, a request with a non-empty ASGI `root_path` gets 500, "The
@@ -261,43 +353,10 @@ beta must be served at the site root.", on every route, `/healthz` included. Und
 path the router matches the path without it while the gate reads the full path, so a
 private route could pass as a public one. Serve the beta at the root of its own host name.
 
-**Nightly reset.** `docket beta-reset` puts the beta back to a starting queue. It refuses
-to run unless `DOCKET_ENV=beta`, and it runs the startup refusals. Only one reset runs at
-a time: a reset started while another runs prints "A reset is already running.", exits
-non-zero and leaves the `resetting` row alone, and the `reset` service checks again five
-minutes later. In order, a reset:
-
-1. takes the reset lock exclusively, with a 10-second lock timeout, and sets the
-   `resetting` row in `beta_flags` in the same transaction. A sample takes that lock
-   shared only while it writes its document row, and reads the row after taking it, so
-   the reset waits for any sample still writing, and every later sample sees the row.
-   Samples then get 503 "The demo is being reset. Try again in a minute.", and
-   `GET /beta/samples` reports the state `resetting`;
-2. terminates the workflow of every document not in a final status, and waits until
-   Temporal reports each one closed;
-3. empties the documents, sources, events and filings tables in one `TRUNCATE`, and
-   empties the bucket;
-4. deletes `signin_failures` and `sample_sends` rows more than an hour old, which no
-   longer count toward any limit. The spend ledger and the day's sample count stay, so a
-   reset never lifts a daily cap;
-5. sends 12 seed-11 documents through the normal pipeline in replay mode, from the
-   recorded live answers, and waits up to two minutes for them to settle. All 12 are held
-   for review, and none calls the model;
-6. clears the `resetting` row. Its `updated_at` is then the time the reset finished.
-
-If a step fails, the lock timeout and a starting queue that did not end all held included,
-the row stays set, so samples keep getting
-503 until a reset finishes, and the next run starts again from step 1.
-`docket beta-reset --daily` is the `reset` service in `compose.prod.yaml`: it resets at
-08:00 UTC every day. At start, it resets at once if none has finished since the latest
-08:00 UTC, or if the last one never finished, so a run missed while the host was down is
-caught up. After a failure it tries again in five minutes. In beta, held documents wait
-`DOCKET_REVIEW_TIMEOUT_SECONDS` (86400 in the example settings), so the seeded queue
-lasts until the next reset.
-
-**Health check.** In beta, `GET /healthz` also returns `resetting` and
-`last_reset_age_seconds`, the seconds since the last reset finished (`null` while one runs,
-after one failed, or before the first). It reads the database, so it fails when Postgres is down.
+**Health check.** In beta, `GET /healthz` returns `{"status": "ok"}`, or
+`{"status": "stale"}` when no sweep has completed in the last 10 minutes. It is public,
+so it says nothing more; `docket beta-status` has the rest. It reads the database, so it
+fails when Postgres is down.
 
 ## Storage and the ledger
 
@@ -429,9 +488,13 @@ archive, builds the Vite review page and Docker images, and creates the database
 tables. Then it runs pytest. That includes Playwright browser tests against
 their own API and worker containers in replay mode: one approves a suggested record
 end to end, and one checks that a script-like file name and sender show as plain
-text. A beta test signs in with an invite code and reviews a document. Its browser joins the
-beta API container's network, because the `Secure` session cookie reaches only an HTTPS
-site or `localhost`, and Chromium treats `localhost` as secure only from there. Nine more check token retention after access and asset failures. Chromium runs in a separate test image, not in the API or worker images.
+text. A beta test opens two browsers, each with its own sandbox, sends a sample and
+dismisses it, and deletes the sandbox with Delete now; a second beta test blocks cookies
+and checks that the page sends nothing. Their browser joins the beta API container's
+network, because the `Secure` sandbox cookie reaches only an HTTPS site or `localhost`,
+and Chromium treats `localhost` as secure only from there. The marker test runs there
+too: it puts a marker in three sandboxes on the compose stack, deletes two, and checks
+`pg_dump`, SeaweedFS's and Temporal's data folders and every container's logs. Nine more check token retention after access and asset failures. Chromium runs in a separate test image, not in the API or worker images.
 `verify.sh` fails if any test is skipped, or if branch coverage of a core module
 falls below its floor in `scripts/check_coverage.py`. Last, it reproduces the
 held-out report and runs detect-secrets, which also scans the archives' contents.
@@ -447,7 +510,9 @@ coverage floors once, on the coverage merged from the test shards and the browse
 names it. The five tests crash the worker in the choose step and right after
 storage, crash the API after it saves the raw file and after it creates the
 document row, and stop storage while a restarted worker is running. Each test checks that the
-document is never filed twice and still reaches a final status.
+document is never filed twice and still reaches a final status. One more stops Temporal
+while the beta's sweep runs: rows and objects still go, and the histories go on the first
+run after Temporal is back.
 
 ## Layout
 
@@ -459,8 +524,10 @@ document is never filed twice and still reaches a final status.
 | `docket/activities.py`    | The workflow's steps, run by `docket/worker.py`       |
 | `docket/api.py`           | Upload, webhook, status and review endpoints          |
 | `docket/webhook.py`       | Webhook signature check, size limit and rate limit    |
-| `docket/review_access.py` | Reviewer access: token check, beta session check, entry page |
-| `docket/beta.py`          | Beta rules: startup refusals, sessions and the lockout |
+| `docket/review_access.py` | Reviewer access: token check, the beta route table, entry page |
+| `docket/beta.py`          | Beta rules: startup refusals, client address, Origin check |
+| `docket/sandbox.py`       | Beta sandboxes: the cookie, ownership and the write lock |
+| `docket/sweep.py`         | Beta deletion: Delete now and the sweep               |
 | `docket/evaluation.py`    | Evaluation runs and reports                           |
 | `docket/cli.py`           | The `docket` command                                  |
 | `docket/front_demo.py`    | Builds the front page's demo data from committed reports |

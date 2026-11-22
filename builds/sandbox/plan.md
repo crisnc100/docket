@@ -556,7 +556,10 @@ but never shrinks, and a burst of the largest uploads can use about 1 GB.
    - "Delete now" empties the page.
 6. Rollback:
    - `compose stop api worker sweep`;
-   - `compose run --rm migrate alembic downgrade <PR 1's base revision>`;
+   - `compose run --rm --no-deps sweep docket beta-sweep --all`, which must end with
+     `'complete': True`: the downgrade deletes only rows, so the sandboxes' objects and
+     histories go first;
+   - `compose run --rm migrate alembic downgrade c3d81f5a7e20` (PR 1's base revision);
    - check out the previous release;
    - restore the `.env.beta` backup;
    - `compose up -d --build --wait --remove-orphans`.

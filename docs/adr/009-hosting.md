@@ -1,7 +1,9 @@
 # ADR 009: host the beta on one machine, with Temporal's dev server
 
 Status: accepted; written on 2026-11-20 after the load run below.
-No prediction was committed before the measurement.
+No prediction was committed before the measurement. [ADR 010](010-sandboxes.md) replaced
+the nightly reset and the invite codes with private sandboxes and the sweep; the
+measurements below were taken with the reset.
 
 ## Choice
 

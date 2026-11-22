@@ -48,8 +48,8 @@ function button(text: string, action: () => void | Promise<void>, className = 'q
   node.addEventListener('click', () => { void Promise.resolve().then(action).catch(showError); });
   return node;
 }
-// The beta's sign-in page marks cookie access; the session cookie then goes with every request
-// and no Authorization header is sent.
+// In the beta the page marks cookie access: the sandbox cookie goes with every request and no
+// Authorization header is sent.
 const cookieAccess = document.documentElement.dataset.access === 'cookie';
 async function authorizedFetch(path: string, options?: RequestInit) {
   const headers = new Headers(options?.headers);
@@ -87,6 +87,61 @@ const queue = element('nav');
 queue.setAttribute('aria-label', 'Review queue');
 const detail = element('section');
 detail.setAttribute('aria-label', 'Document');
+const NO_COOKIES = 'Your sandbox needs a cookie to stay private to this browser, and this browser blocks cookies here. Allow cookies for this site and reload to send a sample.';
+const DELETED = 'Everything this browser sent is deleted.';
+
+function cookiesWork() {
+  if (!navigator.cookieEnabled) return false;
+  const probe = 'docket_cookie_check=1';
+  document.cookie = probe + '; Path=/; SameSite=Strict';
+  const works = document.cookie.split('; ').includes(probe);
+  document.cookie = 'docket_cookie_check=; Path=/; SameSite=Strict; Max-Age=0';
+  return works;
+}
+
+// "Private to this browser · deleted in N minutes · Delete now". The server counts the
+// seconds left; the page counts down from them between requests.
+const sandboxLine = block('p', 'sample-note sandbox-line');
+const deleteNow = button('Delete now', deleteSandbox, 'quiet small');
+let sandboxEnds: number | undefined;
+function showSandbox() {
+  const minutes = sandboxEnds === undefined ? 0 : Math.ceil((sandboxEnds - Date.now()) / 60_000);
+  if (sandboxEnds !== undefined && minutes <= 0) {
+    // Expired: the sweep deletes it, so the page shows what is left, which is nothing.
+    sandboxEnds = undefined;
+    void refresh().catch(showError);
+  }
+  if (sandboxEnds === undefined) {
+    sandboxLine.replaceChildren('Private to this browser · starts with your first sample');
+    return;
+  }
+  sandboxLine.replaceChildren(
+    'Private to this browser · ', `deleted in ${minutes} minute${minutes === 1 ? '' : 's'}`, ' · ', deleteNow);
+}
+async function loadSandbox() {
+  const { expires_in } = await request<{ expires_in: number | null }>('/sandbox');
+  sandboxEnds = expires_in === null ? undefined : Date.now() + expires_in * 1000;
+  showSandbox();
+}
+async function deleteSandbox() {
+  deleteNow.disabled = true;
+  try {
+    const response = await authorizedFetch('/sandbox', { method: 'DELETE' });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Delete now failed. Try again.');
+    sandboxEnds = undefined;
+    history.replaceState(null, '', window.location.pathname);
+    releasePreview();
+    selected = undefined;
+    await refresh();
+    showSandbox();
+    message.textContent = response.status === 202 && typeof body.detail === 'string' ? body.detail : DELETED;
+  } finally {
+    deleteNow.disabled = false;
+  }
+}
+if (cookieAccess) window.setInterval(showSandbox, 15_000);
+
 if (cookieAccess) {
   const side = block('div', 'side', samplePanel(), queue);
   layout.append(side, detail);
@@ -368,6 +423,7 @@ const OUTCOME_WORDS: Record<string, string> = {
   rejected: 'The sample was rejected.',
 };
 
+
 // The beta's only way in for a document: the server makes a synthetic PDF of the chosen case
 // type and runs it with live model answers. The visitor sends nothing but the case type.
 function samplePanel() {
@@ -386,9 +442,7 @@ function samplePanel() {
   send.disabled = true;
   const state = block('p', 'sample-state');
   state.setAttribute('role', 'status');
-  const shared = block('p', 'sample-note',
-    'Everyone with an invite shares one queue, and anyone can settle any document. It resets every night.');
-  panel.append(title, note, label, send, state, shared);
+  panel.append(title, note, label, send, state, sandboxLine);
 
   let ready = false;
   const settle = (canSend: boolean, text: string) => {
@@ -397,6 +451,14 @@ function samplePanel() {
     send.textContent = 'Send a sample document';
     state.textContent = text;
   };
+  // Without the cookie, every sample would start a sandbox this browser could never open
+  // again, so nothing is sent.
+  if (!cookiesWork()) {
+    label.hidden = send.hidden = sandboxLine.hidden = true;
+    settle(false, NO_COOKIES);
+    return panel;
+  }
+  void loadSandbox().catch(() => {});
   void request<SampleOptions>('/beta/samples').then(options => {
     kinds.replaceChildren(...options.case_types.map(item => new Option(item.label, item.value)));
     settle(options.state === 'ready', SAMPLE_STATES[options.state] || '');
@@ -428,6 +490,8 @@ async function sendSample(caseType: string, send: HTMLButtonElement, kinds: HTML
   if (!response.ok) return { canSend: true, text: detail || 'The sample could not be sent. Try again.' };
   const id = String(body.document_id);
   state.textContent = 'Sample sent. Docket is reading it…';
+  // The first sample starts the sandbox, and one in a sandbox's last minutes starts a new one.
+  void loadSandbox().catch(() => {});
   window.location.hash = id;
   // From here the sample exists, so no error below may suggest sending it again.
   try {

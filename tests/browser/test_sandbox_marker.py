@@ -81,10 +81,12 @@ async def left_on_disk(markers: dict[str, str], gone: str, since: float) -> set[
     left both, which must happen within one sweep interval of since."""
     while True:
         seen = found(markers, folder("seaweedfs")), found(markers, folder("temporal"))
+        # Taken after the read, so a read that finished past the deadline fails even if clean.
+        elapsed = time.monotonic() - since
+        assert elapsed < SWEEP_INTERVAL, (elapsed, seen)
         if gone not in seen[0] | seen[1]:
             assert seen[0] == seen[1], seen
             return seen[0]
-        assert time.monotonic() - since < SWEEP_INTERVAL, seen
         await asyncio.sleep(5)
 
 

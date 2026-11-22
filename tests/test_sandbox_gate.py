@@ -4,8 +4,10 @@ database keeps of a visitor (plan PR 1, S1, S3 and S11)."""
 import base64
 import hashlib
 import hmac
+import math
 import os
 import subprocess
+import time
 import uuid
 
 import httpx
@@ -99,6 +101,7 @@ async def test_the_first_write_sets_the_cookie_with_exactly_its_flags_and_stores
 ):
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = ingress = FakeIngress()
+        asked = time.monotonic()
         first = await sample(http, sender("192.0.2.10"))
         assert first.status_code == 200, first.text
         assert first.headers["cache-control"] == "no-store"
@@ -107,10 +110,15 @@ async def test_the_first_write_sets_the_cookie_with_exactly_its_flags_and_stores
         assert name == SANDBOX_COOKIE == "__Host-docket_sandbox"
         assert flags[:4] == ["HttpOnly", "Secure", "SameSite=Strict", "Path=/"]
         assert len(flags) == 5 and flags[4].startswith("Max-Age=")
-        # The seconds its sandbox had left when the answer went, read again just after.
+        # The seconds its sandbox had left when the answer went: no fewer than are left when
+        # read again just after, and no more than those plus the time since the request.
+        # Both are whole seconds rounded down.
         max_age = int(flags[4].removeprefix("Max-Age="))
         left = seconds_left(postgres_engine, value)
-        assert left is not None and left <= max_age <= left + 2 <= LIFE_SECONDS + 2
+        elapsed = time.monotonic() - asked
+        assert left is not None
+        assert left <= max_age <= left + math.ceil(elapsed)
+        assert max_age <= LIFE_SECONDS
         assert len(base64.urlsafe_b64decode(value + "==")) == 16
         # The next write with the cookie goes to the same sandbox and sets nothing.
         again = await sample(http, sender("192.0.2.10", value))

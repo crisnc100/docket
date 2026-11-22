@@ -142,3 +142,53 @@ async def test_the_run_waits_for_a_first_complete_sweep_and_gives_up_after_its_l
     async with httpx.AsyncClient(transport=stale, base_url="http://api") as http:
         with pytest.raises(beta_load.LoadRefused, match="no sweep completed"):
             await beta_load.first_sweep(http, timeout=0.1)
+
+
+class FirstSample(Exception):
+    """Ends a run at its first sample, which is as far as these checks need it to go."""
+
+
+async def test_run_sends_no_sample_before_a_first_complete_sweep(monkeypatch, tmp_path):
+    healths: list[dict] = []
+    asked: list[str] = []
+
+    def api(request: httpx.Request) -> httpx.Response:
+        asked.append(request.method + " " + request.url.path)
+        if request.url.path == "/healthz":
+            return httpx.Response(200, json=healths.pop(0) if healths else {"status": "stale"})
+        raise FirstSample
+
+    async def no_stats(peaks, failures, stop):
+        pass
+
+    client = httpx.AsyncClient
+    monkeypatch.setattr(
+        beta_load.httpx,
+        "AsyncClient",
+        lambda **kwargs: client(transport=httpx.MockTransport(api), **kwargs),
+    )
+    monkeypatch.setattr(
+        beta_load, "env_values", lambda env_file: {"DOCKET_BASE_URL": "https://beta.test"}
+    )
+    monkeypatch.setattr(
+        beta_load,
+        "compose",
+        lambda *args: subprocess.CompletedProcess(args, 0, stdout="127.0.0.1:8000\n"),
+    )
+    monkeypatch.setattr(beta_load, "confirm_stub", lambda env_file, values: None)
+    monkeypatch.setattr(beta_load, "sample_stats", no_stats)
+    wait = beta_load.first_sweep
+    monkeypatch.setattr(beta_load, "first_sweep", lambda http: wait(http, timeout=0.1))
+
+    # The sweep never completes: the run refuses, having sent nothing.
+    with pytest.raises(beta_load.LoadRefused, match="no sweep completed"):
+        await beta_load.run(tmp_path / ".env", minutes=1, samples=3)
+    assert asked == ["GET /healthz"]
+
+    # It completes on the second look: the first sample goes only after that.
+    asked.clear()
+    healths[:] = [{"status": "stale"}, {"status": "ok"}]
+    monkeypatch.setattr(beta_load, "first_sweep", lambda http: wait(http, timeout=30))
+    with pytest.raises(FirstSample):
+        await beta_load.run(tmp_path / ".env", minutes=1, samples=3)
+    assert asked == ["GET /healthz", "GET /healthz", "POST /beta/samples"]

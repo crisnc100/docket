@@ -55,12 +55,12 @@ async def test_delete_now_leaves_no_rows_objects_or_histories_and_clears_the_coo
     sandbox_id, token = make_sandbox(engine)
     sent = await send(beta, temporal, sandbox_id, count=3)
     assert await histories(temporal, sent) == sent
-    set_caps(engine)
+    seeded = set_caps(engine)
     async with api(beta, temporal) as http:
         response = await http.delete("/sandbox", headers=visitor(token))
         assert response.status_code == 200
         assert response.json() == {"deleted": True, "detail": DELETED}
-        assert caps(engine) == CAPS
+        assert caps(engine, seeded) == CAPS
         assert response.headers["set-cookie"] == SPENT
         assert leftovers(engine, sandbox_id) == 0
         assert objects(beta, f"sbx/{sandbox_id}/") == []
@@ -283,3 +283,23 @@ async def test_a_write_holding_the_lock_too_long_closes_the_sandbox_for_the_swee
     assert leftovers(engine, sandbox_id) == 0
     assert objects(beta, f"sbx/{sandbox_id}/") == []
     assert await histories(temporal, sent) == []
+
+
+async def test_a_stale_sweep_and_a_held_lock_together_answer_202_and_close_the_sandbox(
+    beta, temporal, monkeypatch
+):
+    engine = beta.engine
+    sandbox_id, token = make_sandbox(engine)
+    await send(beta, temporal, sandbox_id, count=1)
+    monkeypatch.setattr(sweep, "LOCK_TIMEOUT_MS", 200)
+    assert sweep.sweep_stale(engine)
+    async with api(beta, temporal) as http:
+        async with writing_to(engine, sandbox_id):
+            response = await http.delete("/sandbox", headers=visitor(token))
+    assert response.status_code == 202
+    assert response.json()["deleted"] is False
+    assert response.headers["set-cookie"] == SPENT
+    with Session(engine) as session:
+        assert session.get(Sandbox, sandbox_id).closed_at is not None
+    # Closed, not deleted: the write held the lock, so its rows wait for the sweep.
+    assert leftovers(engine, sandbox_id) > 0

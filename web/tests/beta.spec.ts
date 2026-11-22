@@ -101,19 +101,33 @@ test('S12: Send waits for Delete now, a sandbox that is gone leaves nothing, and
   const send = page.getByRole('button', { name: 'Send a sample document' });
   const queueLinks = page.getByRole('navigation', { name: 'Review queue' }).getByRole('link');
 
-  // A refusal: Send stays off until the page asks again and the server is ready.
-  await page.route('**/beta/samples', route => route.request().method() === 'POST'
-    ? route.fulfill({ status: 503, json: { detail: 'Docket is catching up. Try again in a few minutes.' } })
-    : route.continue());
+  // A refusal: Send stays off until the page asks again and the server says it is ready.
+  const catchingUp = 'Docket is catching up. Try again in a few minutes.';
+  const asked: string[] = [];
+  let serverReady = false;
+  await page.route('**/beta/samples', async route => {
+    if (route.request().method() === 'POST') return route.fulfill({ status: 503, json: { detail: catchingUp } });
+    asked.push(route.request().method());
+    if (serverReady) return route.continue();
+    const options = await (await route.fetch()).json();
+    return route.fulfill({ json: { ...options, state: 'catching_up' } });
+  });
   await expect(send).toBeEnabled();
   await page.getByLabel('Kind of document').selectOption({ label: KIND });
   await send.click();
-  await expect(page.locator('.sample-state')).toHaveText('Docket is catching up. Try again in a few minutes.');
+  await expect(page.locator('.sample-state')).toHaveText(catchingUp);
   await expect(send).toBeDisabled();
-  await page.unroute('**/beta/samples');
+  // The first time it asks, the server is still catching up, so Send stays off.
   await page.clock.fastForward(31_000);
+  await expect.poll(() => asked).toEqual(['GET']);
+  await expect(send).toBeDisabled();
+  await expect(page.locator('.sample-state')).toHaveText(catchingUp);
+  serverReady = true;
+  await page.clock.fastForward(31_000);
+  await expect.poll(() => asked).toEqual(['GET', 'GET']);
   await expect(send).toBeEnabled();
   await expect(page.locator('.sample-state')).toHaveText('');
+  await page.unroute('**/beta/samples');
 
   // While Delete now waits for its answer, Send is off; and a refresh that fails after it
   // leaves the answer and an empty page.
@@ -219,6 +233,33 @@ test('S12: an ended or ending sandbox is handled, and one tab sends or deletes a
   await expect(second.getByRole('status').first()).toHaveText(DELETED, { timeout: 30_000 });
   expect(deletes).toHaveLength(2);
   await first.unroute('**/beta/samples');
+
+  // And the other way: a Delete now held at the server in one tab holds back another tab's send.
+  await expect(send).toBeEnabled({ timeout: 60_000 });
+  await sendSample(first);
+  await second.reload();
+  const secondSends: string[] = [];
+  second.on('request', request => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname === '/beta/samples') secondSends.push(request.url());
+  });
+  let release: () => void = () => {};
+  const released = new Promise<void>(resolve => { release = resolve; });
+  await first.route('**/sandbox', async route => {
+    if (route.request().method() !== 'DELETE') return route.continue();
+    await released;
+    await route.continue();
+  });
+  await first.getByRole('button', { name: 'Delete now' }).click();
+  await expect.poll(() => deletes).toHaveLength(3);
+  await second.getByLabel('Kind of document').selectOption({ label: KIND });
+  await second.getByRole('button', { name: 'Send a sample document' }).click();
+  await second.waitForTimeout(1_000);
+  expect(secondSends).toEqual([]);
+  release();
+  await expect(first.getByRole('status').first()).toHaveText(DELETED, { timeout: 30_000 });
+  await expect(second.locator('.sample-state')).toHaveText('The sample is waiting for review in the queue.', { timeout: 60_000 });
+  expect(secondSends).toHaveLength(1);
+  await first.unroute('**/sandbox');
   await context.close();
 });
 

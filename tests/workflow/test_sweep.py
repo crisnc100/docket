@@ -6,7 +6,7 @@ import asyncio
 import itertools
 import uuid
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import httpx
@@ -42,22 +42,23 @@ TEMPORAL = "localhost:7233"
 CAPS = (Decimal("0.37"), 42)
 
 
-def set_caps(engine) -> None:
-    """Today's spend and sample count. A cleanup that lowered them would lift the daily caps."""
+def set_caps(engine) -> date:
+    """Today's spend and sample count, and the UTC day they are keyed by. A cleanup that
+    lowered them would lift the daily caps."""
+    today = datetime.now(UTC).date()
     with Session(engine) as session, session.begin():
-        today = datetime.now(UTC).date()
         session.execute(insert(BudgetLedger).values(day=today, spent_usd=CAPS[0]))
         session.execute(insert(SampleCount).values(day=today, count=CAPS[1]))
+    return today
 
 
-def caps(engine) -> tuple[Decimal | None, int | None]:
-    """Today's spend and sample count, read back from the only rows there are, which must be
-    keyed by today's UTC date."""
-    today = datetime.now(UTC).date()
+def caps(engine, day: date) -> tuple[Decimal | None, int | None]:
+    """The spend and sample count, read back from the only rows there are, which must still
+    be keyed by the day set_caps used, even if the UTC date has turned since."""
     with Session(engine) as session:
         spend = session.execute(select(BudgetLedger.day, BudgetLedger.spent_usd)).all()
         count = session.execute(select(SampleCount.day, SampleCount.count)).all()
-    assert [day for day, _ in spend] == [today] and [day for day, _ in count] == [today]
+    assert [row[0] for row in spend] == [day] and [row[0] for row in count] == [day]
     return spend[0][1], count[0][1]
 
 
@@ -209,7 +210,7 @@ async def test_with_temporal_unreachable_rows_and_objects_go_and_histories_go_ne
     sent = await send(beta, temporal, gone)
     kept = await send(beta, temporal, live, count=1)
     expire(engine, gone)
-    set_caps(engine)
+    seeded = set_caps(engine)
     report = await sweep_once(beta, temporal_connector("127.0.0.1:1"))
     assert report["temporal"] == "failed" and report["complete"] is False
     assert report["postgres"] == report["storage"] == "complete"
@@ -217,7 +218,7 @@ async def test_with_temporal_unreachable_rows_and_objects_go_and_histories_go_ne
     assert objects(beta, f"sbx/{gone}/") == []
     assert await histories(temporal, sent) == sent
     assert sweep_age(engine) is None
-    assert caps(engine) == CAPS
+    assert caps(engine, seeded) == CAPS
     report = await sweep_once(beta, reachable(temporal))
     assert report["complete"] is True and report["temporal_deleted"] == 2
     assert await histories(temporal, sent) == []
@@ -225,7 +226,7 @@ async def test_with_temporal_unreachable_rows_and_objects_go_and_histories_go_ne
     assert rows(engine, live) == (1, 1)
     assert len(objects(beta, f"sbx/{live}/")) == 1
     assert await histories(temporal, kept) == kept
-    assert caps(engine) == CAPS
+    assert caps(engine, seeded) == CAPS
 
 
 # S6c
@@ -395,10 +396,10 @@ async def test_everything_deletes_live_sandboxes_loose_documents_and_every_objec
     sent = await send(beta, temporal, live)
     loose = await Ingress(beta, temporal).submit(pdf(["Before sandboxes"]), "old.pdf")
     assert objects(beta, "raw/")
-    set_caps(engine)
+    seeded = set_caps(engine)
     report = await sweep_once(beta, reachable(temporal), everything=True)
     assert report["complete"] is True
-    assert caps(engine) == CAPS
+    assert caps(engine, seeded) == CAPS
     with Session(engine) as session:
         assert session.scalar(select(func.count()).select_from(Sandbox)) == 0
         assert session.scalar(select(func.count()).select_from(Document)) == 0

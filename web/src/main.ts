@@ -104,11 +104,30 @@ function cookiesWork() {
 const sandboxLine = block('p', 'sample-note sandbox-line');
 const deleteNow = button('Delete now', deleteSandbox, 'quiet small');
 let sandboxEnds: number | undefined;
+// Sending and Delete now never overlap: a sample sent while Delete now waits for the stores
+// would start a new sandbox whose cookie the delete's answer then clears.
+let deleting = false;
+let posting = false;
+let syncSample = () => {};
+let recheckSamples = () => {};
+function syncControls() {
+  deleteNow.disabled = deleting || posting;
+  syncSample();
+}
+// A sandbox that is gone leaves nothing on the page. Opening no document moves generation on,
+// so a document still loading never draws over the empty pane.
+function clearSandboxView() {
+  items = [];
+  selected = undefined;
+  history.replaceState(null, '', window.location.pathname);
+  void openDocument();
+}
 function showSandbox() {
   const minutes = sandboxEnds === undefined ? 0 : Math.ceil((sandboxEnds - Date.now()) / 60_000);
   if (sandboxEnds !== undefined && minutes <= 0) {
     // Expired: the sweep deletes it, so the page shows what is left, which is nothing.
     sandboxEnds = undefined;
+    clearSandboxView();
     void refresh().catch(showError);
   }
   if (sandboxEnds === undefined) {
@@ -124,21 +143,22 @@ async function loadSandbox() {
   showSandbox();
 }
 async function deleteSandbox() {
-  deleteNow.disabled = true;
+  deleting = true;
+  syncControls();
   try {
     const response = await authorizedFetch('/sandbox', { method: 'DELETE' });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Delete now failed. Try again.');
     sandboxEnds = undefined;
-    history.replaceState(null, '', window.location.pathname);
-    releasePreview();
-    selected = undefined;
-    await refresh();
+    clearSandboxView();
     showSandbox();
     message.textContent = response.status === 202 && typeof body.detail === 'string' ? body.detail : DELETED;
   } finally {
-    deleteNow.disabled = false;
+    deleting = false;
+    syncControls();
   }
+  // The page is already empty, so a refresh that fails leaves the answer in place.
+  void refresh().catch(() => {});
 }
 if (cookieAccess) window.setInterval(showSandbox, 15_000);
 
@@ -208,7 +228,7 @@ function renderQueue() {
   const count = element('p', `${items.length} awaiting review · oldest first`);
   count.className = 'count';
   queue.append(count);
-  queue.append(button('Refresh queue', refresh, 'quiet small'));
+  queue.append(button('Refresh queue', () => { recheckSamples(); return refresh(); }, 'quiet small'));
   for (const item of items) {
     const link = element('a');
     link.href = `#${item.document_id}`;
@@ -445,11 +465,13 @@ function samplePanel() {
   panel.append(title, note, label, send, state, sandboxLine);
 
   let ready = false;
+  let inFlight = false;
+  syncSample = () => { send.disabled = kinds.disabled = !ready || deleting || posting; };
   const settle = (canSend: boolean, text: string) => {
     ready = canSend;
-    send.disabled = kinds.disabled = !canSend;
     send.textContent = 'Send a sample document';
     state.textContent = text;
+    syncSample();
   };
   // Without the cookie, every sample would start a sandbox this browser could never open
   // again, so nothing is sent.
@@ -459,20 +481,31 @@ function samplePanel() {
     return panel;
   }
   void loadSandbox().catch(() => {});
-  void request<SampleOptions>('/beta/samples').then(options => {
-    kinds.replaceChildren(...options.case_types.map(item => new Option(item.label, item.value)));
+  let listed = false;
+  const loadOptions = () => request<SampleOptions>('/beta/samples').then(options => {
+    if (!listed) kinds.replaceChildren(...options.case_types.map(item => new Option(item.label, item.value)));
+    listed = true;
     settle(options.state === 'ready', SAMPLE_STATES[options.state] || '');
-  }).catch(() => {
+  });
+  void loadOptions().catch(() => {
     // With no list there is nothing to pick or send, so only the status line remains.
     label.hidden = send.hidden = true;
     settle(false, 'Samples could not be loaded. Reload the page to try again.');
   });
+  // A refusal says to try again in a few minutes, so the page asks again by itself, and on
+  // Refresh queue. The server still refuses a send until it is ready.
+  recheckSamples = () => {
+    if (listed && !ready && !inFlight) void loadOptions().catch(() => {});
+  };
+  window.setInterval(recheckSamples, 30_000);
 
   send.addEventListener('click', () => {
-    if (!ready) return;
+    if (!ready || deleting) return;
+    ready = false;
+    inFlight = true;
     void sendSample(kinds.value, send, kinds, state)
-      .then(result => settle(result.canSend, result.text))
-      .catch(() => settle(true, 'The sample could not be sent. Try again.'));
+      .then(result => { inFlight = false; settle(result.canSend, result.text); })
+      .catch(() => { inFlight = false; settle(true, 'The sample could not be sent. Try again.'); });
   });
   return panel;
 }
@@ -480,10 +513,18 @@ async function sendSample(caseType: string, send: HTMLButtonElement, kinds: HTML
   send.disabled = kinds.disabled = true;
   send.textContent = 'Sending…';
   state.textContent = '';
-  const response = await authorizedFetch('/beta/samples', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ case_type: caseType }),
-  });
+  posting = true;
+  syncControls();
+  let response: Response;
+  try {
+    response = await authorizedFetch('/beta/samples', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ case_type: caseType }),
+    });
+  } finally {
+    posting = false;
+    syncControls();
+  }
   const body = await response.json().catch(() => ({}));
   const detail = typeof body.detail === 'string' ? body.detail : '';
   if (response.status === 503) return { canSend: false, text: detail || SAMPLE_STATES.paused };

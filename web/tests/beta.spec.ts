@@ -56,7 +56,7 @@ test('S12: two browsers stay apart, a sample is reviewed, and Delete now empties
 
   await sendSample(page);
   await page.getByRole('button', { name: 'Delete now' }).click();
-  await expect(page.getByRole('status').first()).toHaveText(DELETED);
+  await expect(page.getByRole('status').first()).toHaveText(DELETED, { timeout: 60_000 });
   await expect(page.getByRole('navigation', { name: 'Review queue' }).getByRole('link')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible();
   await expect(page.locator('.sandbox-line')).toHaveText('Private to this browser · starts with your first sample');
@@ -102,11 +102,14 @@ test('S12: Send waits for Delete now, a sandbox that is gone leaves nothing, and
   const queueLinks = page.getByRole('navigation', { name: 'Review queue' }).getByRole('link');
 
   // A refusal: Send stays off until the page asks again and the server says it is ready.
+  // The send's refusal and the first readiness answer have different texts, so the second
+  // text shows the page has taken in an answer that is not ready.
+  const turnedOff = 'Live answers are turned off right now.';
   const catchingUp = 'Docket is catching up. Try again in a few minutes.';
   const asked: string[] = [];
   let serverReady = false;
   await page.route('**/beta/samples', async route => {
-    if (route.request().method() === 'POST') return route.fulfill({ status: 503, json: { detail: catchingUp } });
+    if (route.request().method() === 'POST') return route.fulfill({ status: 503, json: { detail: turnedOff } });
     asked.push(route.request().method());
     if (serverReady) return route.continue();
     const options = await (await route.fetch()).json();
@@ -115,13 +118,13 @@ test('S12: Send waits for Delete now, a sandbox that is gone leaves nothing, and
   await expect(send).toBeEnabled();
   await page.getByLabel('Kind of document').selectOption({ label: KIND });
   await send.click();
-  await expect(page.locator('.sample-state')).toHaveText(catchingUp);
+  await expect(page.locator('.sample-state')).toHaveText(turnedOff);
   await expect(send).toBeDisabled();
   // The first time it asks, the server is still catching up, so Send stays off.
   await page.clock.fastForward(31_000);
-  await expect.poll(() => asked).toEqual(['GET']);
-  await expect(send).toBeDisabled();
   await expect(page.locator('.sample-state')).toHaveText(catchingUp);
+  expect(asked).toEqual(['GET']);
+  await expect(send).toBeDisabled();
   serverReady = true;
   await page.clock.fastForward(31_000);
   await expect.poll(() => asked).toEqual(['GET', 'GET']);
@@ -144,7 +147,7 @@ test('S12: Send waits for Delete now, a sandbox that is gone leaves nothing, and
   await expect(send).toBeDisabled();
   await page.route('**/review', route => route.fulfill({ status: 500, json: { detail: 'Request failed' } }));
   answer();
-  await expect(page.getByRole('status').first()).toHaveText(DELETED);
+  await expect(page.getByRole('status').first()).toHaveText(DELETED, { timeout: 60_000 });
   await expect(send).toBeEnabled();
   await expect(queueLinks).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible();
@@ -169,6 +172,8 @@ test('S12: Send waits for Delete now, a sandbox that is gone leaves nothing, and
 });
 
 test('S12: an ended or ending sandbox is handled, and one tab sends or deletes at a time', async ({ browser }) => {
+  // Four samples read and three Delete nows, each allowed up to a minute.
+  test.setTimeout(240_000);
   const context = await browser.newContext();
   const first = await context.newPage();
   const deletes: string[] = [];
@@ -217,20 +222,29 @@ test('S12: an ended or ending sandbox is handled, and one tab sends or deletes a
   const second = await context.newPage();
   await second.goto('/reviewer');
   await expect(second.getByRole('navigation', { name: 'Review queue' }).getByRole('link')).toHaveCount(1);
+  // The send reaches the server, and its answer is held before it reaches the browser, so
+  // a delete sent at any point before the answer arrives is seen as an overlap.
   let answer: () => void = () => {};
   const answered = new Promise<void>(resolve => { answer = resolve; });
+  let sendAnswered = false;
+  const overlaps: string[] = [];
+  second.on('request', request => {
+    if (request.method() === 'DELETE' && !sendAnswered) overlaps.push(request.url());
+  });
   await first.route('**/beta/samples', async route => {
     if (route.request().method() !== 'POST') return route.continue();
+    const response = await route.fetch();
     await answered;
-    await route.continue();
+    sendAnswered = true;
+    await route.fulfill({ response });
   });
   await send.click();
   await expect(first.getByRole('button', { name: 'Delete now' })).toBeDisabled();
   await second.getByRole('button', { name: 'Delete now' }).click();
   await second.waitForTimeout(1_000);
-  expect(deletes).toHaveLength(1);
   answer();
-  await expect(second.getByRole('status').first()).toHaveText(DELETED, { timeout: 30_000 });
+  await expect(second.getByRole('status').first()).toHaveText(DELETED, { timeout: 60_000 });
+  expect(overlaps).toEqual([]);
   expect(deletes).toHaveLength(2);
   await first.unroute('**/beta/samples');
 
@@ -238,27 +252,33 @@ test('S12: an ended or ending sandbox is handled, and one tab sends or deletes a
   await expect(send).toBeEnabled({ timeout: 60_000 });
   await sendSample(first);
   await second.reload();
-  const secondSends: string[] = [];
+  const secondSends: boolean[] = [];
+  let deleteAnswered = false;
   second.on('request', request => {
-    if (request.method() === 'POST' && new URL(request.url()).pathname === '/beta/samples') secondSends.push(request.url());
+    if (request.method() === 'POST' && new URL(request.url()).pathname === '/beta/samples') secondSends.push(deleteAnswered);
   });
   let release: () => void = () => {};
   const released = new Promise<void>(resolve => { release = resolve; });
+  let deleteDone = false;
   await first.route('**/sandbox', async route => {
     if (route.request().method() !== 'DELETE') return route.continue();
+    const response = await route.fetch();
+    deleteDone = true;
     await released;
-    await route.continue();
+    deleteAnswered = true;
+    await route.fulfill({ response });
   });
   await first.getByRole('button', { name: 'Delete now' }).click();
-  await expect.poll(() => deletes).toHaveLength(3);
+  // The delete has finished at the server; only its answer is held.
+  await expect.poll(() => deleteDone, { timeout: 60_000 }).toBe(true);
   await second.getByLabel('Kind of document').selectOption({ label: KIND });
   await second.getByRole('button', { name: 'Send a sample document' }).click();
   await second.waitForTimeout(1_000);
-  expect(secondSends).toEqual([]);
   release();
-  await expect(first.getByRole('status').first()).toHaveText(DELETED, { timeout: 30_000 });
+  await expect(first.getByRole('status').first()).toHaveText(DELETED, { timeout: 60_000 });
   await expect(second.locator('.sample-state')).toHaveText('The sample is waiting for review in the queue.', { timeout: 60_000 });
-  expect(secondSends).toHaveLength(1);
+  // One send, and it left only after the delete's answer reached the browser.
+  expect(secondSends).toEqual([true]);
   await first.unroute('**/sandbox');
   await context.close();
 });

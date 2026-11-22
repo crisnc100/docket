@@ -7,8 +7,8 @@ import hmac
 import math
 import os
 import subprocess
-import time
 import uuid
+from datetime import timedelta
 
 import httpx
 import pytest
@@ -24,7 +24,6 @@ from docket.sandbox import (
     TOO_MANY_SANDBOXES,
     SandboxClosed,
     close_sandbox,
-    seconds_left,
     spent_cookie,
 )
 from tests.sandboxes import held_in, make_sandbox, sandbox_cookie
@@ -101,7 +100,6 @@ async def test_the_first_write_sets_the_cookie_with_exactly_its_flags_and_stores
 ):
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = ingress = FakeIngress()
-        asked = time.monotonic()
         first = await sample(http, sender("192.0.2.10"))
         assert first.status_code == 200, first.text
         assert first.headers["cache-control"] == "no-store"
@@ -110,15 +108,21 @@ async def test_the_first_write_sets_the_cookie_with_exactly_its_flags_and_stores
         assert name == SANDBOX_COOKIE == "__Host-docket_sandbox"
         assert flags[:4] == ["HttpOnly", "Secure", "SameSite=Strict", "Path=/"]
         assert len(flags) == 5 and flags[4].startswith("Max-Age=")
-        # The seconds its sandbox had left when the answer went: no fewer than are left when
-        # read again just after, and no more than those plus the time since the request.
-        # Both are whole seconds rounded down.
+        # Max-Age is the whole seconds from the database's clock, read after the transaction
+        # that made the sandbox, to expires_at. created_at is that transaction's clock, so
+        # Max-Age is below expires_at - created_at; and it is at least the whole seconds left
+        # by the same clock read again after the answer.
         max_age = int(flags[4].removeprefix("Max-Age="))
-        left = seconds_left(postgres_engine, value)
-        elapsed = time.monotonic() - asked
-        assert left is not None
-        assert left <= max_age <= left + math.ceil(elapsed)
-        assert max_age <= LIFE_SECONDS
+        with Session(postgres_engine) as session:
+            made, expires = session.execute(
+                select(Sandbox.created_at, Sandbox.expires_at).where(
+                    Sandbox.token_hash == hashlib.sha256(value.encode()).hexdigest()
+                )
+            ).one()
+            after = session.scalar(select(func.now()))
+        assert expires - made == timedelta(seconds=LIFE_SECONDS)
+        assert math.floor((expires - after).total_seconds()) <= max_age
+        assert max_age <= math.ceil((expires - made).total_seconds()) - 1
         assert len(base64.urlsafe_b64decode(value + "==")) == 16
         # The next write with the cookie goes to the same sandbox and sets nothing.
         again = await sample(http, sender("192.0.2.10", value))
@@ -199,7 +203,12 @@ async def test_the_cookie_lasts_only_as_long_as_its_sandbox(postgres_engine):
         app.state.ingress = SlowIngress()
         response = await sample(http, sender("192.0.2.14"))
     assert response.status_code == 200
-    assert 95 <= int(response.headers["set-cookie"].rpartition("Max-Age=")[2]) <= 100
+    max_age = int(response.headers["set-cookie"].rpartition("Max-Age=")[2])
+    with Session(postgres_engine) as session:
+        expires = session.scalar(select(Sandbox.expires_at))
+        after = session.scalar(select(func.now()))
+    # expires_at is 100 seconds past the update's clock, and Max-Age is read by a later one.
+    assert math.floor((expires - after).total_seconds()) <= max_age <= 99
 
 
 async def test_a_first_sample_that_fails_closes_its_sandbox_and_keeps_its_slots(

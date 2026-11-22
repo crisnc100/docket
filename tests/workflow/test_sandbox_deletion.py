@@ -298,8 +298,12 @@ async def test_a_stale_sweep_and_a_held_lock_together_answer_202_and_close_the_s
             response = await http.delete("/sandbox", headers=visitor(token))
     assert response.status_code == 202
     assert response.json()["deleted"] is False
+    # The sweep that would erase the rest is behind, so the answer names no time.
+    assert "within a few minutes" not in response.json()["detail"]
     assert response.headers["set-cookie"] == SPENT
+    # Closed, not deleted: the write held the lock, so the sandbox and its document wait for
+    # the sweep.
     with Session(engine) as session:
         assert session.get(Sandbox, sandbox_id).closed_at is not None
-    # Closed, not deleted: the write held the lock, so its rows wait for the sweep.
-    assert leftovers(engine, sandbox_id) > 0
+        documents = select(func.count()).where(Document.sandbox_id == sandbox_id)
+        assert session.scalar(documents) == 1

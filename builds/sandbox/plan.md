@@ -7,9 +7,10 @@ Cristian's decisions on rev 2. The main change: for uploads, the model now sees 
 unit text and makes a real suggestion (PR 3, "The unit prompt"). Rev 4 answers Mythos's check
 of that change (`delta-mythos.md`): the worst-case cost, a cross-sandbox test, what is
 actually sent, the injection tests through the real reply path, and the browser's copy of the
-units. Rev 5 follows Mythos's check of the built PR 1: one browser holds one sandbox, so a
-refusal with a one-click "Start fresh" replaces the automatic rollover, and "Delete now"
-promises only what is done when it answers. The latest revision wins.
+units. Rev 5 follows Mythos's check of the built PR 1 (`advisor-mythos-pr1-review.md`): one
+browser holds one sandbox, so a refusal with a one-click "Start fresh" replaces the automatic
+rollover, and "Delete now" promises only what is done when it answers. The latest revision
+wins.
 
 ## Goal
 

@@ -182,7 +182,7 @@ def test_the_example_names_every_beta_setting_and_its_blanks_are_refused():
     values = example_values()
     assert values["DOCKET_DAILY_BUDGET_USD"] == "1.00"
     assert values["DOCKET_TRUST_PROXY"] == "1"
-    assert values["DOCKET_REVIEW_TIMEOUT_SECONDS"] == "86400"
+    assert values["DOCKET_REVIEW_TIMEOUT_SECONDS"] == "3000"
     assert values["DOCKET_MODEL_MODE"] == "live"
     assert "DOCKET_REVIEW_TOKEN" not in values
     compose = (ROOT / "compose.prod.yaml").read_text()

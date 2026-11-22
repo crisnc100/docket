@@ -28,6 +28,7 @@ from docket.llm.anthropic import AnthropicTransport
 from docket.llm.errors import BudgetExceeded
 from docket.runtime import Runtime
 from docket.sandbox import raw_key
+from docket.sweep import record_complete
 from docket.workflows import FileDocumentWorkflow
 from tests.test_anthropic_transport import FakeApi
 from tests.test_beta_gate import BASE, beta_settings, cookie, open_sandbox
@@ -81,6 +82,8 @@ def beta_runtime(postgres_engine, monkeypatch):
     monkeypatch.setattr(runtime, "storage", storage)
     monkeypatch.setattr(runtime, "read", lambda key: storage.objects[key])
     monkeypatch.setattr(runtime, "ensure_bucket", lambda: None)
+    # Samples wait for a recent sweep, and these tests run none.
+    record_complete(postgres_engine)
     try:
         yield runtime
     finally:

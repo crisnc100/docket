@@ -24,6 +24,7 @@ from docket.beta import UnsafeConfig, client_address, refuse_unsafe_start, start
 from docket.db import Document, Event, Sandbox
 from docket.sandbox import SANDBOX_COOKIE, token_hash
 from docket.settings import Settings
+from docket.sweep import record_complete
 from docket.worker import run_worker
 
 BASE = "https://docket.example.test"
@@ -44,6 +45,8 @@ SANDBOX_SCOPED = {
     ("GET", "/documents/{document_id}/file"),
     ("GET", "/beta/samples"),
     ("POST", "/beta/samples"),
+    ("GET", "/sandbox"),
+    ("DELETE", "/sandbox"),
 }
 CLOSED = {("POST", "/documents"), ("POST", "/inbound")}
 # FastAPI's own pages. The beta serves none of them: each gets the gate's 404.
@@ -105,6 +108,9 @@ class FakeTemporal:
 
 @asynccontextmanager
 async def beta_client(settings: Settings | None = None, engine=None):
+    # Writes wait for a recent sweep, and these tests run none.
+    if engine is not None:
+        record_complete(engine)
     runtime = StartedRuntime(settings or beta_settings(), engine)
     temporal = FakeTemporal()
     app = create_app(runtime, temporal)
@@ -422,6 +428,7 @@ def refusal_cases():
         "cap above a dollar": (beta_settings(docket_daily_budget_usd=1.01), {}),
         "cap not a number": (beta_settings(docket_daily_budget_usd=math.nan), {}),
         "record mode": (beta_settings(docket_model_mode="record"), {}),
+        "review timeout above an hour": (beta_settings(docket_review_timeout_seconds=3601), {}),
     }
 
 
@@ -436,6 +443,7 @@ CASES = [
     "cap above a dollar",
     "cap not a number",
     "record mode",
+    "review timeout above an hour",
 ]
 
 

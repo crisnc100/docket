@@ -21,9 +21,10 @@ GOOD = {
     "samples_planned": 60,
     "samples_accepted": 60,
     "samples_refused": {},
-    "sample_outcomes": {"before reset http 404": 31, "filed": 10, "needs_review": 19},
-    "reset_exit": 0,
-    "reset": "Beta reset: {'terminated': 28, 'seeded': {'needs_review': 12}}",
+    "sample_outcomes": {"filed": 22, "needs_review": 36, "dismissed": 2},
+    "sweep_exit": 0,
+    "sweep": "Sweep: {'postgres': 'complete', 'temporal': 'complete', 'storage': 'complete', "
+    "'complete': True}",
     "stub_requests": 58,
     "stats_failures": 0,
     "peaks": {name: {"memory_mb": 100.0, "limit_mb": 256.0} for name in beta_load.SERVICES},
@@ -34,19 +35,19 @@ def test_a_complete_run_passes():
     assert beta_load.problems(GOOD) == []
 
 
-def test_refusals_a_failed_reset_and_missing_stats_each_fail_the_run():
+def test_refusals_a_failed_sweep_and_missing_stats_each_fail_the_run():
     broken = GOOD | {
         "samples_accepted": 0,
         "samples_refused": {"429": 60},
         "sample_outcomes": {},
-        "reset_exit": 1,
-        "reset": "",
+        "sweep_exit": 1,
+        "sweep": "",
         "stats_failures": 3,
         "peaks": {},
     }
     found = beta_load.problems(broken)
     assert "samples refused: {'429': 60}" in found
-    assert "the reset did not seed its 12 held documents" in found
+    assert "the sweep by hand did not complete" in found
     assert "docker stats failed 3 times" in found
     assert any(problem.startswith("no stats for api") for problem in found)
 
@@ -56,7 +57,7 @@ def test_refusals_a_failed_reset_and_missing_stats_each_fail_the_run():
     [
         ({"failed": 2}, "2 samples ended failed"),
         ({"processing": 1}, "1 samples ended processing"),
-        # A sample sent after the reset must still exist.
+        # The sweep deletes no sample: every sandbox outlives the run.
         ({"http 404": 1}, "1 samples ended http 404"),
     ],
 )
@@ -65,10 +66,10 @@ def test_a_sample_that_did_not_settle_fails_the_run(outcomes, problem):
 
 
 def test_no_stub_calls_or_a_peak_at_the_limit_fails_the_run():
-    peaks = GOOD["peaks"] | {"reset": {"memory_mb": 256.0, "limit_mb": 256.0}}
+    peaks = GOOD["peaks"] | {"sweep": {"memory_mb": 256.0, "limit_mb": 256.0}}
     found = beta_load.problems(GOOD | {"stub_requests": 0, "peaks": peaks})
     assert "the stub answered no model call" in found
-    assert "reset reached its memory limit" in found
+    assert "sweep reached its memory limit" in found
 
 
 def answers(base_url: str, stub_id: str = "msg_stub"):

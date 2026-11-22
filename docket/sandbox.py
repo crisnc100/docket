@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from fastapi import HTTPException
-from sqlalchemy import Connection, Engine, delete, func, insert, select
+from sqlalchemy import Connection, Engine, delete, func, insert, select, update
 from sqlalchemy.orm import Session
 from starlette.requests import cookie_parser
 
@@ -140,10 +140,19 @@ def write_target(session: Session, token: str | None, address_hash: str) -> Writ
     return WriteTarget(sandbox_id, new_token)
 
 
-def sandbox_cookie(token: str) -> str:
-    """The cookie for a sandbox made just now, so its whole life is the seconds left."""
-    max_age = int(SANDBOX_LIFE.total_seconds())
+def sandbox_cookie(token: str, max_age: int) -> str:
+    """The cookie for a sandbox, kept by the browser for the seconds the sandbox has left."""
     return f"{SANDBOX_COOKIE}={token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age={max_age}"
+
+
+def close_sandbox(engine: Engine, sandbox_id: uuid.UUID) -> None:
+    """No later write goes to the sandbox, and the sweep deletes it on its next run."""
+    with Session(engine) as session, session.begin():
+        session.execute(
+            update(Sandbox)
+            .where(Sandbox.id == sandbox_id)
+            .values(closed_at=func.coalesce(Sandbox.closed_at, func.now()))
+        )
 
 
 def spent_cookie() -> str:

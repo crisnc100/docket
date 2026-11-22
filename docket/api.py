@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
+from botocore.exceptions import ClientError
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import (
     FileResponse,
@@ -44,6 +45,7 @@ from docket.sandbox import (
     Owner,
     SandboxClosed,
     TooManySandboxes,
+    close_sandbox,
     cookie_token,
     owned_document,
     raw_key,
@@ -251,7 +253,17 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
             if document.status == "rejected":
                 raise HTTPException(415, "Rejected documents cannot be previewed")
             key = raw_key(document.sandbox_id, document.content_hash)
-        content = app.state.runtime.read(key)
+        try:
+            content = app.state.runtime.read(key)
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] not in {"NoSuchKey", "404"}:
+                raise
+            # Delete now or the sweep took the file after the lookup: the document is gone
+            # too, so it gets the same 404. A file missing from a document still there is a
+            # storage fault and stays an error.
+            with Session(app.state.runtime.engine) as session:
+                owned_document(session, owner(request), document_id)
+            raise
         if not content.startswith(b"%PDF-"):
             raise HTTPException(415, "Document is not a PDF")
         return Response(
@@ -322,8 +334,12 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
                 owned_document(session, visitor, document_id)
 
         await asyncio.to_thread(check_owner)
-        body = (await read_json(request, ReviewBody, "Send the review decision as JSON text.")).root
         beta = app.state.runtime.settings.docket_env == "beta"
+        # A dismiss reason is new text in the sandbox, so it waits for a recent sweep, as a
+        # sample does.
+        if beta and await asyncio.to_thread(sweep_stale, app.state.runtime.engine):
+            raise HTTPException(503, CATCHING_UP)
+        body = (await read_json(request, ReviewBody, "Send the review decision as JSON text.")).root
         with Session(app.state.runtime.engine) as session:
             document = owned_document(session, visitor, document_id)
             if document.status in TERMINAL_STATUSES:
@@ -415,9 +431,16 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
             )
         except SandboxClosed as exc:
             raise HTTPException(409, SANDBOX_DELETED) from exc
+        except BaseException:
+            # The browser never gets the cookie of a sandbox this request made, so whatever
+            # the failed write left in it goes to the sweep. Its slots stay taken.
+            if target.token is not None:
+                await asyncio.to_thread(close_sandbox, gate.engine, target.sandbox_id)
+            raise
         headers = {}
         if target.token is not None:
-            headers["Set-Cookie"] = sandbox_cookie(target.token)
+            left = await asyncio.to_thread(seconds_left, gate.engine, target.token)
+            headers["Set-Cookie"] = sandbox_cookie(target.token, left or 0)
         return JSONResponse({"document_id": document_id}, headers=headers)
 
     def require_beta() -> None:

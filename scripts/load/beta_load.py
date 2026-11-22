@@ -36,6 +36,8 @@ PROJECT = "docket-load"
 SERVICES = {"temporal", "postgres", "seaweedfs", "api", "worker", "sweep", "stub"}
 STUB_URL = "http://stub:8080"
 HELD = {"needs_review", "filed", "dismissed"}
+# Two sweep intervals, so a first run that failed while a store started has a second chance.
+FIRST_SWEEP_TIMEOUT = 300
 
 
 class LoadRefused(SystemExit):
@@ -146,6 +148,20 @@ async def review_one(http: httpx.AsyncClient, headers: dict, outcomes: dict) -> 
     outcomes[key] = outcomes.get(key, 0) + 1
 
 
+async def first_sweep(http: httpx.AsyncClient, timeout: float = FIRST_SWEEP_TIMEOUT) -> None:
+    """Wait for the sweep service's first complete run. Until then every sample gets 503, and
+    a first run that failed while a store was starting completes on the next, 2 minutes on."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            if (await http.get("/healthz")).json() == {"status": "ok"}:
+                return
+        except (httpx.TransportError, ValueError):
+            pass
+        await asyncio.sleep(2)
+    raise LoadRefused(f"FAIL: no sweep completed within {timeout:.0f} seconds of the start")
+
+
 async def run(env_file: Path, minutes: float, samples: int) -> dict:
     values = env_values(env_file)
     # Each address is one browser: its first sample creates its sandbox, and the rest go there.
@@ -164,8 +180,9 @@ async def run(env_file: Path, minutes: float, samples: int) -> dict:
     sent, refused, reviews, settled = [], {}, {}, {}
     sweep = None
     interval = minutes * 60 / samples
-    started = time.monotonic()
     async with httpx.AsyncClient(base_url=base, timeout=30) as http:
+        await first_sweep(http)
+        started = time.monotonic()
         for index in range(samples):
             address = ADDRESSES[index % len(ADDRESSES)]
             headers = {"Origin": origin, "X-Forwarded-For": address}

@@ -17,7 +17,7 @@ from docket.core.ledger import TERMINAL_STATUSES, append_event, transition
 from docket.db import Document, DocumentSource, Event
 from docket.failpoints import fire
 from docket.runtime import Runtime
-from docket.sandbox import raw_key, writing_to
+from docket.sandbox import SandboxClosed, raw_key, writing_to
 from docket.workflows import DocumentInput, FileDocumentWorkflow
 
 
@@ -173,9 +173,11 @@ class Ingress:
                     Document.updated_at <= cutoff,
                 )
             ).all()
-            pending = [(str(document.id), document.status) for document in rows]
+            pending = [
+                (str(document.id), document.status, document.sandbox_id) for document in rows
+            ]
         counts = {"started": 0, "orphaned": 0, "running": 0}
-        for document_id, status in pending:
+        for document_id, status, sandbox in pending:
             handle = self.temporal.get_workflow_handle(f"doc-{document_id}")
             try:
                 description = await handle.describe()
@@ -188,14 +190,12 @@ class Ingress:
             if running:
                 counts["running"] += 1
             elif status == "received" and not exists:
-                with Session(self.runtime.engine) as session:
-                    event = session.scalar(
-                        select(Event).where(Event.idem_key == f"{document_id}:received")
-                    )
-                    request = DocumentInput(**event.detail["workflow_input"]) if event else None
-                if request is not None:
-                    await self.start(request)
-                    counts["started"] += 1
+                try:
+                    if await self._restart(document_id, sandbox):
+                        counts["started"] += 1
+                        continue
+                except SandboxClosed:
+                    # Its sandbox is being deleted; the sweep takes the document with it.
                     continue
             if not running:
                 with Session(self.runtime.engine) as session, session.begin():
@@ -205,8 +205,25 @@ class Ingress:
                         with_for_update=True,
                         populate_existing=True,
                     )
-                    assert document is not None
-                    if document.status not in TERMINAL_STATUSES:
+                    # None when its sandbox was deleted after the list was read.
+                    if document is not None and document.status not in TERMINAL_STATUSES:
                         transition(session, document.id, "failed", "orphaned")
                         counts["orphaned"] += 1
         return counts
+
+    async def _restart(self, document_id: str, sandbox: uuid.UUID | None) -> bool:
+        """Start the workflow a received document never got. A sandbox's document is
+        started under the sandbox's lock, as a new write is, so it never starts after Delete
+        now has taken the sandbox; a closed or expired sandbox raises SandboxClosed."""
+        held = writing_to(self.runtime.engine, sandbox) if sandbox else contextlib.nullcontext()
+        async with held as connection:
+            bind = connection if connection is not None else self.runtime.engine
+            with Session(bind) as session:
+                event = session.scalar(
+                    select(Event).where(Event.idem_key == f"{document_id}:received")
+                )
+                request = DocumentInput(**event.detail["workflow_input"]) if event else None
+            if request is None:
+                return False
+            await self.start(request)
+            return True

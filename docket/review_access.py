@@ -69,11 +69,11 @@ def route_template(routes: Sequence[BaseRoute], scope: Scope) -> str | None:
     return None
 
 
-def beta_access(routes: Sequence[BaseRoute], scope: Scope) -> Access:
+def beta_access(routes: Sequence[BaseRoute], scope: Scope) -> tuple[Access, str | None]:
     template = route_template(routes, scope)
     if template is None:
-        return Access.REFUSED
-    return BETA_ROUTES.get((scope["method"], template), Access.REFUSED)
+        return Access.REFUSED, None
+    return BETA_ROUTES.get((scope["method"], template), Access.REFUSED), template
 
 
 def reviewer_page(status_code: int = 200, access: str = "token"):
@@ -122,14 +122,44 @@ def refuse(status: int, text: str) -> PlainTextResponse:
     return PlainTextResponse(text, status, headers={"Cache-Control": "no-store"})
 
 
-async def buffered_body(scope: Scope, receive: Receive, limit: int) -> Receive | PlainTextResponse:
-    """Read the whole body before any handler runs, refusing it once it passes the limit."""
+class BodyTooLarge(Exception):
+    """A handler read a request body past the beta's limit."""
+
+
+def too_large(limit: int) -> PlainTextResponse:
+    return refuse(413, f"Request bodies are limited to {limit // 1024} KB.")
+
+
+def declared_length(scope: Scope) -> int | None:
+    """The Content-Length header, 0 without one, or None when it is not a number."""
     try:
-        length = int(dict(scope["headers"]).get(b"content-length", b"0"))
+        return int(dict(scope["headers"]).get(b"content-length", b"0"))
     except ValueError:
-        return refuse(400, "Invalid Content-Length.")
-    if length > limit:
-        return refuse(413, f"Request bodies are limited to {limit // 1024} KB.")
+        return None
+
+
+def capped(receive: Receive, limit: int, declared: int) -> Receive:
+    """The body as the handler reads it, raising BodyTooLarge once it passes the limit.
+    Nothing is read until the handler asks, so it can refuse the request first."""
+    total = 0
+
+    async def read() -> Message:
+        nonlocal total
+        if declared > limit:
+            raise BodyTooLarge
+        message = await receive()
+        total += len(message.get("body", b""))
+        if total > limit:
+            raise BodyTooLarge
+        return message
+
+    return read
+
+
+async def buffered_body(receive: Receive, limit: int, declared: int) -> Receive | PlainTextResponse:
+    """Read the whole body before any handler runs, refusing it once it passes the limit."""
+    if declared > limit:
+        return too_large(limit)
     body = bytearray()
     while True:
         message = await receive()
@@ -137,7 +167,7 @@ async def buffered_body(scope: Scope, receive: Receive, limit: int) -> Receive |
             return refuse(400, "The client disconnected.")
         body.extend(message.get("body", b""))
         if len(body) > limit:
-            return refuse(413, f"Request bodies are limited to {limit // 1024} KB.")
+            return too_large(limit)
         if not message.get("more_body", False):
             break
     replayed = False
@@ -220,7 +250,7 @@ class ReviewerAccess:
         # "/documents\n" would reach the upload handler. No real path has a control character.
         if any(ord(char) < 0x20 or ord(char) == 0x7F for char in path):
             return await refuse(400, "Invalid path.")(scope, receive, send)
-        access = beta_access(self.routes(), scope)
+        access, template = beta_access(self.routes(), scope)
         # "/documents/" and "//documents" never reach the handler, but refusing them here too
         # means their bodies are never read either.
         normal = "/" + "/".join(part for part in path.split("/") if part)
@@ -232,9 +262,32 @@ class ReviewerAccess:
             return await refuse(404, "Not found.")(scope, receive, send)
         if method != "GET" and not same_origin(scope, settings):
             return await refuse(403, "Cross-site requests are refused.")(scope, receive, send)
-        replay = await buffered_body(scope, receive, BETA_MAX_BODY)
+        declared = declared_length(scope)
+        if declared is None:
+            return await refuse(400, "Invalid Content-Length.")(scope, receive, send)
+        if template is not None and "{document_id}" in template:
+            return await self.owner_first(scope, receive, send, declared)
+        replay = await buffered_body(receive, BETA_MAX_BODY, declared)
         if isinstance(replay, PlainTextResponse):
             return await replay(scope, receive, send)
         if access == Access.PUBLIC:
             return await self.app(scope, replay, send)
         await no_store(self.app, scope, replay, send)
+
+    async def owner_first(self, scope: Scope, receive: Receive, send: Send, declared: int):
+        """A document route checks that the visitor owns the document before it reads the
+        body, so another visitor's document, or one that does not exist, gets its 404 with
+        nothing read. The limit still holds while the handler reads."""
+        started = False
+
+        async def tracked(message: Message):
+            nonlocal started
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        try:
+            await no_store(self.app, scope, capped(receive, BETA_MAX_BODY, declared), tracked)
+        except BodyTooLarge:
+            if started:
+                raise
+            await too_large(BETA_MAX_BODY)(scope, receive, send)

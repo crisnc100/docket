@@ -15,7 +15,7 @@ from docket.ingress import Ingress
 from docket.review_access import BETA_ROUTES, Access
 from docket.runtime import Runtime
 from docket.sandbox import raw_key, spent_cookie
-from docket.sweep import record_complete
+from docket.sweep import DELETED, record_complete
 from tests.sandboxes import held_in, make_sandbox, sandbox_cookie
 from tests.test_beta_gate import BASE, FakeTemporal, beta_settings, route_table
 
@@ -190,7 +190,7 @@ async def test_no_sandbox_scoped_route_answers_for_another_visitors_document(bet
         # Delete now deletes only the caller's own sandbox.
         for token in (other_token, None, expired_token):
             [response] = await call("DELETE", "/sandbox", token)
-            assert response.json() == {"deleted": True}
+            assert response.json() == {"deleted": True, "detail": DELETED}
         assert temporal.deleted == [f"doc-{expired_document}"]
         [response] = await call("GET", "/documents/{document_id}", owner_token)
         assert response.status_code == 200

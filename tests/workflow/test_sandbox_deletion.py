@@ -14,7 +14,7 @@ from docket.corpus import pdf, sample_document
 from docket.db import Document, Event, Sandbox
 from docket.ingress import Ingress
 from docket.sandbox import SANDBOX_ENDED, lock_key, writing_to
-from docket.sweep import DELETING, sweep_once
+from docket.sweep import DELETED, DELETING, sweep_once
 from tests.sandboxes import make_sandbox, sandbox_cookie
 from tests.test_beta_gate import BASE
 from tests.workflow.test_sweep import CAPS, api, caps, histories, objects, reachable, send, set_caps
@@ -51,13 +51,15 @@ def leftovers(engine, sandbox_id) -> int:
 
 async def test_delete_now_leaves_no_rows_objects_or_histories_and_clears_the_cookie(beta, temporal):
     engine = beta.engine
+    sweep.record_complete(engine)
     sandbox_id, token = make_sandbox(engine)
     sent = await send(beta, temporal, sandbox_id, count=3)
     assert await histories(temporal, sent) == sent
     set_caps(engine)
     async with api(beta, temporal) as http:
         response = await http.delete("/sandbox", headers=visitor(token))
-        assert response.status_code == 200 and response.json() == {"deleted": True}
+        assert response.status_code == 200
+        assert response.json() == {"deleted": True, "detail": DELETED}
         assert caps(engine) == CAPS
         assert response.headers["set-cookie"] == SPENT
         assert leftovers(engine, sandbox_id) == 0
@@ -79,6 +81,7 @@ async def test_deleting_one_of_two_sandboxes_with_the_same_bytes_leaves_the_othe
     beta, temporal
 ):
     engine = beta.engine
+    sweep.record_complete(engine)
     first, first_token = make_sandbox(engine)
     second, second_token = make_sandbox(engine)
     sample = sample_document("clean", 7)
@@ -153,7 +156,7 @@ async def test_a_sample_already_writing_is_deleted_with_the_sandbox(beta, tempor
         release.set()
     assert written.status_code == 200, written.text
     document_id = written.json()["document_id"]
-    assert deleted.status_code == 200 and deleted.json() == {"deleted": True}
+    assert deleted.status_code == 200 and deleted.json() == {"deleted": True, "detail": DELETED}
     assert leftovers(engine, sandbox_id) == 0
     assert objects(beta, f"sbx/{sandbox_id}/") == []
     assert await histories(temporal, [document_id]) == []
@@ -241,6 +244,7 @@ async def test_reconcile_starts_a_sandbox_workflow_only_while_its_sandbox_is_ope
 
 async def test_a_store_that_fails_leaves_the_rest_to_the_sweep(beta, temporal):
     engine = beta.engine
+    sweep.record_complete(engine)
     sandbox_id, token = make_sandbox(engine)
     sent = await send(beta, temporal, sandbox_id, count=1)
     beta.settings = beta.settings.model_copy(update={"seaweedfs_master_url": "http://127.0.0.1:1"})
@@ -259,6 +263,7 @@ async def test_a_write_holding_the_lock_too_long_closes_the_sandbox_for_the_swee
     beta, temporal, monkeypatch
 ):
     engine = beta.engine
+    sweep.record_complete(engine)
     sandbox_id, token = make_sandbox(engine)
     sent = await send(beta, temporal, sandbox_id, count=1)
     monkeypatch.setattr(sweep, "LOCK_TIMEOUT_MS", 200)

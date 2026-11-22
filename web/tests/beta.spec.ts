@@ -2,6 +2,7 @@ import { test, expect, type Browser, type Page } from '@playwright/test';
 
 // S12: each browser opens its own private sandbox on the beta stack, with no form.
 const KIND = 'Address not on file';
+const DELETED = 'Deleted. The last copies in the workflow store and on disk are erased within a few minutes.';
 
 async function openDocket(browser: Browser) {
   const context = await browser.newContext();
@@ -55,7 +56,7 @@ test('S12: two browsers stay apart, a sample is reviewed, and Delete now empties
 
   await sendSample(page);
   await page.getByRole('button', { name: 'Delete now' }).click();
-  await expect(page.getByRole('status').first()).toHaveText('This sandbox is deleted.');
+  await expect(page.getByRole('status').first()).toHaveText(DELETED);
   await expect(page.getByRole('navigation', { name: 'Review queue' }).getByRole('link')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible();
   await expect(page.locator('.sandbox-line')).toHaveText('Private to this browser · starts with your first sample');
@@ -129,7 +130,7 @@ test('S12: Send waits for Delete now, a sandbox that is gone leaves nothing, and
   await expect(send).toBeDisabled();
   await page.route('**/review', route => route.fulfill({ status: 500, json: { detail: 'Request failed' } }));
   answer();
-  await expect(page.getByRole('status').first()).toHaveText('This sandbox is deleted.');
+  await expect(page.getByRole('status').first()).toHaveText(DELETED);
   await expect(send).toBeEnabled();
   await expect(queueLinks).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible();
@@ -215,7 +216,7 @@ test('S12: an ended or ending sandbox is handled, and one tab sends or deletes a
   await second.waitForTimeout(1_000);
   expect(deletes).toHaveLength(1);
   answer();
-  await expect(second.getByRole('status').first()).toHaveText('This sandbox is deleted.', { timeout: 30_000 });
+  await expect(second.getByRole('status').first()).toHaveText(DELETED, { timeout: 30_000 });
   expect(deletes).toHaveLength(2);
   await first.unroute('**/beta/samples');
   await context.close();

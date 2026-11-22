@@ -24,9 +24,10 @@ from docket.cli import app as cli
 from docket.corpus import pdf
 from docket.db import BudgetLedger, Document, SampleCount, SampleSend, Sandbox, SandboxCreation
 from docket.ingress import Ingress
-from docket.sandbox import lock_key
+from docket.sandbox import lock_key, spent_cookie
 from docket.sweep import (
     CATCHING_UP,
+    ERASE_DELAYED,
     Deadline,
     postgres_pass,
     record_complete,
@@ -302,9 +303,14 @@ async def test_a_stale_sweep_stops_new_sandboxes_samples_and_reviews_but_not_del
             assert session.scalar(select(func.count()).select_from(Sandbox)) == 1
         age_sweep(engine, 11)
         assert (await http.get("/healthz")).json() == {"status": "stale"}
+        # Delete now still deletes, but nothing erases the last copies while the sweep is
+        # behind, so its answer promises no time.
         deleted = await http.delete("/sandbox", headers=owned)
-        assert deleted.status_code == 200 and deleted.json() == {"deleted": True}
+        assert deleted.status_code == 202
+        assert deleted.json() == {"deleted": False, "detail": ERASE_DELAYED}
+        assert deleted.headers["set-cookie"] == spent_cookie()
         assert rows(engine, sandbox_id) == (0, 0)
+        assert objects(beta, f"sbx/{sandbox_id}/") == []
         age_sweep(engine, 9)
         assert (await http.get("/healthz")).json() == {"status": "ok"}
         age_sweep(engine, 11)

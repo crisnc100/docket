@@ -1,7 +1,9 @@
 """S7: a marker in three sandboxes on the compose stack, with the beta API and worker in
 their own containers. One sandbox goes by Delete now and one by the sweep. Before, each
-marker is in every store; after, the two deleted ones are in none, while the kept one's
-still is, which shows the search would have found them. No container's logs hold any.
+marker is in every store. When Delete now answers, its sandbox's rows and objects are gone,
+and its marker leaves every store within one sweep interval with no sweep run; the swept
+one's leaves within one sweep interval of the sweep. The kept one's is still in each store
+throughout, which shows the search would have found them. No container's logs hold any.
 
 It sits with the browser tests because their CI job is the one that builds the images."""
 
@@ -11,6 +13,7 @@ import json
 import os
 import secrets
 import subprocess
+import time
 import uuid
 
 import httpx
@@ -24,9 +27,11 @@ from temporalio.client import Client
 from docket.db import Document
 from docket.ingress import Ingress
 from docket.sandbox import raw_key
-from docket.sweep import record_complete, sweep_once, temporal_connector
+from docket.sweep import DELETED, SWEEP_INTERVAL, record_complete, sweep_once, temporal_connector
 from tests.sandboxes import make_sandbox, sandbox_cookie
 from tests.test_sandbox_gate import pg_dump
+from tests.workflow.test_sandbox_deletion import leftovers
+from tests.workflow.test_sweep import objects
 
 BASE = "http://localhost:8000"
 
@@ -69,6 +74,18 @@ def container_logs(name: str) -> str:
 def found(markers: dict[str, str], haystack: bytes | str) -> set[str]:
     data = haystack.encode() if isinstance(haystack, str) else haystack
     return {name for name, marker in markers.items() if marker.encode() in data}
+
+
+async def left_on_disk(markers: dict[str, str], gone: str, since: float) -> set[str]:
+    """The markers in SeaweedFS's and Temporal's data folders once the one named gone has
+    left both, which must happen within one sweep interval of since."""
+    while True:
+        seen = found(markers, folder("seaweedfs")), found(markers, folder("temporal"))
+        if gone not in seen[0] | seen[1]:
+            assert seen[0] == seen[1], seen
+            return seen[0]
+        assert time.monotonic() - since < SWEEP_INTERVAL, seen
+        await asyncio.sleep(5)
 
 
 async def wait_for(engine, document_id: str, status: str, logs: str) -> None:
@@ -166,23 +183,29 @@ async def test_deleted_sandboxes_leave_their_marker_in_no_store_and_no_log(runti
             now = {"Origin": BASE, "Cookie": sandbox_cookie(sandboxes["now"][1])}
             # Delete now waits 3 seconds before the vacuum, which may take up to 30.
             deleted = await http.delete("/sandbox", headers=now, timeout=60)
-            assert deleted.status_code == 200 and deleted.json() == {"deleted": True}
+            answered = time.monotonic()
+            assert deleted.status_code == 200
+            assert deleted.json() == {"deleted": True, "detail": DELETED}
+        # When it answers, nothing of the sandbox is reachable.
+        now_id, _ = sandboxes["now"]
+        assert leftovers(engine, now_id) == 0
+        assert objects(runtime, f"sbx/{now_id}/") == []
+        assert found(markers, pg_dump(engine)) == {"swept", "kept"}
+        # Temporal deletes a closed workflow's history from a queue, about 30 seconds after
+        # the call, and the vacuum frees the bytes. No sweep runs here, so neither can lean
+        # on one.
+        assert await left_on_disk(markers, "now", answered) == {"swept", "kept"}
+
         with engine.begin() as connection:
             connection.execute(
                 text("UPDATE sandboxes SET expires_at = now() WHERE id = :id"),
                 {"id": sandboxes["swept"][0]},
             )
         report = await sweep_once(runtime, temporal_connector(runtime.settings.temporal_address))
+        swept = time.monotonic()
         assert report["complete"] is True, report
-
         assert found(markers, pg_dump(engine)) == {"kept"}
-        assert found(markers, folder("seaweedfs")) == {"kept"}
-        # Temporal deletes a history's rows in a task of its own, moments after the call.
-        for _ in range(60):
-            if found(markers, folder("temporal")) == {"kept"}:
-                break
-            await asyncio.sleep(0.5)
-        assert found(markers, folder("temporal")) == {"kept"}
+        assert await left_on_disk(markers, "swept", swept) == {"kept"}
         kept_id, _ = sandboxes["kept"]
         with Session(engine) as session:
             digest = session.get(Document, uuid.UUID(documents["kept"])).content_hash

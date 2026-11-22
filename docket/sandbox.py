@@ -146,6 +146,21 @@ def sandbox_cookie(token: str) -> str:
     return f"{SANDBOX_COOKIE}={token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age={max_age}"
 
 
+def spent_cookie() -> str:
+    """Tells the browser to drop its cookie."""
+    return f"{SANDBOX_COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"
+
+
+def seconds_left(engine: Engine, token: str | None) -> int | None:
+    """The whole seconds before the cookie's sandbox expires, or None without a live one."""
+    with Session(engine) as session:
+        sandbox = live_sandbox(session, token)
+        if sandbox is None:
+            return None
+        left = session.scalar(select(func.extract("epoch", sandbox.expires_at - func.now())))
+    return max(0, int(left or 0))
+
+
 def request_owner(engine: Engine, beta: bool, headers: list[tuple[bytes, bytes]]) -> Owner:
     if not beta:
         return Owner(False, None)

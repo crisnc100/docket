@@ -9,7 +9,7 @@ services:
     image: docket-load-app
   api:
     image: docket-load-app
-  reset:
+  sweep:
     image: docket-load-app
   stub:
     image: docket-load-app

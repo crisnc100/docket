@@ -24,7 +24,7 @@ RUN uv sync --locked --no-dev --no-install-project
 COPY . .
 RUN uv sync --locked --no-dev
 COPY --from=web /web/dist /app/web/dist
-# The API, the worker and the reset write nothing under /app; their ready files are in /tmp.
+# The API, the worker and the sweep write nothing under /app; their ready files are in /tmp.
 RUN useradd --system --uid 10001 --home-dir /nonexistent docket
 USER docket
 CMD ["python", "-m", "docket.worker"]

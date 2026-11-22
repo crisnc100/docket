@@ -17,18 +17,12 @@ from docket.llm.gateway import MAX_OUTPUT_TOKENS, model_request
 from docket.llm.replay import canonical
 from docket.prompts import choose_request, classify_request
 from docket.settings import Settings
+from docket.sweep import sweep_stale
 
 ADDRESS_LIMIT = 20
 ADDRESS_WINDOW = 3600
 DAILY_LIMIT = 300
 LIVE_ANSWERS = "live_answers"
-# True while docket beta-reset runs. Once it is cleared, its updated_at is when the last
-# reset finished.
-RESETTING = "resetting"
-# Samples take it shared while they write their document; the reset takes it exclusive to
-# set its flag, so no sample that read the flag as clear is still writing after the reset
-# begins.
-RESET_LOCK = int.from_bytes(hashlib.sha256(b"beta-reset").digest()[:8], signed=True)
 SAMPLE_SENDER = "Sample generator"
 SAMPLE_LABELS = {
     "clean": "Every clue agrees",
@@ -45,7 +39,6 @@ SAMPLE_LABELS = {
 }
 
 TURNED_OFF = "Live answers are turned off right now."
-RESET_RUNNING = "The demo is being reset. Try again in a minute."
 # The pause follows the daily ledger, whose day is the UTC day.
 PAUSED = "Live answers are paused for today. Try again tomorrow."
 DAY_CAPPED = f"Today's {DAILY_LIMIT} samples have all been sent. Try again tomorrow."
@@ -57,7 +50,7 @@ def address_capped(seconds: int) -> str:
     return f"You can send {ADDRESS_LIMIT} samples an hour. Try again in {wait}."
 
 
-type SampleState = Literal["ready", "off", "paused", "resetting"]
+type SampleState = Literal["ready", "off", "paused", "catching_up"]
 
 
 def flag(engine: Engine, name: str) -> bool | None:
@@ -74,18 +67,6 @@ def set_flag(engine: Engine, name: str, value: bool) -> None:
                 index_elements=[BetaFlag.name], set_={"value": value, "updated_at": func.now()}
             )
         )
-
-
-class ResetRunning(Exception):
-    """A sample arrived while the reset runs."""
-
-
-def no_reset_running(session: Session) -> None:
-    """Ingress's guard for samples. The flag is read after the shared lock is held, so a
-    reset that has set it is always seen."""
-    session.execute(select(func.pg_advisory_xact_lock_shared(RESET_LOCK)))
-    if session.scalar(select(BetaFlag.value).where(BetaFlag.name == RESETTING)):
-        raise ResetRunning
 
 
 def live_answers_on(engine: Engine) -> bool:
@@ -140,8 +121,8 @@ class SampleGate:
         )
 
     def state(self) -> SampleState:
-        if flag(self.engine, RESETTING):
-            return "resetting"
+        if sweep_stale(self.engine):
+            return "catching_up"
         if not live_answers_on(self.engine):
             return "off"
         limit = Decimal(str(self.settings.docket_daily_budget_usd))

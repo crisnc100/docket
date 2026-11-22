@@ -284,41 +284,65 @@ def beta_switch(position: str = typer.Argument(..., metavar="on|off")) -> None:
     typer.echo(f"Live answers are {position}.")
 
 
-@app.command("beta-reset")
-def beta_reset(
-    daily: bool = typer.Option(False, help="Keep running and reset at 08:00 UTC every day."),
+@app.command("beta-sweep")
+def beta_sweep(
+    everything: bool = typer.Option(
+        False, "--all", help="Delete every sandbox, live ones too, and every document."
+    ),
+    service: bool = typer.Option(False, help="Keep running: sweep every 2 minutes."),
 ) -> None:
-    """Reset the hosted beta to its starting queue. Keeps the spend ledger and the day's
-    sample count."""
+    """Delete what sandboxes that are no longer live left in Postgres, Temporal and the S3
+    store. Exits 1 unless all three passes finished."""
     import asyncio
 
-    from temporalio.client import Client
-
     from docket.beta import refuse_unsafe_start
-    from docket.beta_reset import AlreadyRunning, reset, run_service
     from docket.runtime import Runtime
+    from docket.settings import Settings
+    from docket.sweep import run_service, sweep_once, temporal_connector
+
+    settings = Settings()
+    if settings.docket_env != "beta":
+        typer.echo("beta-sweep works only with DOCKET_ENV=beta.", err=True)
+        raise typer.Exit(1)
+    if everything and service:
+        typer.echo("--all runs once; it does not go with --service.", err=True)
+        raise typer.Exit(2)
+    refuse_unsafe_start(settings)
+
+    async def run() -> dict | None:
+        runtime = Runtime(settings)
+        connect = temporal_connector(settings.temporal_address)
+        try:
+            if service:
+                await run_service(runtime, connect)
+                return None
+            return await sweep_once(runtime, connect, everything=everything)
+        finally:
+            runtime.close()
+
+    report = asyncio.run(run())
+    if report is not None:
+        typer.echo(f"Sweep: {report}")
+        if not report["complete"]:
+            raise typer.Exit(1)
+
+
+@app.command("beta-status")
+def beta_status() -> None:
+    """Print the hosted beta's state for the operator: the sweep, the sandboxes, the limits
+    and the day's spend. Reads Postgres only."""
+    from sqlalchemy import create_engine
+
+    from docket.beta_status import status_lines
     from docket.settings import Settings
 
     settings = Settings()
     if settings.docket_env != "beta":
-        typer.echo("beta-reset works only with DOCKET_ENV=beta.", err=True)
+        typer.echo("beta-status works only with DOCKET_ENV=beta.", err=True)
         raise typer.Exit(1)
-    refuse_unsafe_start(settings)
-
-    async def run():
-        runtime = Runtime(settings)
-        try:
-            runtime.ensure_bucket()
-            client = await Client.connect(settings.temporal_address)
-            if daily:
-                await run_service(runtime, client)
-            else:
-                try:
-                    typer.echo(f"Beta reset: {await reset(runtime, client)}")
-                except AlreadyRunning as exc:
-                    typer.echo(str(exc), err=True)
-                    raise typer.Exit(1) from exc
-        finally:
-            runtime.close()
-
-    asyncio.run(run())
+    engine = create_engine(settings.database_url)
+    try:
+        for line in status_lines(engine, settings):
+            typer.echo(line)
+    finally:
+        engine.dispose()

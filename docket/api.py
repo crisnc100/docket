@@ -24,16 +24,12 @@ from temporalio.client import Client, WorkflowUpdateFailedError
 from temporalio.service import RPCError
 
 from docket.beta import address_hash, client_address, refuse_unsafe_start
-from docket.beta_reset import reset_status
 from docket.beta_samples import (
     PAUSED,
-    RESET_RUNNING,
     SAMPLE_LABELS,
     SAMPLE_SENDER,
     TURNED_OFF,
-    ResetRunning,
     SampleGate,
-    no_reset_running,
     take_slot,
 )
 from docket.core.ledger import TERMINAL_STATUSES
@@ -53,8 +49,11 @@ from docket.sandbox import (
     raw_key,
     request_owner,
     sandbox_cookie,
+    seconds_left,
+    spent_cookie,
     write_target,
 )
+from docket.sweep import CATCHING_UP, DELETING, delete_now, sweep_stale
 from docket.webhook import BodyLimit, RateLimit, valid_signature
 
 
@@ -99,7 +98,7 @@ class SampleRequest(BaseModel):
 
 
 BETA_MAX_REASON = 300
-REFUSALS = {"off": TURNED_OFF, "paused": PAUSED, "resetting": RESET_RUNNING}
+REFUSALS = {"off": TURNED_OFF, "paused": PAUSED, "catching_up": CATCHING_UP}
 
 
 async def read_json[T: BaseModel](request: Request, model: type[T], message: str) -> T:
@@ -152,10 +151,12 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
 
     @app.get("/healthz")
     async def health():
+        """Public, so it says only whether the sweep is keeping up; `docket beta-status`
+        shows the rest to the operator."""
         if app.state.runtime.settings.docket_env != "beta":
             return {"status": "ok"}
-        running, age = await asyncio.to_thread(reset_status, app.state.runtime.engine)
-        return {"status": "ok", "resetting": running, "last_reset_age_seconds": age}
+        stale = await asyncio.to_thread(sweep_stale, app.state.runtime.engine)
+        return {"status": "stale" if stale else "ok"}
 
     @app.post("/inbound")
     async def inbound(request: Request):
@@ -410,17 +411,37 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
                 sample.filename,
                 source="sample",
                 sender=SAMPLE_SENDER,
-                guard=no_reset_running,
                 sandbox=target.sandbox_id,
             )
-        except ResetRunning as exc:
-            raise HTTPException(503, RESET_RUNNING) from exc
         except SandboxClosed as exc:
             raise HTTPException(409, SANDBOX_DELETED) from exc
         headers = {}
         if target.token is not None:
             headers["Set-Cookie"] = sandbox_cookie(target.token)
         return JSONResponse({"document_id": document_id}, headers=headers)
+
+    def require_beta() -> None:
+        if app.state.runtime.settings.docket_env != "beta":
+            raise HTTPException(404, "Not found")
+
+    @app.get("/sandbox", include_in_schema=False)
+    def sandbox_status(request: Request):
+        """The seconds the visitor's sandbox has left, for the page's countdown."""
+        require_beta()
+        token = cookie_token(request.scope["headers"])
+        return {"expires_in": seconds_left(app.state.runtime.engine, token)}
+
+    @app.delete("/sandbox", include_in_schema=False)
+    async def delete_sandbox(request: Request):
+        """Delete now. It answers the same with no cookie or an unknown one, so it reveals
+        nothing, and it works even while the sweep is behind."""
+        require_beta()
+        token = cookie_token(request.scope["headers"])
+        complete = await delete_now(app.state.runtime, app.state.temporal, token)
+        headers = {"Set-Cookie": spent_cookie()}
+        if complete:
+            return JSONResponse({"deleted": True}, headers=headers)
+        return JSONResponse({"deleted": False, "detail": DELETING}, 202, headers=headers)
 
     static = Path(__file__).resolve().parent.parent / "web" / "dist"
     app.mount("/assets", StaticFiles(directory=static / "assets", check_dir=False), name="assets")

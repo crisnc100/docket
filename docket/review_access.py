@@ -44,6 +44,8 @@ BETA_ROUTES: dict[tuple[str, str], Access] = {
     ("GET", "/documents/{document_id}/file"): Access.SANDBOX,
     ("GET", "/beta/samples"): Access.SANDBOX,
     ("POST", "/beta/samples"): Access.SANDBOX,
+    ("GET", "/sandbox"): Access.SANDBOX,
+    ("DELETE", "/sandbox"): Access.SANDBOX,
     ("POST", "/documents"): Access.CLOSED,
     ("POST", "/inbound"): Access.CLOSED,
     **{

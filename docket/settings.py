@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     s3_access_key: str = "docket-local"
     s3_secret_key: SecretStr = SecretStr("docket-local-password")  # pragma: allowlist secret
     s3_bucket: str = "docket"
+    # SeaweedFS's master, which rewrites its volumes without deleted objects on request.
+    seaweedfs_master_url: str = "http://localhost:9333"
     docket_model_mode: str = "replay"
     # Empty means the provider's own archive, so live and simulated answers never share a file.
     docket_replay_path: str = ""

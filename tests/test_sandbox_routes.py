@@ -15,6 +15,7 @@ from docket.ingress import Ingress
 from docket.review_access import BETA_ROUTES, Access
 from docket.runtime import Runtime
 from docket.sandbox import raw_key
+from docket.sweep import record_complete
 from tests.sandboxes import held_in, make_sandbox, sandbox_cookie
 from tests.test_beta_gate import BASE, FakeTemporal, beta_settings, route_table
 
@@ -34,6 +35,8 @@ def beta_runtime(postgres_engine):
     runtime.engine.dispose()
     runtime.engine = postgres_engine
     runtime.ensure_bucket()
+    # Samples wait for a recent sweep.
+    record_complete(postgres_engine)
     try:
         yield runtime
     finally:
@@ -92,7 +95,7 @@ async def test_every_app_route_is_in_the_table_and_the_table_lists_no_other():
 
 async def test_no_sandbox_scoped_route_answers_for_another_visitors_document(beta_runtime):
     engine = beta_runtime.engine
-    owner, owner_token = make_sandbox(engine)
+    owner, owner_token = make_sandbox(engine, minutes_left=40)
     other, other_token = make_sandbox(engine)
     _, expired_token = make_sandbox(engine, minutes_left=-1)
     document = held_in(engine, owner)
@@ -158,6 +161,21 @@ async def test_no_sandbox_scoped_route_answers_for_another_visitors_document(bet
         sent_to = ingress.sandboxes
         assert sent_to[0] == other and sent_to[3] == owner
         assert len(set(sent_to)) == 4 and None not in sent_to
+
+        # The countdown is each visitor's own; the owner's sandbox lives 40 minutes.
+        left = {
+            token: (await call("GET", "/sandbox", token))[0].json()["expires_in"]
+            for token in (other_token, None, expired_token, owner_token)
+        }
+        assert left[None] is None and left[expired_token] is None
+        assert 2990 <= left[other_token] <= 3000 and 2390 <= left[owner_token] <= 2400
+        # Delete now deletes only the caller's own sandbox.
+        for token in (other_token, None, expired_token):
+            [response] = await call("DELETE", "/sandbox", token)
+            assert response.json() == {"deleted": True}
+        [response] = await call("GET", "/documents/{document_id}", owner_token)
+        assert response.status_code == 200
+        assert (await call("GET", "/sandbox", owner_token))[0].json()["expires_in"] > 2300
 
     scoped = {key for key, access in BETA_ROUTES.items() if access == Access.SANDBOX}
     assert called == scoped

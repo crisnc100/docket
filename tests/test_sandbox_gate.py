@@ -7,6 +7,7 @@ import os
 import subprocess
 import uuid
 
+import httpx
 import pytest
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
@@ -154,8 +155,8 @@ async def test_no_get_writes_anything(postgres_engine):
     live, live_token = make_sandbox(postgres_engine)
     _, expired_token = make_sandbox(postgres_engine, minutes_left=-1)
     document = held_in(postgres_engine, live)
-    before = rows(postgres_engine)
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
+        before = rows(postgres_engine)
         gets = [template for method, template in route_table(app) if method == "GET"]
         assert ("GET", "/beta/samples") in route_table(app)
         for template in gets:
@@ -229,3 +230,22 @@ async def test_the_database_holds_no_client_address(postgres_engine):
     # The counters did store something for each: the keyed hash.
     for value in ["203.0.113.77", "2001:db8:77:1::/64"]:
         assert address_hash(beta_settings(), value) in dump
+
+
+async def test_the_sandbox_routes_answer_404_locally():
+    from pydantic import SecretStr
+
+    from docket.api import create_app
+    from tests.test_beta_gate import FakeTemporal, StartedRuntime
+
+    runtime = StartedRuntime(
+        beta_settings(docket_env="local", docket_review_token=SecretStr("t" * 32))
+    )
+    app = create_app(runtime, FakeTemporal())
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app, raise_app_exceptions=False)
+        async with httpx.AsyncClient(transport=transport, base_url=BASE) as http:
+            auth = {"Authorization": "Bearer " + "t" * 32, "Origin": BASE}
+            for method in ("GET", "DELETE"):
+                response = await http.request(method, "/sandbox", headers=auth)
+                assert response.status_code == 404, method

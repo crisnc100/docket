@@ -11,6 +11,8 @@ from docket.settings import Settings
 
 MIN_ADDRESS_KEY_BYTES = 32
 MAX_DAILY_BUDGET_USD = 1.00
+# A held document's workflow ends on its own by then, close to when its sandbox does.
+MAX_REVIEW_TIMEOUT_SECONDS = 3600
 
 
 class UnsafeConfig(SystemExit):
@@ -39,6 +41,10 @@ def startup_problems(settings: Settings, environ: Mapping[str, str]) -> list[str
         problems.append(f"DOCKET_DAILY_BUDGET_USD must be at most {MAX_DAILY_BUDGET_USD:.2f}.")
     if settings.docket_model_mode not in {"live", "replay"}:
         problems.append("DOCKET_MODEL_MODE must be live or replay in beta.")
+    if settings.docket_review_timeout_seconds > MAX_REVIEW_TIMEOUT_SECONDS:
+        problems.append(
+            f"DOCKET_REVIEW_TIMEOUT_SECONDS must be at most {MAX_REVIEW_TIMEOUT_SECONDS} in beta."
+        )
     if environ.get("UVICORN_ROOT_PATH"):
         problems.append("UVICORN_ROOT_PATH must be unset: the beta is served at the site root.")
     return problems

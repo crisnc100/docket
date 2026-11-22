@@ -2,7 +2,6 @@ import asyncio
 import contextlib
 import hashlib
 import uuid
-from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 
@@ -52,12 +51,10 @@ class Ingress:
         model_mode: str | None = None,
         budget: str | None = None,
         review_timeout_seconds: float | None = None,
-        guard: Callable[[Session], None] | None = None,
         sandbox: uuid.UUID | None = None,
     ) -> str:
-        """guard, if given, runs first inside the transaction that writes the document, and
-        may raise to stop it. A write to a sandbox raises SandboxClosed, having written
-        nothing, when the sandbox is closed or expired by the time it starts."""
+        """A write to a sandbox raises SandboxClosed, having written nothing, when the
+        sandbox is closed or expired by the time it starts."""
         if mode not in {"act", "observe"}:
             raise ValueError("Invalid mode")
         if mode == "act":
@@ -78,8 +75,6 @@ class Ingress:
             def persist():
                 bind = connection if connection is not None else self.runtime.engine
                 with Session(bind) as session, session.begin():
-                    if guard is not None:
-                        guard(session)
                     new_id = uuid.uuid4()
                     created = session.execute(
                         insert(Document)

@@ -3,6 +3,7 @@ database keeps of a visitor (plan PR 1, S1, S3 and S11)."""
 
 import base64
 import hashlib
+import hmac
 import os
 import subprocess
 import uuid
@@ -96,6 +97,7 @@ async def test_the_first_write_sets_the_cookie_with_exactly_its_flags_and_stores
         app.state.ingress = ingress = FakeIngress()
         first = await sample(http, sender("192.0.2.10"))
         assert first.status_code == 200, first.text
+        assert first.headers["cache-control"] == "no-store"
         name, _, rest = first.headers["set-cookie"].partition("=")
         value, *flags = rest.split("; ")
         assert name == SANDBOX_COOKIE == "__Host-docket_sandbox"
@@ -230,6 +232,32 @@ async def test_the_database_holds_no_client_address(postgres_engine):
     # The counters did store something for each: the keyed hash.
     for value in ["203.0.113.77", "2001:db8:77:1::/64"]:
         assert address_hash(beta_settings(), value) in dump
+
+
+KNOWN_KEY = "0123456789abcdef" * 4
+
+
+def keyed(value: str) -> str:
+    """HMAC-SHA256 under KNOWN_KEY, worked out here rather than by docket's helper."""
+    return hmac.new(KNOWN_KEY.encode(), value.encode(), hashlib.sha256).hexdigest()
+
+
+async def test_the_counters_store_the_keyed_digest_and_never_the_address(postgres_engine):
+    from pydantic import SecretStr
+
+    settings = beta_settings(docket_address_key=SecretStr(KNOWN_KEY))
+    async with beta_client(settings, engine=postgres_engine) as (http, _, _, app):
+        app.state.ingress = FakeIngress()
+        for address in ("203.0.113.77", "2001:db8:77:1::5"):
+            assert (await sample(http, sender(address))).status_code == 200
+    # An IPv6 address counts by its /64.
+    expected = sorted([keyed("203.0.113.77"), keyed("2001:db8:77:1::/64")])
+    with Session(postgres_engine) as session:
+        for table in (SampleSend, SandboxCreation):
+            stored = list(session.scalars(select(table.address_hash)))
+            assert sorted(stored) == expected, table.__tablename__
+            for value in stored:
+                assert "203.0.113" not in value and "2001:db8" not in value, value
 
 
 async def test_the_sandbox_routes_answer_404_locally():

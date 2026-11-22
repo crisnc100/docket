@@ -49,6 +49,8 @@ SANDBOX_SCOPED = {
     ("DELETE", "/sandbox"),
 }
 CLOSED = {("POST", "/documents"), ("POST", "/inbound")}
+BUILT = Path(__file__).parent.parent / "web" / "dist"
+BUILT_ASSETS = BUILT / "assets"
 # FastAPI's own pages. The beta serves none of them: each gets the gate's 404.
 REFUSED = {
     (method, path)
@@ -189,7 +191,20 @@ async def test_every_route_answers_as_its_pinned_class_without_a_sandbox(postgre
                 if "{document_id}" in template:
                     assert response.json() == {"detail": "Unknown document"}, route
             else:
-                assert response.text != "Not found.", route
+                if template == "/assets/{path:path}":
+                    # A file the review page's build really has.
+                    built = min(path.name for path in BUILT_ASSETS.iterdir())
+                    response = await http.get("/assets/" + built)
+                assert response.status_code == 200, (route, response.text)
+                if template == "/healthz":
+                    assert response.json() == {"status": "ok"}
+                if template == "/":
+                    assert response.content == (BUILT / "home" / "index.html").read_bytes()
+                if template == "/home/{path:path}":
+                    assert response.content == (BUILT / "home" / "home.css").read_bytes()
+                if template == "/reviewer":
+                    assert response.headers["cache-control"] == "no-store"
+                    assert 'id="review-token"' not in response.text
         assert (await http.get("/review")).json() == {"items": []}
         for method, path in [("GET", "/not-a-route"), ("HEAD", "/"), ("POST", "/healthz")]:
             response = await http.request(method, path, headers={"Origin": BASE})
@@ -199,6 +214,8 @@ async def test_every_route_answers_as_its_pinned_class_without_a_sandbox(postgre
 
 async def test_a_valid_bearer_token_grants_nothing_in_beta(postgres_engine):
     document = held_document(postgres_engine)
+    # A document in no sandbox, as a local-mode upload or an old shared seed would be.
+    unscoped = held_document(postgres_engine, sandboxed=False)
     async with beta_client(engine=postgres_engine) as (http, runtime, _, _):
         token = secrets.token_hex(16)
         runtime.settings = runtime.settings.model_copy(
@@ -206,7 +223,10 @@ async def test_a_valid_bearer_token_grants_nothing_in_beta(postgres_engine):
         )
         bearer = {"Authorization": "Bearer " + token, "Origin": BASE}
         assert (await http.get("/review", headers=bearer)).json() == {"items": []}
-        assert (await http.get(f"/documents/{document}", headers=bearer)).status_code == 404
+        for held in (document, unscoped):
+            response = await http.get(f"/documents/{held}", headers=bearer)
+            assert response.status_code == 404
+            assert response.json() == {"detail": "Unknown document"}
         page = await http.get("/reviewer", headers=bearer)
         assert page.status_code == 200
         assert 'id="review-token"' not in page.text

@@ -6,6 +6,8 @@ import asyncio
 import itertools
 import uuid
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from decimal import Decimal
 
 import httpx
 import pytest
@@ -20,7 +22,7 @@ from docket import sweep
 from docket.api import create_app
 from docket.cli import app as cli
 from docket.corpus import pdf
-from docket.db import Document, SampleSend, Sandbox, SandboxCreation
+from docket.db import BudgetLedger, Document, SampleCount, SampleSend, Sandbox, SandboxCreation
 from docket.ingress import Ingress
 from docket.sandbox import lock_key
 from docket.sweep import (
@@ -36,6 +38,22 @@ from tests.sandboxes import held_in, make_sandbox, sandbox_cookie
 from tests.test_beta_gate import BASE, KEY
 
 TEMPORAL = "localhost:7233"
+CAPS = (Decimal("0.37"), 42)
+
+
+def set_caps(engine) -> None:
+    """Today's spend and sample count. A cleanup that lowered them would lift the daily caps."""
+    with Session(engine) as session, session.begin():
+        today = datetime.now(UTC).date()
+        session.execute(insert(BudgetLedger).values(day=today, spent_usd=CAPS[0]))
+        session.execute(insert(SampleCount).values(day=today, count=CAPS[1]))
+
+
+def caps(engine) -> tuple[Decimal | None, int | None]:
+    with Session(engine) as session:
+        return session.scalar(select(BudgetLedger.spent_usd)), session.scalar(
+            select(SampleCount.count)
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -186,6 +204,7 @@ async def test_with_temporal_unreachable_rows_and_objects_go_and_histories_go_ne
     sent = await send(beta, temporal, gone)
     kept = await send(beta, temporal, live, count=1)
     expire(engine, gone)
+    set_caps(engine)
     report = await sweep_once(beta, temporal_connector("127.0.0.1:1"))
     assert report["temporal"] == "failed" and report["complete"] is False
     assert report["postgres"] == report["storage"] == "complete"
@@ -200,6 +219,7 @@ async def test_with_temporal_unreachable_rows_and_objects_go_and_histories_go_ne
     assert rows(engine, live) == (1, 1)
     assert len(objects(beta, f"sbx/{live}/")) == 1
     assert await histories(temporal, kept) == kept
+    assert caps(engine) == CAPS
 
 
 # S6c
@@ -352,8 +372,10 @@ async def test_everything_deletes_live_sandboxes_loose_documents_and_every_objec
     sent = await send(beta, temporal, live)
     loose = await Ingress(beta, temporal).submit(pdf(["Before sandboxes"]), "old.pdf")
     assert objects(beta, "raw/")
+    set_caps(engine)
     report = await sweep_once(beta, reachable(temporal), everything=True)
     assert report["complete"] is True
+    assert caps(engine) == CAPS
     with Session(engine) as session:
         assert session.scalar(select(func.count()).select_from(Sandbox)) == 0
         assert session.scalar(select(func.count()).select_from(Document)) == 0
@@ -407,8 +429,9 @@ def test_the_sweep_and_status_commands_refuse_outside_beta(postgres_engine, monk
     assert both.exit_code == 2
     monkeypatch.setenv("DOCKET_ADDRESS_KEY", "short")
     unsafe = runner.invoke(cli, ["beta-sweep"])
-    assert unsafe.exit_code != 0
-    assert "DOCKET_ADDRESS_KEY needs at least 32 bytes." in str(unsafe.exception)
+    assert unsafe.exit_code == 1
+    assert unsafe.output.startswith("Docket beta refuses to start:\n- ")
+    assert "DOCKET_ADDRESS_KEY needs at least 32 bytes." in unsafe.output
     monkeypatch.setenv("DOCKET_ADDRESS_KEY", KEY)
     held_in(postgres_engine, make_sandbox(postgres_engine)[0])
     make_sandbox(postgres_engine, minutes_left=-5)

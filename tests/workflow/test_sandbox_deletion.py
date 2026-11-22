@@ -18,7 +18,7 @@ from docket.sandbox import SANDBOX_DELETED, writing_to
 from docket.sweep import DELETING, sweep_once
 from tests.sandboxes import make_sandbox, sandbox_cookie
 from tests.test_beta_gate import BASE
-from tests.workflow.test_sweep import api, histories, objects, reachable, send
+from tests.workflow.test_sweep import CAPS, api, caps, histories, objects, reachable, send, set_caps
 from tests.workflow.test_sweep import beta as beta
 from tests.workflow.test_sweep import no_settle as no_settle
 from tests.workflow.test_sweep import temporal as temporal
@@ -55,9 +55,11 @@ async def test_delete_now_leaves_no_rows_objects_or_histories_and_clears_the_coo
     sandbox_id, token = make_sandbox(engine)
     sent = await send(beta, temporal, sandbox_id, count=3)
     assert await histories(temporal, sent) == sent
+    set_caps(engine)
     async with api(beta, temporal) as http:
         response = await http.delete("/sandbox", headers=visitor(token))
         assert response.status_code == 200 and response.json() == {"deleted": True}
+        assert caps(engine) == CAPS
         assert response.headers["set-cookie"] == SPENT
         assert leftovers(engine, sandbox_id) == 0
         assert objects(beta, f"sbx/{sandbox_id}/") == []

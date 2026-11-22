@@ -48,12 +48,19 @@ def beta_runtime(postgres_engine):
 
 
 class RecordingTemporal(FakeTemporal):
+    namespace = "default"
+
     def __init__(self):
         super().__init__()
         self.started = []
+        self.deleted = []
+        self.workflow_service = self
 
     async def start_workflow(self, workflow, request, **kwargs):
         self.started.append(request)
+
+    async def delete_workflow_execution(self, request, timeout=None):
+        self.deleted.append(request.workflow_execution.workflow_id)
 
 
 class FakeIngress:
@@ -97,8 +104,10 @@ async def test_no_sandbox_scoped_route_answers_for_another_visitors_document(bet
     engine = beta_runtime.engine
     owner, owner_token = make_sandbox(engine, minutes_left=40)
     other, other_token = make_sandbox(engine)
-    _, expired_token = make_sandbox(engine, minutes_left=-1)
+    expired, expired_token = make_sandbox(engine, minutes_left=-1)
     document = held_in(engine, owner)
+    # Its own document, so only the expiry check stands between the cookie and it.
+    expired_document = held_in(engine, expired)
     with engine.begin() as connection:
         connection.exec_driver_sql(
             "UPDATE documents SET content_hash = %s WHERE id = %s",
@@ -136,6 +145,8 @@ async def test_no_sandbox_scoped_route_answers_for_another_visitors_document(bet
             assert {body for _, body in unknown} == {b'{"detail":"Unknown document"}'}
             for token in (other_token, None, expired_token):
                 assert seen(await call(method, template, token)) == unknown, (template, token)
+            expired_own = seen(await call(method, template, expired_token, expired_document))
+            assert expired_own == unknown, template
             owned = await call(method, template, owner_token)
             assert all(response.status_code == 200 for response in owned), template
         # Only the owner's two review actions reached Temporal.
@@ -173,6 +184,7 @@ async def test_no_sandbox_scoped_route_answers_for_another_visitors_document(bet
         for token in (other_token, None, expired_token):
             [response] = await call("DELETE", "/sandbox", token)
             assert response.json() == {"deleted": True}
+        assert temporal.deleted == [f"doc-{expired_document}"]
         [response] = await call("GET", "/documents/{document_id}", owner_token)
         assert response.status_code == 200
         assert (await call("GET", "/sandbox", owner_token))[0].json()["expires_in"] > 2300

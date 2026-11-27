@@ -218,12 +218,11 @@ have a memory and CPU limit, restart unless stopped, and rotate their logs:
 | `api`, the only service with a published port, on `127.0.0.1` | 512 MB | 260 MB |
 | `worker`, the only service with the model key | 768 MB | 276 MB |
 | `sweep`: deletes what expired and deleted sandboxes held, every 2 minutes | 256 MB | Not measured |
-| **Total** | **3.3 GB** | **1.4 GB**, measured with the nightly reset the sweep replaced |
+| **Total** | **3.3 GB** | **1.4 GB**, from a run made before the sweep, with a nightly reset in its place |
 
 `migrate` and `temporal-data-init` run once at start and exit. The load run
 (`scripts/load/beta_load.py`) sent 60 samples in 10 minutes from four addresses, with
-review actions and one nightly reset, against a local stand-in for the model API; it now
-runs a sweep by hand where the reset was. It runs as
+review actions and one sweep by hand, against a local stand-in for the model API. It runs as
 its own Compose project, `docket-load`, on fresh volumes, and sends nothing until it has
 checked that the worker's model address is the stand-in and the key is not a real one. [ADR 009](docs/adr/009-hosting.md) has the details.
 

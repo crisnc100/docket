@@ -244,12 +244,12 @@ and `non_pdf` always end rejected; `empty_text_layer` is the same file for every
 The new sandbox and the sample slots are taken together or not at all, so a refusal on
 any cap takes nothing. A send that then fails at ingress keeps its slot; if it started a
 sandbox, the browser never gets that cookie, so the sandbox is closed and the sweep deletes
-whatever the failed write left in it. A send whose
-sandbox ended, or was deleted before its write began, gets the 409 `sandbox_ended` answer
-and writes nothing; a send in a sandbox's last five minutes gets `sandbox_ending`. Neither
-takes a slot. The counts live in the
-`sandbox_creations`, `sample_sends` and `sample_counts` tables, so they survive a
-restart.
+whatever the failed write left in it. A send whose sandbox is closed or expired when it
+asks gets the 409 `sandbox_ended` answer, and a send in a sandbox's last five minutes gets
+`sandbox_ending`; neither takes a slot. A send whose sandbox is deleted after its slot was
+taken but before its write began gets the same `sandbox_ended` answer, writes nothing and
+keeps the slot. The counts live in the `sandbox_creations`, `sample_sends` and
+`sample_counts` tables, so they survive a restart.
 
 **Kill switch.** `docket beta-switch off` stops live model answers and
 `docket beta-switch on` resumes them. It writes one row to the `beta_flags` table, and
@@ -319,7 +319,7 @@ the database schema. Each run has three passes, each against one store and each 
 its own 50-second budget:
 
 1. **Postgres.** Deletes every sandbox that is expired or closed. Those with documents go
-   first, then closed ones, one at a time and under each sandbox's lock, oldest first. A
+   first, then closed ones with none, one at a time and under each sandbox's lock, oldest first. A
    sandbox whose lock is still held after 10 seconds is left for the next run. Expired
    empty ones go after, in bulk, oldest first. The pass also deletes counter rows more
    than an hour old, which no longer count toward any limit.
@@ -513,6 +513,7 @@ docker compose up -d
 | Temporal | `127.0.0.1:7233`, web UI on `127.0.0.1:8233` |
 | API      | `http://127.0.0.1:8010`                |
 | S3       | `http://127.0.0.1:9000`                 |
+| SeaweedFS master | `http://127.0.0.1:9333`, which the sandbox deletion tests call to vacuum |
 
 `verify.sh` runs ruff and pyright (strict on `docket/core`), checks the exchange
 archive, builds the Vite review page and Docker images, and creates the database

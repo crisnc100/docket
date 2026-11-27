@@ -10,12 +10,12 @@ measurements below were taken with the reset.
 The hosted beta runs as one Compose project (`compose.prod.yaml`) on a shared host,
 behind Caddy. Temporal is its development server, `temporal server start-dev`: one
 process that keeps its state in a SQLite file on a volume. Postgres, SeaweedFS (the S3
-store), the API, one worker and the `reset` service run beside it.
+store), the API, one worker and the `sweep` service run beside it.
 
 The dev server fits this demo:
 
-- The demo resets every night, so Temporal holds at most a day of workflows, a few
-  hundred at the beta's caps.
+- Sandboxes live under an hour and the sweep deletes their workflows, so Temporal holds
+  about an hour of them.
 - One process needs no cluster to run, upgrade or back up.
 - The same server runs the local stack and the browser tests, so the beta runs the
   setup the tests cover.
@@ -78,6 +78,5 @@ None of this is built or measured.
 - A managed object store and managed Postgres with point-in-time recovery, in place of
   local volumes and a nightly `pg_dump`.
 - Secrets from a secret store, not an env file on the host.
-- Alerts on spend, on a failed reset and on an unhealthy service. The beta has none.
-- Per-user accounts and permissions in place of shared invite codes and one shared
-  queue.
+- Alerts on spend, on a stale sweep and on an unhealthy service. The beta has none.
+- Per-user accounts and permissions in place of a private sandbox per browser.

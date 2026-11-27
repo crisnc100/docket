@@ -207,8 +207,10 @@ async def test_the_cookie_lasts_only_as_long_as_its_sandbox(postgres_engine):
     with Session(postgres_engine) as session:
         expires = session.scalar(select(Sandbox.expires_at))
         after = session.scalar(select(func.now()))
-    # expires_at is 100 seconds past the update's clock, and Max-Age is read by a later one.
-    assert math.floor((expires - after).total_seconds()) <= max_age <= 99
+    # expires_at is 100 seconds past the update's clock, and Max-Age is read by a later one,
+    # a few seconds at most after it.
+    assert math.floor((expires - after).total_seconds()) <= max_age
+    assert 95 <= max_age <= 99
 
 
 async def test_a_first_sample_that_fails_closes_its_sandbox_and_keeps_its_slots(

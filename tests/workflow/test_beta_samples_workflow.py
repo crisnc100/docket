@@ -139,6 +139,7 @@ async def test_every_sample_type_runs_the_normal_workflow_and_ends_filed_or_held
     model = FirstCandidateModel()
     monkeypatch.setattr(beta_runtime, "gateway", lambda request: model)
     engine = beta_runtime.engine
+    open_sandbox(engine)
     async with await WorkflowEnvironment.start_time_skipping() as env:
         async with Worker(
             env.client,
@@ -242,6 +243,7 @@ async def test_switching_off_mid_workflow_refuses_the_next_live_call_at_the_tran
         return AnthropicTransport(settings, max_output_tokens, client)
 
     monkeypatch.setattr("docket.runtime.AnthropicTransport", transport)
+    open_sandbox(postgres_engine)
     async with await WorkflowEnvironment.start_time_skipping() as env:
         app, http = await beta_stack(beta_runtime, env)
         async with app.router.lifespan_context(app), http:

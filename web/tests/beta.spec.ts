@@ -100,6 +100,9 @@ test('S12: Send waits for Delete now, a sandbox that is gone leaves nothing, and
   await page.goto('/reviewer');
   const send = page.getByRole('button', { name: 'Send a sample document' });
   const queueLinks = page.getByRole('navigation', { name: 'Review queue' }).getByRole('link');
+  // The page's first readiness request can still be in flight when goto returns, and the route
+  // below would answer it, so the real first answer must be in before the route goes on.
+  await expect(send).toBeEnabled();
 
   // A refusal: Send stays off until the page asks again and the server says it is ready.
   // The send's refusal and the first readiness answer have different texts, so the second
@@ -187,10 +190,17 @@ test('S12: an ended or ending sandbox is handled, and one tab sends or deletes a
   const old = await sendSample(first);
   await expect(links).toHaveCount(1);
 
-  // An answer that the sandbox ended takes its documents off the page.
+  // An answer that the sandbox ended takes its documents off the page. The answer spends the
+  // cookie as the server's does, and the queue refresh after it fails, so only the page's own
+  // clearing can empty the view.
   await first.route('**/beta/samples', route => route.request().method() === 'POST'
-    ? route.fulfill({ status: 409, json: { detail: 'That sandbox ended. Send again.', code: 'sandbox_ended' } })
+    ? route.fulfill({
+      status: 409,
+      json: { detail: 'That sandbox ended. Send again.', code: 'sandbox_ended' },
+      headers: { 'Set-Cookie': '__Host-docket_sandbox=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0' },
+    })
     : route.continue());
+  await first.route('**/review', route => route.fulfill({ status: 500, json: { detail: 'Request failed' } }));
   await send.click();
   await expect(first.locator('.sample-state')).toHaveText('That sandbox ended. Send again.');
   await expect(links).toHaveCount(0);
@@ -198,6 +208,7 @@ test('S12: an ended or ending sandbox is handled, and one tab sends or deletes a
   expect(new URL(first.url()).hash).toBe('');
   await expect(first.locator('.sandbox-line')).toHaveText('Private to this browser · starts with your first sample');
   await expect(send).toBeEnabled();
+  await first.unroute('**/review');
   await first.unroute('**/beta/samples');
 
   // In its last minutes the sandbox refuses; Start fresh deletes it and sends to a new one.
@@ -262,7 +273,7 @@ test('S12: an ended or ending sandbox is handled, and one tab sends or deletes a
   let deleteDone = false;
   await first.route('**/sandbox', async route => {
     if (route.request().method() !== 'DELETE') return route.continue();
-    const response = await route.fetch();
+    const response = await route.fetch({ timeout: 60_000 });
     deleteDone = true;
     await released;
     deleteAnswered = true;
@@ -271,6 +282,7 @@ test('S12: an ended or ending sandbox is handled, and one tab sends or deletes a
   await first.getByRole('button', { name: 'Delete now' }).click();
   // The delete has finished at the server; only its answer is held.
   await expect.poll(() => deleteDone, { timeout: 60_000 }).toBe(true);
+  expect(deletes).toHaveLength(3);
   await second.getByLabel('Kind of document').selectOption({ label: KIND });
   await second.getByRole('button', { name: 'Send a sample document' }).click();
   await second.waitForTimeout(1_000);
@@ -279,6 +291,7 @@ test('S12: an ended or ending sandbox is handled, and one tab sends or deletes a
   await expect(second.locator('.sample-state')).toHaveText('The sample is waiting for review in the queue.', { timeout: 60_000 });
   // One send, and it left only after the delete's answer reached the browser.
   expect(secondSends).toEqual([true]);
+  expect(deletes).toHaveLength(3);
   await first.unroute('**/sandbox');
   await context.close();
 });
@@ -289,7 +302,8 @@ test('S12: a held document opens, previews after a reload, and its suggestion is
   // The sandbox the test put the document in, as the browser that sent it would hold it.
   await context.addCookies([{
     name: '__Host-docket_sandbox', value: process.env.DOCKET_SANDBOX_COOKIE!,
-    url: process.env.DOCKET_BROWSER_URL!, httpOnly: true, secure: true, sameSite: 'Strict',
+    domain: new URL(process.env.DOCKET_BROWSER_URL!).hostname, path: '/',
+    httpOnly: true, secure: true, sameSite: 'Strict',
   }]);
   const page = await context.newPage();
   const authorized: string[] = [];

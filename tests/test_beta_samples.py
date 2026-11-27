@@ -14,6 +14,7 @@ from sqlalchemy import func, insert, select, text
 from sqlalchemy.orm import Session
 from typer.testing import CliRunner
 
+from docket.beta import address_hash
 from docket.beta_samples import (
     DAY_CAPPED,
     PAUSED,
@@ -23,7 +24,6 @@ from docket.beta_samples import (
     address_capped,
     document_ceiling,
     live_answers_on,
-    no_reset_running,
     set_live_answers,
 )
 from docket.cli import app as cli
@@ -36,7 +36,7 @@ from docket.llm.errors import BudgetExceeded
 from docket.prompts import classify_request
 from docket.runtime import Runtime
 from tests.test_anthropic_transport import FakeApi, message
-from tests.test_beta_gate import BASE, beta_client, beta_settings, cookie, route_table
+from tests.test_beta_gate import BASE, beta_client, beta_settings, cookie, open_sandbox, route_table
 
 
 @pytest.fixture(autouse=True)
@@ -59,14 +59,22 @@ def visitor(address: str = "198.51.100.7") -> dict:
     return cookie() | {"Origin": BASE, "X-Forwarded-For": address}
 
 
+def hashed(address: str) -> str:
+    return address_hash(beta_settings(), address)
+
+
+# Every address these tests send from, so a stored hash can be named by its address.
+ADDRESSES = {hashed(f"198.51.100.{index}"): f"198.51.100.{index}" for index in range(256)}
+
+
 def counts(engine) -> dict[str, int]:
     """Samples counted so far: per address in the rolling window, and for the day."""
     with Session(engine) as session:
         sends = session.execute(
-            select(SampleSend.address, func.count()).group_by(SampleSend.address)
+            select(SampleSend.address_hash, func.count()).group_by(SampleSend.address_hash)
         ).all()
         days = session.scalars(select(SampleCount.count)).all()
-    return {"address:" + address: total for address, total in sends} | (
+    return {"address:" + ADDRESSES[key]: total for key, total in sends} | (
         {"day": sum(days)} if days else {}
     )
 
@@ -101,6 +109,7 @@ async def test_the_options_list_every_sample_type_with_a_plain_label(postgres_en
 
 
 async def test_a_sample_goes_to_ingress_with_server_made_bytes_and_counts_once(postgres_engine):
+    sandbox = open_sandbox(postgres_engine)
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = ingress = FakeIngress()
         response = await http.post(
@@ -110,8 +119,7 @@ async def test_a_sample_goes_to_ingress_with_server_made_bytes_and_counts_once(p
         assert uuid.UUID(response.json()["document_id"])
     [(content, filename, kwargs)] = ingress.submitted
     assert content.startswith(b"%PDF-") and filename == "sample-clean.pdf"
-    assert kwargs.pop("guard") is no_reset_running
-    assert kwargs == {"source": "sample", "sender": SAMPLE_SENDER}
+    assert kwargs == {"source": "sample", "sender": SAMPLE_SENDER, "sandbox": sandbox}
     assert counts(postgres_engine) == {"address:198.51.100.8": 1, "day": 1}
 
 
@@ -184,12 +192,13 @@ async def test_a_malformed_sample_body_is_a_fixed_422(postgres_engine, body):
         assert response.status_code == 422, response.text
 
 
-async def test_the_sample_post_needs_a_session_and_a_matching_origin(postgres_engine):
+async def test_the_sample_post_needs_a_matching_origin(postgres_engine):
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = ingress = FakeIngress()
         body = {"case_type": "clean"}
-        assert (await http.post("/beta/samples", json=body)).status_code == 401
-        assert (await http.get("/beta/samples")).status_code == 401
+        assert (await http.post("/beta/samples", json=body)).status_code == 403
+        # The options list holds no one's documents, so a page with no sandbox yet can load it.
+        assert (await http.get("/beta/samples")).status_code == 200
         foreign = visitor() | {"Origin": "https://elsewhere.example.test"}
         assert (await http.post("/beta/samples", json=body, headers=foreign)).status_code == 403
         missing = {key: value for key, value in visitor().items() if key != "Origin"}
@@ -203,6 +212,8 @@ async def test_the_sample_post_needs_a_session_and_a_matching_origin(postgres_en
 async def test_fifty_parallel_samples_from_one_address_let_exactly_twenty_through(
     postgres_engine,
 ):
+    # One browser: every sample goes to its sandbox, so only the sample cap is in play.
+    open_sandbox(postgres_engine)
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = FakeIngress()
         responses = await asyncio.gather(
@@ -234,6 +245,8 @@ async def test_fifty_parallel_samples_from_one_address_let_exactly_twenty_throug
 
 
 async def test_the_days_301st_sample_is_refused_and_takes_no_address_slot(postgres_engine):
+    # The sandbox the visitor's cookie names: a cookie never starts one.
+    open_sandbox(postgres_engine)
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = FakeIngress()
         assert (
@@ -262,13 +275,15 @@ def sent_earlier(engine, address: str, when: str, times: int = 20) -> None:
     with Session(engine) as session, session.begin():
         for _ in range(times):
             session.execute(
-                text(f"INSERT INTO sample_sends (address, at) VALUES (:address, {when})"),
-                {"address": address},
+                text(f"INSERT INTO sample_sends (address_hash, at) VALUES (:hash, {when})"),
+                {"hash": hashed(address)},
             )
 
 
 async def test_the_address_cap_rolls_across_the_clock_hour(postgres_engine):
     address = "198.51.100.30"
+    # The sandbox the visitor's cookie names: a cookie never starts one.
+    open_sandbox(postgres_engine)
     # Twenty samples in the last moment of the previous clock hour: the 21st, sent in this
     # clock hour and within 60 minutes of them, is refused.
     sent_earlier(postgres_engine, address, "date_trunc('hour', now()) - interval '1 millisecond'")
@@ -287,6 +302,8 @@ async def test_the_address_cap_rolls_across_the_clock_hour(postgres_engine):
 
 async def test_samples_older_than_sixty_minutes_stop_counting(postgres_engine):
     address = "198.51.100.31"
+    # The sandbox the visitor's cookie names: a cookie never starts one.
+    open_sandbox(postgres_engine)
     sent_earlier(postgres_engine, address, "now() - interval '61 minutes'")
     sent_earlier(postgres_engine, address, "now() - interval '59 minutes'", times=19)
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
@@ -320,6 +337,8 @@ async def test_with_less_than_one_document_left_the_button_gets_paused_for_today
 
 
 async def test_exactly_one_document_left_still_sends(postgres_engine):
+    # The sandbox the visitor's cookie names: a cookie never starts one.
+    open_sandbox(postgres_engine)
     spend(postgres_engine, Decimal("1.00") - ceiling())
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = FakeIngress()
@@ -376,6 +395,8 @@ async def test_the_pause_lifts_when_the_utc_day_changes(postgres_engine):
 async def test_switching_off_refuses_samples_with_no_restart_and_on_restores_them(
     postgres_engine,
 ):
+    # The sandbox the visitor's cookie names: a cookie never starts one.
+    open_sandbox(postgres_engine)
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         app.state.ingress = ingress = FakeIngress()
         body = {"case_type": "clean"}
@@ -569,19 +590,21 @@ def test_the_beta_switch_command_flips_the_switch_and_refuses_outside_beta(
 
 
 async def test_no_beta_route_lets_visitor_bytes_reach_ingress_or_storage(postgres_engine):
+    # The sandbox the visitor's cookie names: a cookie never starts one.
+    open_sandbox(postgres_engine)
     async with beta_client(engine=postgres_engine) as (http, _, _, app):
         writes = {
             (method, path) for method, path in route_table(app) if method not in {"GET", "HEAD"}
         }
         # Each write route and what it stores: uploads are refused before their body is read
-        # (tests/test_beta_gate.py), the sign-in stores only the address, review stores a
-        # capped dismiss reason or a candidate id, and a sample stores server-made bytes.
+        # (tests/test_beta_gate.py), review stores a capped dismiss reason or a candidate id,
+        # a sample stores server-made bytes, and Delete now stores nothing.
         assert writes == {
             ("POST", "/documents"),
             ("POST", "/inbound"),
-            ("POST", "/reviewer/session"),
             ("POST", "/review/{document_id}/{action}"),
             ("POST", "/beta/samples"),
+            ("DELETE", "/sandbox"),
         }
         for path in ["/documents", "/inbound"]:
             response = await http.post(path, headers=visitor(), content=b"%PDF-1.7 visitor")

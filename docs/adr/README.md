@@ -12,6 +12,7 @@ An architecture decision record (ADR) states a choice, its evidence and its limi
 | [007: Temporal recovery](007-temporal-recovery.md) | Written after measurement; five process/storage fault cases |
 | [008: real model answers](008-real-model.md) | Live Haiku 5.5 pass: G1 and G3 missed on synthetic-filler refusals; predictions marked |
 | [009: hosting the beta](009-hosting.md) | Written after the load run; one host, Temporal's dev server, measured peaks |
+| [010: a private sandbox per browser](010-sandboxes.md) | Written while building; Temporal and SeaweedFS deletion measured, marker test |
 
 The original plan's D15 asked for predictions committed before measurements.
 The three new measured records are retrospective and say so in Status.

@@ -1,0 +1,344 @@
+{
+ "rows": [
+  {
+   "behavior": "private sandbox per browser: cookie, 50-minute life, last-five-minutes refusal, limits, address hashing",
+   "files": [
+    "docket/sandbox.py",
+    "docket/beta.py",
+    "docket/settings.py",
+    "docket/db.py",
+    "docket/ingress.py",
+    "docket/activities.py",
+    "docket/beta_samples.py",
+    "docket/api.py",
+    "migrations/versions/e1a5c0d2f7b4_create_sandboxes.py",
+    "migrations/versions/f7c3b9e2a1d6_sandbox_creations_and_address_hashes.py"
+   ],
+   "docs": [
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "Cookie is HttpOnly, Secure, SameSite=Strict, Path=/ with Max-Age",
+       "at": "docket/sandbox.py:153"
+      },
+      {
+       "claim": "Cookie value is 128 random bits; only its SHA-256 is stored",
+       "at": "docket/sandbox.py:138"
+      },
+      {
+       "claim": "A sandbox lives 50 minutes; the last 5 refuse new samples",
+       "at": "docket/sandbox.py:22"
+      },
+      {
+       "claim": "A cookie that has a sandbox never starts another; a request with no cookie starts one",
+       "at": "docket/sandbox.py:111"
+      },
+      {
+       "claim": "10 new sandboxes an hour per address, 429 after",
+       "at": "docket/sandbox.py:134"
+      },
+      {
+       "claim": "IPv6 counts by /64, IPv4-mapped as IPv4, last X-Forwarded-For hop",
+       "at": "docket/beta.py:72"
+      },
+      {
+       "claim": "Counters store an HMAC of the address under DOCKET_ADDRESS_KEY",
+       "at": "docket/beta.py:88"
+      },
+      {
+       "claim": "A closed or expired sandbox gets 409 sandbox_ended and a spent cookie; last five minutes 409 sandbox_ending",
+       "at": "docket/api.py:428"
+      },
+      {
+       "claim": "A send deleted after its slot was taken keeps the slot and gets sandbox_ended",
+       "at": "docket/api.py:454"
+      },
+      {
+       "claim": "A failed write in a sandbox this request made closes it",
+       "at": "docket/api.py:456"
+      },
+      {
+       "claim": "Startup refusals list",
+       "at": "docket/beta.py:22"
+      },
+      {
+       "claim": "Review timeout at most 3600 in beta, 3000 in the example",
+       "at": "docket/beta.py:44"
+      }
+     ]
+    },
+    {
+     "path": "docs/adr/010-sandboxes.md",
+     "claims": [
+      {
+       "claim": "Same bytes in two sandboxes are two stored files under sbx/<sandbox>/raw/<sha256>",
+       "at": "docket/ingress.py:67"
+      },
+      {
+       "claim": "Cookie is 128 random bits and only its SHA-256 is kept",
+       "at": "docket/sandbox.py:138"
+      },
+      {
+       "claim": "10 new sandboxes an hour per address, IPv6 by /64",
+       "at": "docket/sandbox.py:134"
+      }
+     ]
+    },
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "DOCKET_ADDRESS_KEY is set in .env.beta and checked",
+       "at": "scripts/check_prod_compose.py:20"
+      },
+      {
+       "claim": "Review timeout 3000 in the example settings",
+       "at": ".env.beta.example:26"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "Delete now, the sweep, fail-closed writes and erase timing",
+   "files": [
+    "docket/sweep.py",
+    "docket/cli.py",
+    "docket/beta_status.py",
+    "docket/beta_reset.py",
+    "docket/review_access.py",
+    "compose.prod.yaml",
+    "compose.yaml",
+    "Dockerfile",
+    ".dockerignore"
+   ],
+   "docs": [
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "Delete now answers 202 with no time promised while the sweep is stale",
+       "at": "docket/api.py:489"
+      },
+      {
+       "claim": "Delete now waits up to 10 seconds for the lock, then closes the sandbox and answers 202",
+       "at": "docket/sweep.py:445"
+      },
+      {
+       "claim": "Delete now waits 3 seconds after deleting objects, then vacuums",
+       "at": "docket/sweep.py:477"
+      },
+      {
+       "claim": "The sweep runs every 2 minutes, passes have 50 second budgets, a run over 3 minutes exits",
+       "at": "docket/sweep.py:35"
+      },
+      {
+       "claim": "Postgres pass order: sandboxes with documents first, empty expired ones in bulk",
+       "at": "docket/sweep.py:125"
+      },
+      {
+       "claim": "Temporal pass deletes doc- workflows whose document row is gone",
+       "at": "docket/sweep.py:238"
+      },
+      {
+       "claim": "Storage pass deletes objects of sandboxes that are not live and always vacuums",
+       "at": "docket/sweep.py:301"
+      },
+      {
+       "claim": "Stale after 10 minutes without a complete run; writes, reviews and healthz react",
+       "at": "docket/sweep.py:87"
+      },
+      {
+       "claim": "beta-sweep runs once, --all deletes everything, exits 1 unless complete",
+       "at": "docket/cli.py:287"
+      },
+      {
+       "claim": "beta-status prints sweep age, sandboxes, documents, hourly counts and spend",
+       "at": "docket/beta_status.py:60"
+      },
+      {
+       "claim": "Reviews 503 while the sweep is stale",
+       "at": "docket/api.py:350"
+      },
+      {
+       "claim": "Route table: public, sandbox-scoped, closed, refused",
+       "at": "docket/review_access.py:35"
+      },
+      {
+       "claim": "16 KB body limit and ownership checked before the body is read",
+       "at": "docket/review_access.py:277"
+      },
+      {
+       "claim": "Non-empty root_path gets 500",
+       "at": "docket/review_access.py:245"
+      }
+     ]
+    },
+    {
+     "path": "docs/adr/010-sandboxes.md",
+     "claims": [
+      {
+       "claim": "Sweep every 2 minutes, 50-second pass budget, 10-minute stale rule",
+       "at": "docket/sweep.py:35"
+      },
+      {
+       "claim": "3-second wait before vacuum",
+       "at": "docket/sweep.py:60"
+      }
+     ]
+    },
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "sweep service runs beta-sweep --service",
+       "at": "compose.prod.yaml:181"
+      },
+      {
+       "claim": "beta-status and beta-sweep --all commands",
+       "at": "docket/cli.py:330"
+      }
+     ]
+    },
+    {
+     "path": "docs/adr/009-hosting.md",
+     "claims": [
+      {
+       "claim": "The sweep service runs beside Temporal in the prod compose file",
+       "at": "compose.prod.yaml:181"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "deploy, upgrade and rollback steps; settings",
+   "files": [
+    ".env.beta.example",
+    "scripts/check_prod_compose.py",
+    "scripts/load/beta_load.py",
+    "scripts/load/compose.load.yaml"
+   ],
+   "docs": [
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "Settings include DOCKET_ADDRESS_KEY and the review timeout",
+       "at": ".env.beta.example:13"
+      },
+      {
+       "claim": "The load run does one sweep by hand",
+       "at": "scripts/load/beta_load.py:210"
+      }
+     ]
+    },
+    {
+     "path": "docs/operations.md",
+     "claims": [
+      {
+       "claim": "Load run settings and sweep service",
+       "at": "scripts/load/beta_load.py:151"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "invite codes, sign-in and the nightly reset removed",
+   "files": [
+    "web/login.html"
+   ],
+   "docs": [
+    {
+     "path": "docs/adr/009-hosting.md",
+     "claims": [
+      {
+       "claim": "Sign-in route removed; reviewer page access is sandbox",
+       "at": "docket/api.py:501"
+      }
+     ]
+    },
+    {
+     "path": "README.md",
+     "claims": [
+      {
+       "claim": "Beta has no sign-in; /reviewer opens with no form",
+       "at": "docket/review_access.py:106"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "the sandbox page: countdown, Delete now, Start fresh, cookies blocked",
+   "files": [
+    "web/src/main.ts",
+    "web/src/style.css",
+    "web/public/home/index.html",
+    "web/playwright.config.ts"
+   ],
+   "docs": [
+    {
+     "path": "DESIGN.md",
+     "claims": [
+      {
+       "claim": "Line reads Private to this browser, starts with your first sample, then deleted in N minutes with Delete now",
+       "at": "web/src/main.ts:137"
+      },
+      {
+       "claim": "Send and Delete now disable each other",
+       "at": "web/src/main.ts:117"
+      },
+      {
+       "claim": "Start fresh shows after a sandbox_ending refusal and deletes then resends",
+       "at": "web/src/main.ts:532"
+      },
+      {
+       "claim": "Cookies blocked hides select, button and sandbox line and shows the cookie message",
+       "at": "web/src/main.ts:518"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "behavior": "tests and test helpers",
+   "files": [
+    "tests/browser/test_beta_browser.py",
+    "tests/browser/test_sandbox_marker.py",
+    "tests/fault/test_sweep_faults.py",
+    "tests/sandboxes.py",
+    "tests/test_beta_gate.py",
+    "tests/test_beta_hosting.py",
+    "tests/test_beta_load.py",
+    "tests/test_beta_samples.py",
+    "tests/test_database.py",
+    "tests/test_pr1_review_compose.py",
+    "tests/test_sandbox_gate.py",
+    "tests/test_sandbox_identity.py",
+    "tests/test_sandbox_routes.py",
+    "tests/workflow/test_beta_reset.py",
+    "tests/workflow/test_beta_samples_workflow.py",
+    "tests/workflow/test_sandbox_deletion.py",
+    "tests/workflow/test_sandbox_filing.py",
+    "tests/workflow/test_sweep.py",
+    "web/tests/beta.spec.ts"
+   ],
+   "none": "Test files; they check the behaviours above and are documented through them."
+  },
+  {
+   "behavior": "the docs themselves",
+   "files": [
+    "DESIGN.md",
+    "README.md",
+    "docs/adr/009-hosting.md",
+    "docs/adr/010-sandboxes.md",
+    "docs/adr/README.md",
+    "docs/operations.md"
+   ],
+   "none": "These are the docs; the rows above list their claims."
+  }
+ ]
+}

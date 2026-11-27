@@ -141,6 +141,7 @@ select:disabled, textarea:disabled { background: var(--soft); color: var(--ink-m
 .sample select { font-family: inherit; }
 .sample button { justify-self: start; }
 .sample-note { margin: 0; color: var(--ink-2); font-size: 0.8125rem; }
+.sandbox-line button { min-height: 28px; padding: 0 10px; font-size: 0.8125rem; }
 .sample-state { margin: 0; font-size: 0.875rem; }
 .sample-state:empty { display: none; }
 /* Buttons set their own display, which would otherwise override the hidden attribute. */

@@ -23,7 +23,10 @@ services:
     depends_on:
       temporal-data-init:
         condition: service_completed_successfully
-    command: server start-dev --ip 0.0.0.0 --db-filename /data/server/temporal.db
+    # secure_delete zeroes a deleted history's bytes in the file instead of leaving them there.
+    command: >-
+      server start-dev --ip 0.0.0.0 --db-filename /data/server/temporal.db
+      --sqlite-pragma secure_delete=on
     ports: ["127.0.0.1:7233:7233", "127.0.0.1:8233:8233"]
     volumes: ["temporal-data:/data"]
     healthcheck:
@@ -37,7 +40,8 @@ services:
       mini -dir=/data -ip=seaweedfs -ip.bind=0.0.0.0 -s3.port=8333
       -s3.config=/etc/seaweedfs/s3.json -s3.autoCreateBucket=false -webdav=false -admin.ui=false
       -s3.port.iceberg=0 -s3.port.lance=0 -master.telemetry=false
-    ports: ["127.0.0.1:9000:8333"]
+    # 9333 is the master, which the sandbox deletion tests call to vacuum deleted bytes.
+    ports: ["127.0.0.1:9000:8333", "127.0.0.1:9333:9333"]
     volumes:
       - seaweedfs-data:/data
       - ./config/s3.local.json:/etc/seaweedfs/s3.json:ro
@@ -58,6 +62,7 @@ services:
       S3_ACCESS_KEY: docket-local
       S3_SECRET_KEY: docket-local-password # pragma: allowlist secret
       S3_BUCKET: docket
+      SEAWEEDFS_MASTER_URL: http://seaweedfs:9333
       DOCKET_MODEL_MODE: ${DOCKET_MODEL_MODE:-replay}
       DOCKET_WEBHOOK_SECRET: ${DOCKET_WEBHOOK_SECRET:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
@@ -65,10 +70,9 @@ services:
       DOCKET_MODEL_PROVIDER: ${DOCKET_MODEL_PROVIDER:-anthropic}
       DOCKET_MODEL: ${DOCKET_MODEL:-claude-haiku-5-5}
       # DOCKET_ENV=beta must reach every process, so a beta setting never silently runs
-      # local. With no cap and no invite settings, beta then refuses to start.
+      # local. With no cap and no address key, beta then refuses to start.
       DOCKET_ENV: ${DOCKET_ENV:-local}
-      DOCKET_INVITE_CODES: ${DOCKET_INVITE_CODES:-}
-      DOCKET_SESSION_KEY: ${DOCKET_SESSION_KEY:-}
+      DOCKET_ADDRESS_KEY: ${DOCKET_ADDRESS_KEY:-}
       DOCKET_TRUST_PROXY: ${DOCKET_TRUST_PROXY:-0}
       DOCKET_BASE_URL: ${DOCKET_BASE_URL:-}
     depends_on:

@@ -1,26 +1,79 @@
 import hmac
 import json
+import re
 import secrets
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from enum import StrEnum
 from pathlib import Path
 
-from starlette.requests import cookie_parser
 from starlette.responses import HTMLResponse, PlainTextResponse
+from starlette.routing import BaseRoute, Match, Mount
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from docket.beta import SESSION_COOKIE, header_values, same_origin, valid_session
+from docket.beta import same_origin
 from docket.settings import Settings
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 
 
-ACCESS_FORMS = {
-    "token": {"__LABEL__": "Reviewer token", "__BUTTON__": "Unlock review"},
-    "invite": {"__LABEL__": "Invite code", "__BUTTON__": "Sign in"},
-}
+FORM = re.compile(r"<!--form-->.*?<!--/form-->", re.DOTALL)
 BETA_MAX_BODY = 16 * 1024
 # Visitors never send their own documents to the beta; these are refused before any body is read.
 BETA_CLOSED_WRITES = {("POST", "/documents"), ("POST", "/inbound")}
+
+
+class Access(StrEnum):
+    PUBLIC = "public"
+    SANDBOX = "sandbox"
+    CLOSED = "closed"
+    REFUSED = "refused"
+
+
+# Every route the app serves, by method and template. The beta answers only what is listed
+# as public or sandbox-scoped; a sandbox-scoped route shows each visitor their own sandbox
+# and nothing else. tests/test_sandbox_routes.py fails when a route is missing here.
+BETA_ROUTES: dict[tuple[str, str], Access] = {
+    ("GET", "/"): Access.PUBLIC,
+    ("GET", "/home/{path:path}"): Access.PUBLIC,
+    ("GET", "/healthz"): Access.PUBLIC,
+    ("GET", "/reviewer"): Access.PUBLIC,
+    ("GET", "/assets/{path:path}"): Access.PUBLIC,
+    ("GET", "/review"): Access.SANDBOX,
+    ("POST", "/review/{document_id}/{action}"): Access.SANDBOX,
+    ("GET", "/documents/{document_id}"): Access.SANDBOX,
+    ("GET", "/documents/{document_id}/file"): Access.SANDBOX,
+    ("GET", "/beta/samples"): Access.SANDBOX,
+    ("POST", "/beta/samples"): Access.SANDBOX,
+    ("GET", "/sandbox"): Access.SANDBOX,
+    ("DELETE", "/sandbox"): Access.SANDBOX,
+    ("POST", "/documents"): Access.CLOSED,
+    ("POST", "/inbound"): Access.CLOSED,
+    **{
+        (method, path): Access.REFUSED
+        for method in ("GET", "HEAD")
+        for path in ("/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc")
+    },
+}
+
+
+def route_template(routes: Sequence[BaseRoute], scope: Scope) -> str | None:
+    """The template of the route the router would run for this request, found by the
+    router's own matching, so the gate and the router can never disagree about a path."""
+    for route in routes:
+        match, _ = route.matches(scope)
+        if match == Match.FULL:
+            path = getattr(route, "path", None)
+            if isinstance(route, Mount):
+                return f"{path}/{{path:path}}"
+            return path
+    return None
+
+
+def beta_access(routes: Sequence[BaseRoute], scope: Scope) -> tuple[Access, str | None]:
+    template = route_template(routes, scope)
+    if template is None:
+        return Access.REFUSED, None
+    return BETA_ROUTES.get((scope["method"], template), Access.REFUSED), template
 
 
 def reviewer_page(status_code: int = 200, access: str = "token"):
@@ -34,13 +87,10 @@ def reviewer_page(status_code: int = 200, access: str = "token"):
     }
     html = (WEB / "login.html").read_text().replace("__NONCE__", nonce)
     html = html.replace("__ASSETS__", json.dumps(paths).replace("<", "\\u003c"))
-    for placeholder, text in ACCESS_FORMS[access].items():
-        html = html.replace(placeholder, text)
-    # A 200 in invite mode means the session cookie was valid, so the page opens the app.
-    signed_in = access == "invite" and status_code == 200
-    html = html.replace("__ACCESS__", json.dumps(access)).replace(
-        "__SIGNED_IN__", json.dumps(signed_in)
-    )
+    # "sandbox" opens the review app at once, so it has no form to fill in.
+    if access == "sandbox":
+        html = FORM.sub("", html)
+    html = html.replace("__ACCESS__", json.dumps(access))
     return HTMLResponse(
         html,
         status_code,
@@ -68,32 +118,48 @@ def public(method: str, path: str) -> bool:
     return all(part not in {".", ".."} for part in path.split("/"))
 
 
-def beta_public(method: str, path: str) -> bool:
-    """The beta's only routes without a session: the front page and its files, the health
-    check and the sign-in itself. The webhook is not public in beta."""
-    if (method, path) == ("POST", "/reviewer/session"):
-        return True
-    return method == "GET" and public(method, path)
-
-
-def has_session(scope: Scope, settings: Settings) -> bool:
-    cookies = cookie_parser("; ".join(header_values(scope["headers"], b"cookie")))
-    value = cookies.get(SESSION_COOKIE)
-    return value is not None and valid_session(settings, value)
-
-
 def refuse(status: int, text: str) -> PlainTextResponse:
     return PlainTextResponse(text, status, headers={"Cache-Control": "no-store"})
 
 
-async def buffered_body(scope: Scope, receive: Receive, limit: int) -> Receive | PlainTextResponse:
-    """Read the whole body before any handler runs, refusing it once it passes the limit."""
+class BodyTooLarge(Exception):
+    """A handler read a request body past the beta's limit."""
+
+
+def too_large(limit: int) -> PlainTextResponse:
+    return refuse(413, f"Request bodies are limited to {limit // 1024} KB.")
+
+
+def declared_length(scope: Scope) -> int | None:
+    """The Content-Length header, 0 without one, or None when it is not a number."""
     try:
-        length = int(dict(scope["headers"]).get(b"content-length", b"0"))
+        return int(dict(scope["headers"]).get(b"content-length", b"0"))
     except ValueError:
-        return refuse(400, "Invalid Content-Length.")
-    if length > limit:
-        return refuse(413, f"Request bodies are limited to {limit // 1024} KB.")
+        return None
+
+
+def capped(receive: Receive, limit: int, declared: int) -> Receive:
+    """The body as the handler reads it, raising BodyTooLarge once it passes the limit.
+    Nothing is read until the handler asks, so it can refuse the request first."""
+    total = 0
+
+    async def read() -> Message:
+        nonlocal total
+        if declared > limit:
+            raise BodyTooLarge
+        message = await receive()
+        total += len(message.get("body", b""))
+        if total > limit:
+            raise BodyTooLarge
+        return message
+
+    return read
+
+
+async def buffered_body(receive: Receive, limit: int, declared: int) -> Receive | PlainTextResponse:
+    """Read the whole body before any handler runs, refusing it once it passes the limit."""
+    if declared > limit:
+        return too_large(limit)
     body = bytearray()
     while True:
         message = await receive()
@@ -101,7 +167,7 @@ async def buffered_body(scope: Scope, receive: Receive, limit: int) -> Receive |
             return refuse(400, "The client disconnected.")
         body.extend(message.get("body", b""))
         if len(body) > limit:
-            return refuse(413, f"Request bodies are limited to {limit // 1024} KB.")
+            return too_large(limit)
         if not message.get("more_body", False):
             break
     replayed = False
@@ -129,8 +195,14 @@ async def no_store(app: ASGIApp, scope: Scope, receive: Receive, send: Send):
 
 
 class ReviewerAccess:
-    def __init__(self, app: ASGIApp, settings: Callable[[], Settings]):
-        self.app, self.settings = app, settings
+    def __init__(
+        self,
+        app: ASGIApp,
+        settings: Callable[[], Settings],
+        # Without the app's routes, nothing in beta matches the table, so it is all refused.
+        routes: Callable[[], Sequence[BaseRoute]] = lambda: (),
+    ):
+        self.app, self.settings, self.routes = app, settings, routes
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] == "http" and self.settings().docket_env == "beta":
@@ -164,8 +236,9 @@ class ReviewerAccess:
         await no_store(self.app, scope, receive, send)
 
     async def beta(self, scope: Scope, receive: Receive, send: Send, settings: Settings):
-        """Beta access is the session cookie alone: a Bearer token grants nothing, whether or
-        not one is configured."""
+        """Beta access is by route alone: each sandbox-scoped route shows the visitor their
+        own sandbox, named by its cookie, and nothing else. A Bearer token grants nothing,
+        whether or not one is configured."""
         method, path = scope["method"], scope["path"]
         # Under a root path the router matches the path without it while this gate reads the
         # full path, so a private route could pass as a public one.
@@ -177,22 +250,44 @@ class ReviewerAccess:
         # "/documents\n" would reach the upload handler. No real path has a control character.
         if any(ord(char) < 0x20 or ord(char) == 0x7F for char in path):
             return await refuse(400, "Invalid path.")(scope, receive, send)
-        open_route = beta_public(method, path)
-        if not open_route and not has_session(scope, settings):
-            if (method, path) == ("GET", "/reviewer"):
-                return await reviewer_page(401, "invite")(scope, receive, send)
-            return await refuse(401, "Sign in with an invite code first.")(scope, receive, send)
-        if method != "GET" and not same_origin(scope, settings):
-            return await refuse(403, "Cross-site requests are refused.")(scope, receive, send)
+        access, template = beta_access(self.routes(), scope)
         # "/documents/" and "//documents" never reach the handler, but refusing them here too
         # means their bodies are never read either.
-        if (method, "/" + "/".join(part for part in path.split("/") if part)) in BETA_CLOSED_WRITES:
+        normal = "/" + "/".join(part for part in path.split("/") if part)
+        if access == Access.CLOSED or (method, normal) in BETA_CLOSED_WRITES:
             return await refuse(403, "The hosted beta does not accept documents.")(
                 scope, receive, send
             )
-        replay = await buffered_body(scope, receive, BETA_MAX_BODY)
+        if access == Access.REFUSED:
+            return await refuse(404, "Not found.")(scope, receive, send)
+        if method != "GET" and not same_origin(scope, settings):
+            return await refuse(403, "Cross-site requests are refused.")(scope, receive, send)
+        declared = declared_length(scope)
+        if declared is None:
+            return await refuse(400, "Invalid Content-Length.")(scope, receive, send)
+        if template is not None and "{document_id}" in template:
+            return await self.owner_first(scope, receive, send, declared)
+        replay = await buffered_body(receive, BETA_MAX_BODY, declared)
         if isinstance(replay, PlainTextResponse):
             return await replay(scope, receive, send)
-        if open_route:
+        if access == Access.PUBLIC:
             return await self.app(scope, replay, send)
         await no_store(self.app, scope, replay, send)
+
+    async def owner_first(self, scope: Scope, receive: Receive, send: Send, declared: int):
+        """A document route checks that the visitor owns the document before it reads the
+        body, so another visitor's document, or one that does not exist, gets its 404 with
+        nothing read. The limit still holds while the handler reads."""
+        started = False
+
+        async def tracked(message: Message):
+            nonlocal started
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        try:
+            await no_store(self.app, scope, capped(receive, BETA_MAX_BODY, declared), tracked)
+        except BodyTooLarge:
+            if started:
+                raise
+            await too_large(BETA_MAX_BODY)(scope, receive, send)

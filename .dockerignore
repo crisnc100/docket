@@ -2,8 +2,6 @@
 .venv
 .cache
 .env*
-# The startup refusals read it to reject invite codes copied from it.
-!.env.beta.example
 __pycache__
 .pytest_cache
 .ruff_cache

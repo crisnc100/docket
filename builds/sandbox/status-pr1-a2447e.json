@@ -1,0 +1,46 @@
+{
+ "f1": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f2": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f3": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f4": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f5": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f6": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "x1": {
+  "status": "deferred",
+  "reason": "Intentional, per Mythos (builds/sandbox/advisor-mythos-pr1-review.md item 3): with one sandbox per browser, a stale tab's Delete now deletes the browser's current sandbox. Over-deleting re-sendable samples is the safe failure for a privacy control; a 409 mismatch would leave a Delete button that did not delete.",
+  "fix": "None planned; revisit if PR 2's uploads make the replacement sandbox hold unrecoverable files."
+ },
+ "x2": {
+  "status": "deferred",
+  "reason": "A late queue or status response can briefly repaint deleted links or the old countdown after a deletion; the documents themselves are gone and their links answer 404.",
+  "fix": "Tag each queue and status request with a view generation and drop stale responses."
+ },
+ "x3": {
+  "status": "deferred",
+  "reason": "The ended-sandbox browser test mocks the 409 but keeps the real cookie, so the old document can reappear before the empty-state check. A test-precision gap; the server-side rule is pinned by the Python rule-1 test.",
+  "fix": "Clear the cookie in the mocked response or route the queue request too."
+ },
+ "x4": {
+  "status": "deferred",
+  "reason": "A late readiness response can re-enable Send while a sample is still being read, allowing a second POST. Both POSTs land in the same sandbox and are counted against the caps.",
+  "fix": "Ignore readiness results while a send or read poll is in flight."
+ }
+}

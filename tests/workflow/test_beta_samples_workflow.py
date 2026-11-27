@@ -27,9 +27,11 @@ from docket.ingress import Ingress
 from docket.llm.anthropic import AnthropicTransport
 from docket.llm.errors import BudgetExceeded
 from docket.runtime import Runtime
+from docket.sandbox import raw_key
+from docket.sweep import record_complete
 from docket.workflows import FileDocumentWorkflow
 from tests.test_anthropic_transport import FakeApi
-from tests.test_beta_gate import BASE, beta_settings, cookie
+from tests.test_beta_gate import BASE, beta_settings, cookie, open_sandbox
 
 SETTLED = {"filed", "needs_review"}
 
@@ -80,6 +82,8 @@ def beta_runtime(postgres_engine, monkeypatch):
     monkeypatch.setattr(runtime, "storage", storage)
     monkeypatch.setattr(runtime, "read", lambda key: storage.objects[key])
     monkeypatch.setattr(runtime, "ensure_bucket", lambda: None)
+    # Samples wait for a recent sweep, and these tests run none.
+    record_complete(postgres_engine)
     try:
         yield runtime
     finally:
@@ -135,6 +139,7 @@ async def test_every_sample_type_runs_the_normal_workflow_and_ends_filed_or_held
     model = FirstCandidateModel()
     monkeypatch.setattr(beta_runtime, "gateway", lambda request: model)
     engine = beta_runtime.engine
+    open_sandbox(engine)
     async with await WorkflowEnvironment.start_time_skipping() as env:
         async with Worker(
             env.client,
@@ -159,6 +164,7 @@ async def test_every_sample_type_runs_the_normal_workflow_and_ends_filed_or_held
                         with Session(engine) as session:
                             document = session.get(Document, uuid.UUID(document_id))
                             content_hash = document.content_hash
+                            sandbox_id = document.sandbox_id
                             source = session.scalar(
                                 select(DocumentSource.source).where(
                                     DocumentSource.document_id == document.id
@@ -176,7 +182,7 @@ async def test_every_sample_type_runs_the_normal_workflow_and_ends_filed_or_held
                         sample_steps = steps(engine, document_id)
                         assert sample_steps[0] == "received" and sample_steps[-1] == status
                         # The same bytes sent the way an upload is sent take the same steps.
-                        content = beta_runtime.read(f"raw/{content_hash}")
+                        content = beta_runtime.read(raw_key(sandbox_id, content_hash))
                         forget(engine, document_id)
                         uploaded = await Ingress(beta_runtime, env.client).submit(content, filename)
                         assert await settled(engine, uploaded) == status
@@ -196,6 +202,7 @@ async def test_a_budget_refusal_mid_way_ends_failed_with_the_budget_reason(
 ):
     model = FirstCandidateModel(BudgetExceeded("Global daily budget exceeded before model call"))
     monkeypatch.setattr(beta_runtime, "gateway", lambda request: model)
+    open_sandbox(beta_runtime.engine)
     async with await WorkflowEnvironment.start_time_skipping() as env:
         async with Worker(
             env.client,
@@ -236,6 +243,7 @@ async def test_switching_off_mid_workflow_refuses_the_next_live_call_at_the_tran
         return AnthropicTransport(settings, max_output_tokens, client)
 
     monkeypatch.setattr("docket.runtime.AnthropicTransport", transport)
+    open_sandbox(postgres_engine)
     async with await WorkflowEnvironment.start_time_skipping() as env:
         app, http = await beta_stack(beta_runtime, env)
         async with app.router.lifespan_context(app), http:
@@ -261,6 +269,7 @@ async def test_switching_off_mid_workflow_refuses_the_next_live_call_at_the_tran
 async def test_a_held_document_stays_reviewable_with_the_switch_off(beta_runtime, monkeypatch):
     model = FirstCandidateModel()
     monkeypatch.setattr(beta_runtime, "gateway", lambda request: model)
+    open_sandbox(beta_runtime.engine)
     async with await WorkflowEnvironment.start_time_skipping() as env:
         async with Worker(
             env.client,

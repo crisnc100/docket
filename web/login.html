@@ -46,18 +46,20 @@
   <form class="access">
     <h1>Docket</h1>
     <p class="note">Document review, for the property-operations team.</p>
-    <label for="review-token">__LABEL__</label>
+    <!--form-->
+    <label for="review-token">Reviewer token</label>
     <input id="review-token" type="password" autocomplete="off" required autofocus>
-    <button type="submit">__BUTTON__</button>
+    <button type="submit">Unlock review</button>
+    <!--/form-->
     <p role="status"></p>
   </form>
 </div>
 <script nonce="__NONCE__">
 (() => {
   const assets = __ASSETS__;
-  // "token" sends the reviewer token as a Bearer header; "invite" relies on the session cookie.
+  // "token" sends the reviewer token as a Bearer header; "sandbox" relies on the sandbox cookie,
+  // which the server sets on the visitor's first write.
   const access = __ACCESS__;
-  const signedIn = __SIGNED_IN__;
   const key = 'docket-review-token';
   const form = document.querySelector('form');
   const input = document.querySelector('input');
@@ -78,8 +80,8 @@
       return URL.createObjectURL(await response.blob());
     }));
     unlocked();
-    input.value = '';
-    if (access === 'invite') document.documentElement.dataset.access = 'cookie';
+    if (input) input.value = '';
+    if (access === 'sandbox') document.documentElement.dataset.access = 'cookie';
     document.querySelector('#app').replaceChildren();
     styles.forEach(url => {
       urls.push(url);
@@ -105,38 +107,22 @@
       button.disabled = false;
     }
   }
-  // With no code, the session cookie the page was served with opens the app.
-  async function signIn(code) {
-    button.disabled = true;
-    message.textContent = 'Checking the code…';
+  async function openSandbox() {
+    message.textContent = 'Opening Docket…';
     try {
-      if (code !== undefined) {
-        const response = await fetch('/reviewer/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code }),
-          cache: 'no-store',
-        });
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-          throw new Error(response.status === 401 ? 'That invite code is not valid.' : typeof body.detail === 'string' ? body.detail : 'Unable to sign in.');
-        }
-      }
-      await openReview({}, 'Your session has ended. Enter the code again.', () => {});
+      await openReview({}, 'Unable to load the review page.', () => {});
     } catch (error) {
-      message.textContent = error instanceof Error ? error.message : 'Unable to sign in.';
-    } finally {
-      button.disabled = false;
+      message.textContent = error instanceof Error ? error.message : 'Unable to load the review page.';
     }
   }
-  form.addEventListener('submit', event => {
-    event.preventDefault();
-    void (access === 'invite' ? signIn(input.value.trim()) : unlock(input.value));
-  });
   window.addEventListener('pagehide', () => urls.forEach(url => URL.revokeObjectURL(url)));
-  if (access === 'invite') {
-    if (signedIn) void signIn();
+  if (access === 'sandbox') {
+    void openSandbox();
   } else {
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      void unlock(input.value);
+    });
     const saved = sessionStorage.getItem(key);
     if (saved) void unlock(saved);
   }

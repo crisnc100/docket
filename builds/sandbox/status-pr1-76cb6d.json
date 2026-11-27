@@ -1,0 +1,37 @@
+{
+ "f1": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f2": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f3": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f4": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f5": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "x1": {
+  "status": "deferred",
+  "reason": "Fixed in the following test-only commit (elapsed time checked on the clean read too), which is reviewed as its own slice at the tip.",
+  "fix": "See the tip slice."
+ },
+ "x2": {
+  "status": "deferred",
+  "reason": "The second race test holds the sample for at most 30 s while Delete now may spend most of that on settle plus vacuum; a slow CI host could fail it. Flakiness only, no false pass.",
+  "fix": "Release the held sample on the delete's lock acquisition rather than on its response."
+ },
+ "x3": {
+  "status": "deferred",
+  "reason": "Fixed in the following test-only commit (dates captured at seeding), reviewed as its own slice at the tip.",
+  "fix": "See the tip slice."
+ }
+}

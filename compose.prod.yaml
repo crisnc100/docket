@@ -19,8 +19,8 @@ x-docket-environment: &docket-environment
   S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY in .env.beta}
   S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env.beta}
   S3_BUCKET: docket
-  DOCKET_INVITE_CODES: ${DOCKET_INVITE_CODES:?set DOCKET_INVITE_CODES in .env.beta}
-  DOCKET_SESSION_KEY: ${DOCKET_SESSION_KEY:?set DOCKET_SESSION_KEY in .env.beta}
+  SEAWEEDFS_MASTER_URL: http://seaweedfs:9333
+  DOCKET_ADDRESS_KEY: ${DOCKET_ADDRESS_KEY:?set DOCKET_ADDRESS_KEY in .env.beta}
   DOCKET_BASE_URL: ${DOCKET_BASE_URL:?set DOCKET_BASE_URL in .env.beta}
   DOCKET_TRUST_PROXY: ${DOCKET_TRUST_PROXY:?set DOCKET_TRUST_PROXY in .env.beta}
   DOCKET_DAILY_BUDGET_USD: ${DOCKET_DAILY_BUDGET_USD:?set DOCKET_DAILY_BUDGET_USD in .env.beta}
@@ -39,14 +39,17 @@ services:
     cpus: 0.25
     logging: *logging
 
-  # The single-process dev server with a SQLite file: enough for a demo that resets nightly
-  # (docs/adr/009-hosting.md). Its UI is not published.
+  # The single-process dev server with a SQLite file: enough for a demo whose workflows live
+  # under an hour (docs/adr/009-hosting.md). Its UI is not published. secure_delete zeroes a
+  # deleted history's bytes in the file instead of leaving them there.
   temporal:
     image: temporalio/temporal:1.5.1@sha256:597a5dbbcc6e7716b326dde4a51622d5ea0879eb0cf06ff8a94381361d0a987d
     depends_on:
       temporal-data-init:
         condition: service_completed_successfully
-    command: server start-dev --ip 0.0.0.0 --db-filename /data/server/temporal.db
+    command: >-
+      server start-dev --ip 0.0.0.0 --db-filename /data/server/temporal.db
+      --sqlite-pragma secure_delete=on
     volumes: ["temporal-data:/data"]
     restart: unless-stopped
     mem_limit: 768m
@@ -170,21 +173,22 @@ services:
       timeout: 5s
       retries: 30
 
-  # Resets the demo at 08:00 UTC, and at start when that run was missed.
-  reset:
+  # Deletes what expired and deleted sandboxes left, every 2 minutes. It waits for nothing
+  # but the schema: a store that is down stops only its own pass.
+  sweep:
     build: .
     image: docket-hosted-app
-    command: ["docket", "beta-reset", "--daily"]
+    command: ["docket", "beta-sweep", "--service"]
     environment: *docket-environment
     depends_on:
-      worker:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     mem_limit: 256m
     cpus: 0.5
     logging: *logging
     healthcheck:
-      test: ["CMD", "python", "-c", "from pathlib import Path; assert Path('/tmp/docket-reset-ready').is_file()"]
+      test: ["CMD", "python", "-c", "from pathlib import Path; assert Path('/tmp/docket-sweep-ready').is_file()"]
       interval: 10s
       timeout: 5s
       retries: 30

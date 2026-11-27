@@ -8,8 +8,15 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
+from botocore.exceptions import ClientError
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, RootModel
 from sqlalchemy import select
@@ -17,26 +24,13 @@ from sqlalchemy.orm import Session
 from temporalio.client import Client, WorkflowUpdateFailedError
 from temporalio.service import RPCError
 
-from docket.beta import (
-    client_address,
-    known_code,
-    refuse_unsafe_start,
-    release_attempt,
-    reserve_attempt,
-    retry_after,
-    session_cookie,
-    session_value,
-)
-from docket.beta_reset import reset_status
+from docket.beta import address_hash, client_address, refuse_unsafe_start
 from docket.beta_samples import (
     PAUSED,
-    RESET_RUNNING,
     SAMPLE_LABELS,
     SAMPLE_SENDER,
     TURNED_OFF,
-    ResetRunning,
     SampleGate,
-    no_reset_running,
     take_slot,
 )
 from docket.core.ledger import TERMINAL_STATUSES
@@ -45,6 +39,32 @@ from docket.db import Document, DocumentSource, Event
 from docket.ingress import Ingress
 from docket.review_access import ReviewerAccess, reviewer_page
 from docket.runtime import Runtime
+from docket.sandbox import (
+    SANDBOX_ENDED,
+    SANDBOX_ENDING,
+    TOO_MANY_SANDBOXES,
+    Owner,
+    SandboxClosed,
+    SandboxEnding,
+    TooManySandboxes,
+    close_sandbox,
+    cookie_token,
+    owned_document,
+    raw_key,
+    request_owner,
+    sandbox_cookie,
+    seconds_left,
+    spent_cookie,
+    write_target,
+)
+from docket.sweep import (
+    CATCHING_UP,
+    DELETED,
+    DELETING,
+    ERASE_DELAYED,
+    delete_now,
+    sweep_stale,
+)
 from docket.webhook import BodyLimit, RateLimit, valid_signature
 
 
@@ -79,12 +99,6 @@ def encodes_as_utf8(value: str) -> bool:
     return True
 
 
-class InviteCode(BaseModel):
-    # Pasted codes often carry spaces; stripping them keeps a right code from counting as wrong.
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    code: str = Field(min_length=1, max_length=256)
-
-
 class ReviewBody(RootModel[dict[str, str]]):
     pass
 
@@ -95,7 +109,7 @@ class SampleRequest(BaseModel):
 
 
 BETA_MAX_REASON = 300
-REFUSALS = {"off": TURNED_OFF, "paused": PAUSED, "resetting": RESET_RUNNING}
+REFUSALS = {"off": TURNED_OFF, "paused": PAUSED, "catching_up": CATCHING_UP}
 
 
 async def read_json[T: BaseModel](request: Request, model: type[T], message: str) -> T:
@@ -138,14 +152,22 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
 
     app = FastAPI(lifespan=lifespan)
     app.add_middleware(BodyLimit)
-    app.add_middleware(ReviewerAccess, settings=lambda: app.state.runtime.settings)
+    app.add_middleware(
+        ReviewerAccess, settings=lambda: app.state.runtime.settings, routes=lambda: app.routes
+    )
+
+    def owner(request: Request) -> Owner:
+        beta = app.state.runtime.settings.docket_env == "beta"
+        return request_owner(app.state.runtime.engine, beta, request.scope["headers"])
 
     @app.get("/healthz")
     async def health():
+        """Public, so it says only whether the sweep is keeping up; `docket beta-status`
+        shows the rest to the operator."""
         if app.state.runtime.settings.docket_env != "beta":
             return {"status": "ok"}
-        running, age = await asyncio.to_thread(reset_status, app.state.runtime.engine)
-        return {"status": "ok", "resetting": running, "last_reset_age_seconds": age}
+        stale = await asyncio.to_thread(sweep_stale, app.state.runtime.engine)
+        return {"status": "stale" if stale else "ok"}
 
     @app.post("/inbound")
     async def inbound(request: Request):
@@ -207,11 +229,10 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         return {"document_id": document_id}
 
     @app.get("/documents/{document_id}")
-    def document_status(document_id: uuid.UUID):
+    def document_status(document_id: uuid.UUID, request: Request):
+        visitor = owner(request)
         with Session(app.state.runtime.engine) as session:
-            document = session.get(Document, document_id)
-            if document is None:
-                raise HTTPException(404, "Unknown document")
+            document = owned_document(session, visitor, document_id)
             events = session.scalars(
                 select(Event).where(Event.document_id == document_id).order_by(Event.id)
             ).all()
@@ -234,15 +255,24 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
             }
 
     @app.get("/documents/{document_id}/file")
-    def document_file(document_id: uuid.UUID):
+    def document_file(document_id: uuid.UUID, request: Request):
+        visitor = owner(request)
         with Session(app.state.runtime.engine) as session:
-            document = session.get(Document, document_id)
-            if document is None:
-                raise HTTPException(404, "Unknown document")
+            document = owned_document(session, visitor, document_id)
             if document.status == "rejected":
                 raise HTTPException(415, "Rejected documents cannot be previewed")
-            content_hash = document.content_hash
-        content = app.state.runtime.read(f"raw/{content_hash}")
+            key = raw_key(document.sandbox_id, document.content_hash)
+        try:
+            content = app.state.runtime.read(key)
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] not in {"NoSuchKey", "404"}:
+                raise
+            # Delete now or the sweep took the file after the lookup: the document is gone
+            # too, so it gets the same 404. A file missing from a document still there is a
+            # storage fault and stays an error.
+            with Session(app.state.runtime.engine) as session:
+                owned_document(session, owner(request), document_id)
+            raise
         if not content.startswith(b"%PDF-"):
             raise HTTPException(415, "Document is not a PDF")
         return Response(
@@ -256,13 +286,17 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         )
 
     @app.get("/review")
-    def review_queue():
+    def review_queue(request: Request):
+        visitor = owner(request)
+        if visitor.beta and visitor.sandbox_id is None:
+            return {"items": []}
         with Session(app.state.runtime.engine) as session:
             documents = session.scalars(
                 select(Document)
                 .where(
                     Document.status == "needs_review",
                     Document.mode == "act",
+                    Document.sandbox_id.is_not_distinct_from(visitor.sandbox_id),
                 )
                 .order_by(Document.created_at, Document.id)
             ).all()
@@ -302,12 +336,21 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
 
     @app.post("/review/{document_id}/{action}")
     async def review(document_id: uuid.UUID, action: str, request: Request):
-        body = (await read_json(request, ReviewBody, "Send the review decision as JSON text.")).root
+        visitor = await asyncio.to_thread(owner, request)
+
+        def check_owner():
+            with Session(app.state.runtime.engine) as session:
+                owned_document(session, visitor, document_id)
+
+        await asyncio.to_thread(check_owner)
         beta = app.state.runtime.settings.docket_env == "beta"
+        # A dismiss reason is new text in the sandbox, so it waits for a recent sweep, as a
+        # sample does.
+        if beta and await asyncio.to_thread(sweep_stale, app.state.runtime.engine):
+            raise HTTPException(503, CATCHING_UP)
+        body = (await read_json(request, ReviewBody, "Send the review decision as JSON text.")).root
         with Session(app.state.runtime.engine) as session:
-            document = session.get(Document, document_id)
-            if document is None:
-                raise HTTPException(404, "Unknown document")
+            document = owned_document(session, visitor, document_id)
             if document.status in TERMINAL_STATUSES:
                 raise HTTPException(409, "Document is terminal")
             # Temporal keeps every update it receives, even one the workflow then rejects, so
@@ -364,8 +407,37 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
         state = await asyncio.to_thread(gate.state)
         if state != "ready":
             raise HTTPException(503, REFUSALS[state])
-        address = client_address(request.scope, gate.settings)
-        refused = await asyncio.to_thread(take_slot, gate.engine, address)
+        hashed = address_hash(gate.settings, client_address(request.scope, gate.settings))
+        token = cookie_token(request.scope["headers"])
+
+        def reserve():
+            """The sandbox and the sample slot, together or not at all."""
+            with Session(gate.engine) as session:
+                target = write_target(session, token, hashed)
+                refused = take_slot(session, hashed)
+                if refused is None:
+                    session.commit()
+                else:
+                    session.rollback()
+                return target, refused
+
+        def ended():
+            """The cookie names a sandbox that ended, so the browser drops it and its next
+            send starts a new one."""
+            return JSONResponse(
+                {"detail": SANDBOX_ENDED, "code": "sandbox_ended"},
+                409,
+                headers={"Set-Cookie": spent_cookie()},
+            )
+
+        try:
+            target, refused = await asyncio.to_thread(reserve)
+        except TooManySandboxes as exc:
+            raise HTTPException(429, TOO_MANY_SANDBOXES) from exc
+        except SandboxClosed:
+            return ended()
+        except SandboxEnding:
+            return JSONResponse({"detail": SANDBOX_ENDING, "code": "sandbox_ending"}, 409)
         if refused is not None:
             text, wait = refused
             raise HTTPException(429, text, headers={"Retry-After": str(wait)})
@@ -377,11 +449,47 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
                 sample.filename,
                 source="sample",
                 sender=SAMPLE_SENDER,
-                guard=no_reset_running,
+                sandbox=target.sandbox_id,
             )
-        except ResetRunning as exc:
-            raise HTTPException(503, RESET_RUNNING) from exc
-        return {"document_id": document_id}
+        except SandboxClosed:
+            return ended()
+        except BaseException:
+            # The browser never gets the cookie of a sandbox this request made, so whatever
+            # the failed write left in it goes to the sweep. Its slots stay taken.
+            if target.token is not None:
+                await asyncio.to_thread(close_sandbox, gate.engine, target.sandbox_id)
+            raise
+        headers = {}
+        if target.token is not None:
+            left = await asyncio.to_thread(seconds_left, gate.engine, target.token)
+            headers["Set-Cookie"] = sandbox_cookie(target.token, left or 0)
+        return JSONResponse({"document_id": document_id}, headers=headers)
+
+    def require_beta() -> None:
+        if app.state.runtime.settings.docket_env != "beta":
+            raise HTTPException(404, "Not found")
+
+    @app.get("/sandbox", include_in_schema=False)
+    def sandbox_status(request: Request):
+        """The seconds the visitor's sandbox has left, for the page's countdown."""
+        require_beta()
+        token = cookie_token(request.scope["headers"])
+        return {"expires_in": seconds_left(app.state.runtime.engine, token)}
+
+    @app.delete("/sandbox", include_in_schema=False)
+    async def delete_sandbox(request: Request):
+        """Delete now. It answers the same with no cookie or an unknown one, so it reveals
+        nothing. It deletes even while the sweep is behind, but then answers 202 with no
+        time promised."""
+        require_beta()
+        token = cookie_token(request.scope["headers"])
+        complete = await delete_now(app.state.runtime, app.state.temporal, token)
+        headers = {"Set-Cookie": spent_cookie()}
+        if await asyncio.to_thread(sweep_stale, app.state.runtime.engine):
+            return JSONResponse({"deleted": False, "detail": ERASE_DELAYED}, 202, headers=headers)
+        if complete:
+            return JSONResponse({"deleted": True, "detail": DELETED}, headers=headers)
+        return JSONResponse({"deleted": False, "detail": DELETING}, 202, headers=headers)
 
     static = Path(__file__).resolve().parent.parent / "web" / "dist"
     app.mount("/assets", StaticFiles(directory=static / "assets", check_dir=False), name="assets")
@@ -390,36 +498,7 @@ def create_app(runtime: Runtime | None = None, temporal: Client | None = None) -
     @app.get("/reviewer", include_in_schema=False)
     def review_page():
         beta = app.state.runtime.settings.docket_env == "beta"
-        return reviewer_page(access="invite" if beta else "token")
-
-    @app.post("/reviewer/session", include_in_schema=False)
-    async def reviewer_session(request: Request):
-        settings = app.state.runtime.settings
-        if settings.docket_env != "beta":
-            raise HTTPException(404, "Not found")
-        body = await read_json(request, InviteCode, "Send one invite code as text.")
-        if not encodes_as_utf8(body.code):
-            raise HTTPException(422, "The code must be valid UTF-8 text")
-        engine = app.state.runtime.engine
-        address = client_address(request.scope, settings)
-        attempt = await asyncio.to_thread(reserve_attempt, engine, address)
-        if attempt is None:
-            wait = await asyncio.to_thread(retry_after, engine, address)
-            raise HTTPException(
-                429,
-                "Too many wrong codes from this address. Try again later.",
-                headers={"Retry-After": str(wait)},
-            )
-        if not known_code(settings, body.code):
-            raise HTTPException(401, "That invite code is not valid.")
-        await asyncio.to_thread(release_attempt, engine, attempt)
-        return Response(
-            status_code=204,
-            headers={
-                "Set-Cookie": session_cookie(session_value(settings, body.code)),
-                "Cache-Control": "no-store",
-            },
-        )
+        return reviewer_page(access="sandbox" if beta else "token")
 
     return app
 

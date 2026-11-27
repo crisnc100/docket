@@ -1,0 +1,60 @@
+{
+ "f1": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f2": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f3": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f4": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f5": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f6": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f7": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "x1": {
+  "status": "deferred",
+  "reason": "A database error in the cookie-lifetime lookup after a successful first sample returns 500 without the cookie; the sandbox stays open until it expires and the sweep deletes it (at most 55 minutes).",
+  "fix": "Compute the lifetime from the reservation's expiry already in memory, or close the sandbox in the same cleanup handler."
+ },
+ "x2": {
+  "status": "deferred",
+  "reason": "Two first sends from two tabs can still each create a sandbox in browsers without the Web Locks API (all current major browsers have it). The orphan expires and is swept within 55 minutes. Mythos asked for Web Locks with a fall-through; required again before uploads (PR 2).",
+  "fix": "Serialise first sends server-side per address hash for a few seconds, if PR 2 needs it."
+ },
+ "x3": {
+  "status": "deferred",
+  "reason": "A review admitted just before the sweep goes stale can still reach Temporal after its body is read. The window is the body read (16 KB max) and only adds a dismiss reason to a history the sweep deletes.",
+  "fix": "Re-check freshness after reading the body, before signalling Temporal."
+ },
+ "x4": {
+  "status": "deferred",
+  "reason": "Same as slice ad7635 x1: the stale 202 copy overclaims after a lock timeout.",
+  "fix": "Same fix as ad7635 x1."
+ },
+ "x5": {
+  "status": "deferred",
+  "reason": "The load runner accepts run lengths longer than a sandbox's life, so a 50-minute run reports expected refusals as failures. Operator tool only; the documented runs are minutes long.",
+  "fix": "Refuse --duration above the sandbox lifetime minus the refusal window."
+ },
+ "x6": {
+  "status": "deferred",
+  "reason": "Same as slice ad7635 x1, raised by the security pass as a hardening note.",
+  "fix": "Same fix as ad7635 x1."
+ }
+}

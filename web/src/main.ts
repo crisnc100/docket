@@ -48,8 +48,8 @@ function button(text: string, action: () => void | Promise<void>, className = 'q
   node.addEventListener('click', () => { void Promise.resolve().then(action).catch(showError); });
   return node;
 }
-// The beta's sign-in page marks cookie access; the session cookie then goes with every request
-// and no Authorization header is sent.
+// In the beta the page marks cookie access: the sandbox cookie goes with every request and no
+// Authorization header is sent.
 const cookieAccess = document.documentElement.dataset.access === 'cookie';
 async function authorizedFetch(path: string, options?: RequestInit) {
   const headers = new Headers(options?.headers);
@@ -87,6 +87,90 @@ const queue = element('nav');
 queue.setAttribute('aria-label', 'Review queue');
 const detail = element('section');
 detail.setAttribute('aria-label', 'Document');
+const NO_COOKIES = 'Your sandbox needs a cookie to stay private to this browser, and this browser blocks cookies here. Allow cookies for this site and reload to send a sample.';
+
+function cookiesWork() {
+  if (!navigator.cookieEnabled) return false;
+  const probe = 'docket_cookie_check=1';
+  document.cookie = probe + '; Path=/; SameSite=Strict';
+  const works = document.cookie.split('; ').includes(probe);
+  document.cookie = 'docket_cookie_check=; Path=/; SameSite=Strict; Max-Age=0';
+  return works;
+}
+
+// "Private to this browser · deleted in N minutes · Delete now". The server counts the
+// seconds left; the page counts down from them between requests.
+const sandboxLine = block('p', 'sample-note sandbox-line');
+const deleteNow = button('Delete now', deleteSandbox, 'quiet small');
+let sandboxEnds: number | undefined;
+// Sending and Delete now never overlap, in this tab or another: a delete's answer spends the
+// cookie, so a first send that finished during it would leave a sandbox this browser can no
+// longer reach. Without the Web Locks API only this tab is covered.
+let deleting = false;
+let posting = false;
+function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
+  return 'locks' in navigator ? navigator.locks.request('docket-sandbox', () => work()) : work();
+}
+let syncSample = () => {};
+let recheckSamples = () => {};
+function syncControls() {
+  deleteNow.disabled = deleting || posting;
+  syncSample();
+}
+// A sandbox that is gone leaves nothing on the page. Opening no document moves generation on,
+// so a document still loading never draws over the empty pane.
+function clearSandboxView() {
+  items = [];
+  selected = undefined;
+  history.replaceState(null, '', window.location.pathname);
+  void openDocument();
+}
+function showSandbox() {
+  const minutes = sandboxEnds === undefined ? 0 : Math.ceil((sandboxEnds - Date.now()) / 60_000);
+  if (sandboxEnds !== undefined && minutes <= 0) {
+    // Expired: the sweep deletes it, so the page shows what is left, which is nothing.
+    sandboxEnds = undefined;
+    clearSandboxView();
+    void refresh().catch(showError);
+  }
+  if (sandboxEnds === undefined) {
+    sandboxLine.replaceChildren('Private to this browser · starts with your first sample');
+    return;
+  }
+  sandboxLine.replaceChildren(
+    'Private to this browser · ', `deleted in ${minutes} minute${minutes === 1 ? '' : 's'}`, ' · ', deleteNow);
+}
+async function loadSandbox() {
+  const { expires_in } = await request<{ expires_in: number | null }>('/sandbox');
+  sandboxEnds = expires_in === null ? undefined : Date.now() + expires_in * 1000;
+  showSandbox();
+}
+// Deletes the browser's sandbox, whichever tab started it, empties the page and returns the
+// answer to show.
+async function deleteSandboxNow() {
+  deleting = true;
+  syncControls();
+  let response: Response;
+  try {
+    response = await oneAtATime(() => authorizedFetch('/sandbox', { method: 'DELETE' }));
+  } finally {
+    deleting = false;
+    syncControls();
+  }
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Delete now failed. Try again.');
+  sandboxEnds = undefined;
+  clearSandboxView();
+  showSandbox();
+  // The page is already empty, so a refresh that fails leaves the answer in place.
+  void refresh().catch(() => {});
+  return typeof body.detail === 'string' ? body.detail : 'Deleted.';
+}
+async function deleteSandbox() {
+  message.textContent = await deleteSandboxNow();
+}
+if (cookieAccess) window.setInterval(showSandbox, 15_000);
+
 if (cookieAccess) {
   const side = block('div', 'side', samplePanel(), queue);
   layout.append(side, detail);
@@ -153,7 +237,7 @@ function renderQueue() {
   const count = element('p', `${items.length} awaiting review · oldest first`);
   count.className = 'count';
   queue.append(count);
-  queue.append(button('Refresh queue', refresh, 'quiet small'));
+  queue.append(button('Refresh queue', () => { recheckSamples(); return refresh(); }, 'quiet small'));
   for (const item of items) {
     const link = element('a');
     link.href = `#${item.document_id}`;
@@ -356,17 +440,18 @@ async function refresh() {
   items = (await request<{ items: ReviewItem[] }>('/review')).items;
   await openDocument();
 }
-type SampleOptions = { state: 'ready' | 'off' | 'paused' | 'resetting'; case_types: { value: string; label: string }[] };
+type SampleOptions = { state: 'ready' | 'off' | 'paused' | 'catching_up'; case_types: { value: string; label: string }[] };
 const SAMPLE_STATES: Record<string, string> = {
   off: 'Live answers are turned off right now.',
   paused: 'Live answers are paused for today. Try again tomorrow.',
-  resetting: 'The demo is being reset. Try again in a minute.',
+  catching_up: 'Docket is catching up. Try again in a few minutes.',
 };
 const OUTCOME_WORDS: Record<string, string> = {
   filed: 'The sample was filed by the rules.',
   needs_review: 'The sample is waiting for review in the queue.',
   rejected: 'The sample was rejected.',
 };
+
 
 // The beta's only way in for a document: the server makes a synthetic PDF of the chosen case
 // type and runs it with live model answers. The visitor sends nothing but the case type.
@@ -386,48 +471,108 @@ function samplePanel() {
   send.disabled = true;
   const state = block('p', 'sample-state');
   state.setAttribute('role', 'status');
-  const shared = block('p', 'sample-note',
-    'Everyone with an invite shares one queue, and anyone can settle any document. It resets every night.');
-  panel.append(title, note, label, send, state, shared);
+  // Offered only when the sandbox is in its last minutes and refuses new samples.
+  const fresh = element('button', 'Start fresh');
+  fresh.type = 'button';
+  fresh.className = 'quiet small';
+  fresh.hidden = true;
+  panel.append(title, note, label, send, state, fresh, sandboxLine);
 
   let ready = false;
-  const settle = (canSend: boolean, text: string) => {
+  let inFlight = false;
+  syncSample = () => {
+    send.disabled = kinds.disabled = !ready || deleting || posting;
+    fresh.disabled = inFlight || deleting || posting;
+  };
+  const settle = (canSend: boolean, text: string, offerFresh = false) => {
     ready = canSend;
-    send.disabled = kinds.disabled = !canSend;
     send.textContent = 'Send a sample document';
     state.textContent = text;
+    fresh.hidden = !offerFresh;
+    syncSample();
   };
-  void request<SampleOptions>('/beta/samples').then(options => {
-    kinds.replaceChildren(...options.case_types.map(item => new Option(item.label, item.value)));
+  // Without the cookie, every sample would start a sandbox this browser could never open
+  // again, so nothing is sent.
+  if (!cookiesWork()) {
+    label.hidden = send.hidden = sandboxLine.hidden = true;
+    settle(false, NO_COOKIES);
+    return panel;
+  }
+  void loadSandbox().catch(() => {});
+  let listed = false;
+  const loadOptions = () => request<SampleOptions>('/beta/samples').then(options => {
+    if (!listed) kinds.replaceChildren(...options.case_types.map(item => new Option(item.label, item.value)));
+    listed = true;
     settle(options.state === 'ready', SAMPLE_STATES[options.state] || '');
-  }).catch(() => {
+  });
+  void loadOptions().catch(() => {
     // With no list there is nothing to pick or send, so only the status line remains.
     label.hidden = send.hidden = true;
     settle(false, 'Samples could not be loaded. Reload the page to try again.');
   });
+  // A refusal says to try again in a few minutes, so the page asks again by itself, and on
+  // Refresh queue. The server still refuses a send until it is ready.
+  recheckSamples = () => {
+    if (listed && !ready && !inFlight) void loadOptions().catch(() => {});
+  };
+  window.setInterval(recheckSamples, 30_000);
 
+  const run = (work: () => Promise<SampleResult>) => {
+    ready = false;
+    inFlight = true;
+    fresh.hidden = true;
+    void work()
+      .then(result => { inFlight = false; settle(result.canSend, result.text, result.startFresh); })
+      .catch(() => { inFlight = false; settle(true, 'The sample could not be sent. Try again.'); });
+  };
   send.addEventListener('click', () => {
-    if (!ready) return;
-    void sendSample(kinds.value, send, kinds, state)
-      .then(result => settle(result.canSend, result.text))
-      .catch(() => settle(true, 'The sample could not be sent. Try again.'));
+    if (!ready || deleting) return;
+    run(() => sendSample(kinds.value, send, kinds, state));
+  });
+  fresh.addEventListener('click', () => {
+    if (inFlight || deleting || posting) return;
+    const caseType = kinds.value;
+    run(async () => {
+      await deleteSandboxNow();
+      return sendSample(caseType, send, kinds, state);
+    });
   });
   return panel;
 }
-async function sendSample(caseType: string, send: HTMLButtonElement, kinds: HTMLSelectElement, state: HTMLElement) {
+type SampleResult = { canSend: boolean; text: string; startFresh?: boolean };
+async function sendSample(caseType: string, send: HTMLButtonElement, kinds: HTMLSelectElement, state: HTMLElement): Promise<SampleResult> {
   send.disabled = kinds.disabled = true;
   send.textContent = 'Sending…';
   state.textContent = '';
-  const response = await authorizedFetch('/beta/samples', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ case_type: caseType }),
-  });
+  posting = true;
+  syncControls();
+  let response: Response;
+  try {
+    response = await oneAtATime(() => authorizedFetch('/beta/samples', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ case_type: caseType }),
+    }));
+  } finally {
+    posting = false;
+    syncControls();
+  }
   const body = await response.json().catch(() => ({}));
   const detail = typeof body.detail === 'string' ? body.detail : '';
   if (response.status === 503) return { canSend: false, text: detail || SAMPLE_STATES.paused };
+  if (response.status === 409 && body.code === 'sandbox_ending') return { canSend: true, text: detail, startFresh: true };
+  if (response.status === 409 && body.code === 'sandbox_ended') {
+    // The answer spent the cookie, so nothing from that sandbox stays on the page.
+    sandboxEnds = undefined;
+    clearSandboxView();
+    showSandbox();
+    void refresh().catch(() => {});
+    return { canSend: true, text: detail };
+  }
   if (!response.ok) return { canSend: true, text: detail || 'The sample could not be sent. Try again.' };
   const id = String(body.document_id);
   state.textContent = 'Sample sent. Docket is reading it…';
+  // The first sample starts the sandbox.
+  void loadSandbox().catch(() => {});
   window.location.hash = id;
   // From here the sample exists, so no error below may suggest sending it again.
   try {

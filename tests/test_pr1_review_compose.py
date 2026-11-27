@@ -12,5 +12,5 @@ def test_compose_publishes_every_port_on_loopback_only():
         for port in spec.get("ports", [])
     ]
     assert {service for service, _ in ports} == {"postgres", "temporal", "seaweedfs", "api"}
-    assert len(ports) == 5
+    assert len(ports) == 6
     assert all(port.get("host_ip") == "127.0.0.1" for _, port in ports)

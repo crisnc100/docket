@@ -1,0 +1,16 @@
+{
+ "mode": "pr",
+ "purpose": "Replace the hosted beta's invite codes and shared nightly-reset queue with a private sandbox per browser, so anyone can try Docket with no sign-up, safely (Cristian: completely safe, but easy for the user).",
+ "mechanism": "docket/sandbox.py: a sandbox is created only by a request with no cookie (write_target); the httpOnly __Host- cookie's SHA-256 is stored, never the token; addresses are stored as keyed HMAC hashes (IPv6 per /64), 10 new sandboxes an hour per address; a cookie whose sandbox ended gets 409 sandbox_ended and a spent cookie; the last 5 minutes refuse with 409 sandbox_ending. owned_document and the route table in docket/review_access.py give every sandbox-scoped route the same 404 'Unknown document' for another visitor; ownership is checked before any request body is read. docket/ingress.py writes under a per-sandbox shared lock, keys sbx/<id>/raw/<sha>. docket/sweep.py: Delete now (DELETE /sandbox) and the sweep service delete rows, objects (vacuum after a 3 s settle) and Temporal histories; 200 says the last copies are erased within a few minutes, 202 when the sweep is stale; writes and reviews fail closed (503) while the sweep is stale; caps survive every cleanup. docket/beta.py refuses unsafe config (missing address key, review timeout above an hour). Two migrations. web/src/main.ts: countdown, Delete now, Start fresh, and one Web Lock around send and delete. Invite codes, sign-in and the nightly reset are removed. Local mode is unchanged.",
+ "decisions": "Refuse plus Start fresh replaces automatic rollover, so a browser has one sandbox (rejected: a cookie carrying several sandboxes). A stale tab's Delete now deletes the browser's current sandbox (rejected: 409 on mismatch). Delete now's wording admits that Temporal and SeaweedFS erase asynchronously (rejected: polling Temporal, a tombstone row). Web Locks ship in PR 1. The legacy cleanup `beta-sweep --all` runs only with writes stopped.",
+ "readers": "README and docs/adr -> people evaluating or self-hosting Docket; docs/operations.md -> the operator deploying and running the beta; code comments -> the next maintainer.",
+ "base": "origin/main",
+ "docMap": [
+  {"behavior": "private sandbox per browser, cookie rules, limits and address hashing", "docs": ["README.md", "docs/operations.md", "docs/adr/010-sandboxes.md"]},
+  {"behavior": "Delete now, the sweep, fail-closed writes and erase timing", "docs": ["README.md", "docs/operations.md", "docs/adr/010-sandboxes.md"]},
+  {"behavior": "deploy, upgrade and rollback steps", "docs": ["docs/operations.md", "README.md"]},
+  {"behavior": "invite codes, sign-in and the nightly reset removed", "docs": ["README.md", "docs/operations.md", "docs/adr/009-hosting.md"]},
+  {"behavior": "the sandbox page: countdown, Delete now, Start fresh, cookies blocked", "docs": ["DESIGN.md"]}
+ ],
+ "untouchable": ["evals/**", "builds/**"]
+}

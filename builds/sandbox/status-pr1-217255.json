@@ -1,0 +1,19 @@
+{
+ "f1": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f2": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "f3": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "x1": {
+  "status": "deferred",
+  "reason": "The beta Playwright run has a 240 s global cap covering all five tests, so on a very slow stack the multi-tab test may not get its full budget. A timeout would fail the run loudly, never pass it wrongly.",
+  "fix": "Raise globalTimeout for the beta project (and the 270 s container limit in test_beta_browser.py) to the sum of the per-test budgets."
+ }
+}

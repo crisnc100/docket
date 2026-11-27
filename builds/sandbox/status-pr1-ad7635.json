@@ -1,0 +1,27 @@
+{
+ "s1": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "s2": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "s3": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "s4": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "s5": {
+  "status": "fixed",
+  "response": "real"
+ },
+ "x1": {
+  "status": "deferred",
+  "reason": "The stale-sweep 202 copy says 'Deleted from Docket's database' even when Delete now only closed the sandbox after a 10 s lock timeout. The sandbox is closed and unreachable either way, and the next sweep deletes it; only the wording overclaims in that rare double fault (stale sweep plus lock timeout).",
+  "fix": "Choose the 202 copy from delete_now's result: 'Deleting; this finishes when the cleanup catches up' when the lock timed out."
+ }
+}
